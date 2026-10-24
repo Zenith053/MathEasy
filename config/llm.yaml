@@ -1,0 +1,43 @@
+# Shared LLM settings for the whole project.
+#
+# Every tutor condition (full tutor, B0, B1, B2) must run on exactly these
+# settings, so differences in results come from design, not from spend.
+# Change this file only by team agreement: a hash of it is written into every
+# log line, and the final shards are checked against one hash.
+
+provider: gemini          # "gemini", or "fake" to run without an API key
+
+models:
+  # The pinned backbone for every condition. Use a stable model ID, never a
+  # "-latest" alias or a "-preview" model, so the model can't change mid-project.
+  backbone: gemini-3.1-flash-lite
+  # Only for A's H3 comparison ("large prompted model"). Not used by the tutor.
+  large: gemini-2.5-pro
+
+generation:
+  temperature: 0.0        # deterministic by default; also enables the cache
+  max_output_tokens: 1024
+  seed: 20261016
+  # Thinking tokens are billed as output and count toward the session budget.
+  # null = the model's default; 0 = off (not every model allows 0).
+  thinking_budget: null
+
+budget:
+  # Tokens (input + output + thinking) one tutor session may spend.
+  # Placeholder until the pilot run tells us a realistic number.
+  session_tokens: 20000
+
+retry:
+  attempts: 4             # includes the first try
+  initial_delay_s: 1.0
+  max_delay_s: 30.0
+
+timeout_s: 60
+
+cache:
+  enabled: true           # only used when temperature is 0
+  dir: .cache/llm
+
+logging:
+  dir: runs/llm_logs      # one JSONL file per run
+  include_text: true      # full prompts and replies, needed for labelling

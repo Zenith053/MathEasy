@@ -1,0 +1,3 @@
+google-genai>=2.33,<3
+PyYAML>=6
+pytest>=8
