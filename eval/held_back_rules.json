@@ -1,0 +1,75 @@
+{
+  "seed": 20261016,
+  "pool_size": 49,
+  "held_back": {
+    "fractions": [
+      "fractions.denominator_comparison_error",
+      "fractions.subtract_across",
+      "ratios_proportions.each_fraction_digit_is_ratio"
+    ],
+    "decimals": [
+      "decimals.right_align_decimals",
+      "decimals.shorter_is_larger",
+      "percentages.percentage_as_index"
+    ],
+    "expressions": [
+      "algebra.change_side_change_sign",
+      "negative_numbers.multiplication_rule_for_addition",
+      "negative_numbers.negative_swaps_operation",
+      "negative_numbers.two_negatives_always_positive"
+    ]
+  },
+  "bank_candidates": [
+    "algebra.cancel_across_equals",
+    "algebra.distribute_over_non_distributive",
+    "algebra.divide_one_term_only",
+    "algebra.forget_negative_division",
+    "algebra.variable_letter_has_value",
+    "decimals.ignore_decimal_point",
+    "decimals.longer_is_larger",
+    "decimals.whole_number_thinking",
+    "factoring.incomplete_factoring",
+    "factoring.sign_errors_in_factoring",
+    "factoring.sum_of_squares_factors",
+    "fractions.add_numerators_denominators",
+    "fractions.common_denominator_numerator",
+    "fractions.ignore_denominators",
+    "fractions.keep_common_denominator_for_multiplication",
+    "fractions.multiply_across_for_division",
+    "fractions.natural_number_bias_numerator_only",
+    "linear_equations.confuse_slope_and_intercept_roles",
+    "linear_equations.slope_direction_confusion",
+    "linear_equations.slope_is_delta_x_over_delta_y",
+    "measurement.inverted_conversion_factor",
+    "measurement.wrong_conversion_factor",
+    "negative_numbers.larger_absolute_value_always_wins",
+    "negative_numbers.negative_times_negative_negative",
+    "order_of_operations.addition_before_subtraction_always",
+    "order_of_operations.ignore_parentheses",
+    "order_of_operations.multiplication_before_division_always",
+    "order_of_operations.pemdas_strictly_sequential",
+    "order_of_operations.strict_left_to_right",
+    "percentages.add_percentages_directly",
+    "percentages.percent_equals_decimal",
+    "percentages.reverse_percentage_error",
+    "ratios_proportions.additive_instead_of_multiplicative",
+    "ratios_proportions.ratio_as_division_only",
+    "ratios_proportions.swap_ratios_or_units",
+    "rounding.decimal_places_same_as_sig_figs",
+    "scientific_notation.add_coefficients_when_multiplying",
+    "scientific_notation.count_all_zeros_for_exponent",
+    "scientific_notation.wrong_exponent_sign"
+  ],
+  "eedi_status": {
+    "fractions.denominator_comparison_error": null,
+    "fractions.subtract_across": null,
+    "ratios_proportions.each_fraction_digit_is_ratio": null,
+    "decimals.right_align_decimals": null,
+    "decimals.shorter_is_larger": null,
+    "percentages.percentage_as_index": null,
+    "algebra.change_side_change_sign": null,
+    "negative_numbers.multiplication_rule_for_addition": null,
+    "negative_numbers.negative_swaps_operation": null,
+    "negative_numbers.two_negatives_always_positive": null
+  }
+}
