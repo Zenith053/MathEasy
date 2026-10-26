@@ -76,3 +76,24 @@ d.to_log()                          # JSON-safe record for the run logs
 - **What `diagnose()` needs from A and C** (`matheasy/diagnosis/interfaces.py`): a shortlister `shortlist(error: LocatedError, k) -> list[Candidate]`, and a student store with `misconception_prior(student_id, misconception_id) -> float | None`. Pass them as `diagnose(..., shortlister=..., store=...)`. Until A's shortlister exists, a stand-in ranks the bank's rules that reproduce the answer.
 - **Call order:** `check_step()` first; `diagnose()` only on a wrong step (it raises `StepIsCorrect` otherwise). When it returns a probe, ask it and call `diagnose()` again with `follow_ups=[FollowUp(probe, answer)]`; at most 2.
 - **Rules list and probe number ranges:** [docs/diagnosis_rules.md](docs/diagnosis_rules.md).
+
+## Simulated students and run logs
+
+Everything in `matheasy/evaluation` (owner: D). The week-1 student handles B's fraction rules.
+
+```python
+from matheasy.evaluation import SimStudent, LLMFeedbackJudge
+
+judge = LLMFeedbackJudge(llm.session(session_id, condition, budget_tokens=None))
+student = SimStudent("student-001", "fractions.add_numerators_denominators", judge=judge)
+
+reply = student.respond("Try this one: 1/2 + 1/3", item="1/2 + 1/3")
+reply.text, reply.answer            # 'I got 2/5.', '2/5'
+reply.to_log()                      # ground truth: followed_rule, holds_misconception, ...
+student.misconception_id, student.group   # for the session_start record
+```
+
+- **The rule decides every answer.** The student keeps its misconception until a tutor message targets it (the judge decides), then answers correctly. Use one `SimStudent` object for all of a student's sessions.
+- **`item`:** the runner passes the maths it asked as plain text, so the student never has to read it out of the tutor's prose.
+- **Required log fields:** `matheasy/evaluation/log_fields.py` lists every event the runner must write (`session_start`, `turn`, `diagnosis`, `hint`, `tool_call`, `test`, `session_end`), with the fields each needs and the metrics that read them. Check a run with `.venv/bin/python -m matheasy.evaluation runs/`.
+- **Tests vs probes:** `overlapping(test_items, probe_items)` lists test items that match a probe (same numbers and operations, in any order).
