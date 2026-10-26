@@ -5,3 +5,6 @@ __pycache__/
 .cache/
 runs/
 .env
+
+# Role A: Eedi (competition rules: never re-upload) and OpenStax downloads, rebuilt by the scripts
+data/

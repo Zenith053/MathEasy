@@ -1,3 +1,11 @@
 google-genai>=2.33,<3
 PyYAML>=6
 pytest>=8
+
+# Role A: data, build_query(), shortlist() and retrieve()
+pandas>=2.2
+sympy>=1.13
+lark>=1.1
+rank_bm25>=0.2.2
+beautifulsoup4>=4.12
+kaggle>=1.6
