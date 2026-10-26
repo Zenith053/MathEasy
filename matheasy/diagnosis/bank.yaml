@@ -1,0 +1,31 @@
+# Misconception bank (owner: B). IDs follow matheasy/diagnosis/ids.py:
+#   rule:<MalruleLib name>   runnable; the rule lives in matheasy/diagnosis/rules/
+#   eedi:<MisconceptionId>   known only as text
+#   slip                     a careless mistake; always a suspect
+#
+# `eedi` lists the Eedi MisconceptionIds a rule matches. It is filled in once A
+# shares the Eedi misconception list; until then every rule has an empty list.
+# Held-back rules (eval/held_back_rules.json) must never appear here.
+#
+# Week 1: three fraction rules. Rules are added topic by topic in week 2.
+
+misconceptions:
+  rule:fractions.add_numerators_denominators:
+    topic: fractions
+    text: Adds the numerators and adds the denominators, e.g. 1/2 + 1/3 = 2/5.
+    eedi: []
+
+  rule:fractions.keep_common_denominator_for_multiplication:
+    topic: fractions
+    text: Keeps the shared denominator when multiplying fractions, e.g. 2/5 × 3/5 = 6/5.
+    eedi: []
+
+  rule:fractions.multiply_across_for_division:
+    topic: fractions
+    text: Divides fractions by multiplying straight across without flipping the divisor, e.g. 2/3 ÷ 4/5 = 8/15.
+    eedi: []
+
+  slip:
+    topic: any
+    text: A careless mistake with no underlying misconception.
+    eedi: []

@@ -47,3 +47,32 @@ except BudgetExceeded:
 - **Logs:** one JSONL file per run in `runs/llm_logs/`. Every line carries the config hash so we can check all shards used the same settings.
 
 `config/llm.yaml` is shared. Change it only by team agreement.
+
+## Maths tools, rules and diagnosis
+
+Everything in `matheasy/diagnosis` (owner: B). These signatures are fixed; the week-1 versions handle fractions, and later versions keep the same calls.
+
+```python
+from matheasy.diagnosis import parse, equivalent, check_step, locate, run_rule, load_bank, diagnose
+
+parse("1/2 + 1/3")                  # tree in the order the student wrote it; ParseError if unreadable
+equivalent("2(x + 3)", "2x + 6")    # True: exact, also for equations and comparisons
+check_step("1/2 + 1/3", "2/5")      # False
+e = locate("1/2 + 1/3 + x", "2/5 + x")
+e.source, e.wrong, e.expected       # '1/2 + 1/3', '2/5', '5/6'  (None if the step is correct)
+e.to_dict()                         # topic, before, after, source, wrong, expected, difference
+
+run_rule("fractions.add_numerators_denominators", "1/2 + 1/3")   # '2/5'; None if the rule doesn't apply
+
+d = diagnose("1/2 + 1/3", "2/5", student_id="student-017")
+d.status, d.misconception           # 'clear', 'rule:fractions.add_numerators_denominators'
+d.probe                             # follow-up question to ask, or None (always None until week 3)
+d.to_log()                          # JSON-safe record for the run logs
+```
+
+- **Misconception IDs:** `rule:<MalruleLib name>` (runnable), `eedi:<MisconceptionId>` (text only), `slip`. See `matheasy/diagnosis/ids.py`.
+- **Bank:** `matheasy/diagnosis/bank.yaml`. `load_bank().for_eedi(n)` maps an Eedi misconception to its rules.
+- **Held-back rules** in `eval/held_back_rules.json` can never be registered as rules or put in the bank; both refuse.
+- **What `diagnose()` needs from A and C** (`matheasy/diagnosis/interfaces.py`): a shortlister `shortlist(error: LocatedError, k) -> list[Candidate]`, and a student store with `misconception_prior(student_id, misconception_id) -> float | None`. Pass them as `diagnose(..., shortlister=..., store=...)`. Until A's shortlister exists, a stand-in ranks the bank's rules that reproduce the answer.
+- **Call order:** `check_step()` first; `diagnose()` only on a wrong step (it raises `StepIsCorrect` otherwise). When it returns a probe, ask it and call `diagnose()` again with `follow_ups=[FollowUp(probe, answer)]`; at most 2.
+- **Rules list and probe number ranges:** [docs/diagnosis_rules.md](docs/diagnosis_rules.md).
