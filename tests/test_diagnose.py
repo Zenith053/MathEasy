@@ -3,7 +3,8 @@ import json
 import pytest
 
 from matheasy.diagnosis import (
-    MAX_FOLLOW_UPS, Candidate, FollowUp, ParseError, Probe, StepIsCorrect, check_step, diagnose,
+    MAX_FOLLOW_UPS, Candidate, EediShortlister, FollowUp, ParseError, Probe, StepIsCorrect, check_step, diagnose,
+    locate,
 )
 
 
@@ -48,6 +49,26 @@ def test_uses_the_given_shortlister():
     assert d.misconception == "eedi:6"
     assert list(d.beliefs) == ["eedi:6", "eedi:5"]
     assert d.beliefs["eedi:6"] == pytest.approx(0.75)
+
+
+def test_eedi_shortlister_builds_a_query_and_returns_eedi_ids():
+    queries = []
+
+    def shortlist(query, k=25):  # A's signature: (id, name, score), best first
+        queries.append(query)
+        return [(1287, "Adds numerators and denominators", 9.5), (42, "Something else", 1.0)][:k]
+
+    d = diagnose("1/2 + 1/3 + x", "2/5 + x", shortlister=EediShortlister(shortlist))
+    assert d.misconception == "eedi:1287"
+    assert queries == ["Topic: fractions | Before: 1/2 + 1/3 + x | Student wrote: 2/5 + x | Correct: x + 5/6 | "
+                       "Changed part: 5/6 -> 2/5 | "
+                       "Difference: student - correct = -13/30; student / correct = 12/25"]
+
+
+def test_eedi_query_for_an_equation():
+    from matheasy.diagnosis.interfaces import query
+    q = query(locate("x + 3 = 5", "x = 8"))
+    assert "Correct: x = 2" in q and "Changed part: x = 2 -> x = 8" in q
 
 
 def test_b2_mode():

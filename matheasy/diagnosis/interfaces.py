@@ -14,8 +14,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
+import sympy
+
 from .bank import Bank, load_bank
-from .maths import LocatedError, equivalent
+from .ids import eedi_id
+from .maths import LocatedError, Rel, equivalent
 from .rules import run_rule
 
 
@@ -50,6 +53,40 @@ class RuleShortlister:
             if predicted is not None and equivalent(predicted, error.wrong_node):
                 hits.append(Candidate(mid, 1.0))
         return hits[:k]
+
+
+class EediShortlister:
+    """A's shortlist() behind the Shortlister interface.
+
+    Builds the query with A's build_query() from the located error, so the live
+    tutor and training use the same query format, and returns eedi: IDs. Needs
+    A's Eedi data (data/eedi/raw/misconception_mapping.csv); see
+    matheasy/shortlister/prepare_eedi.py. Pass `shortlist` to use another ranker
+    with the same signature, e.g. the fine-tuned model.
+    """
+
+    def __init__(self, shortlist=None):
+        if shortlist is None:
+            from matheasy.shortlister import shortlist
+        self.shortlist = shortlist
+
+    def __call__(self, error: LocatedError, k: int = 25) -> list[Candidate]:
+        ranked = self.shortlist(query(error), k=k)
+        return [Candidate(eedi_id(mid), float(score)) for mid, _name, score in ranked]
+
+
+def query(error: LocatedError) -> str:
+    """The shortlister query for a located error, built with A's build_query()."""
+    from matheasy.shortlister.query import build_query, sympy_diff
+
+    difference = None
+    if not isinstance(error.wrong_node, Rel) and not isinstance(error.source_node, Rel):
+        difference = sympy_diff(error.wrong_node.to_sympy(), sympy.simplify(error.source_node.to_sympy()))
+    return build_query(
+        topic=error.topic, before=error.before, student=error.after, correct=error.correct,
+        changed=f"{error.expected} -> {error.wrong}",  # A's convention: correct -> student
+        difference=difference,  # None: build_query falls back to its own diff
+    )
 
 
 class NoMemory:

@@ -73,7 +73,7 @@ d.to_log()                          # JSON-safe record for the run logs
 - **Misconception IDs:** `rule:<MalruleLib name>` (runnable), `eedi:<MisconceptionId>` (text only), `slip`. See `matheasy/diagnosis/ids.py`.
 - **Bank:** `matheasy/diagnosis/bank.yaml`. `load_bank().for_eedi(n)` maps an Eedi misconception to its rules.
 - **Held-back rules** in `eval/held_back_rules.json` can never be registered as rules or put in the bank; both refuse.
-- **What `diagnose()` needs from A and C** (`matheasy/diagnosis/interfaces.py`): a shortlister `shortlist(error: LocatedError, k) -> list[Candidate]`, and a student store with `misconception_prior(student_id, misconception_id) -> float | None`. Pass them as `diagnose(..., shortlister=..., store=...)`. Until A's shortlister exists, a stand-in ranks the bank's rules that reproduce the answer.
+- **What `diagnose()` needs from A and C** (`matheasy/diagnosis/interfaces.py`): a shortlister `shortlist(error: LocatedError, k) -> list[Candidate]`, and a student store with `misconception_prior(student_id, misconception_id) -> float | None`. Pass them as `diagnose(..., shortlister=..., store=...)`. `EediShortlister()` wraps A's `shortlist()`: it builds the query with A's `build_query()` from `locate()`'s output and returns `eedi:` IDs. It needs A's Eedi data. Without a shortlister, a stand-in ranks the bank's rules that reproduce the answer.
 - **Call order:** `check_step()` first; `diagnose()` only on a wrong step (it raises `StepIsCorrect` otherwise). When it returns a probe, ask it and call `diagnose()` again with `follow_ups=[FollowUp(probe, answer)]`; at most 2.
 - **Rules list and probe number ranges:** [docs/diagnosis_rules.md](docs/diagnosis_rules.md).
 

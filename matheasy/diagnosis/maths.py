@@ -281,6 +281,7 @@ class LocatedError:
     topic: str      # fractions | decimals | expressions, of the wrong part
     before: str     # the line before the step, as parsed
     after: str      # the student's line
+    correct: str    # what the whole line should have become
     source: str     # the part of `before` the student changed
     wrong: str      # what the student wrote for that part
     expected: str   # what that part should have become
@@ -316,8 +317,9 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
     else:
         value = sympy.simplify(source.to_sympy())
         expected, difference = _sstr(value), _sstr(sympy.simplify(wrong.to_sympy() - value))
+    correct = _solved(b) if isinstance(b, Rel) else _sstr(sympy.simplify(b.to_sympy()))
     return LocatedError(
-        topic=topic_of(source, wrong), before=str(b), after=str(a),
+        topic=topic_of(source, wrong), before=str(b), after=str(a), correct=correct,
         source=str(source), wrong=str(wrong), expected=expected, difference=difference,
         source_node=source, wrong_node=wrong,
     )
