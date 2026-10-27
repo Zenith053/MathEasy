@@ -1,6 +1,8 @@
 # Diagnosis rules: which rules, in what order
 
-Owner: B. Status: week 1. Items marked **needs agreement** are proposals until the named role agrees.
+Owner: B. Status: end of week 1. Items marked **needs agreement** are proposals until the named role agrees.
+
+Week-1 check: `python -m matheasy.tutor` runs D's student holding `fractions.add_numerators_denominators` through C's orchestrator and B's `diagnose()`; the diagnosis is correct and the log passes D's checker.
 
 Rules re-implement [MalruleLib](https://github.com/sonkar-lab/malrulelib) (Chen, Liu and Sonkar, 2026, [arXiv:2601.03217](https://arxiv.org/abs/2601.03217)), keeping its names and its wrong answers but running on the student's own expression.
 
@@ -71,9 +73,8 @@ The hypothesis tester will report these pairs as `ambiguous` and never `clear`. 
 
 The 10 rules in `eval/held_back_rules.json` are never implemented here. The rule registry and the bank both refuse them, and a test checks this.
 
-## Probe and test items never overlap (needs agreement with D)
+## Probe and test items never overlap (agreed: D implemented it in `matheasy/evaluation/items.py`)
 
-Proposal:
 1. **Probes:** fractions use denominators 2–12 and numerators below the denominator. Decimals have at most two decimal places. Expression coefficients and constants are −12 to 12.
 2. **B publishes every probe item** (`probe_items()` in week 3, also used for A's shortlist cache). The probe bank is finite, so this is a complete list.
 3. **D's test generator rejects any item that matches a probe.** Two items match if they have the same operation on the same numbers, in any order. For example, 1/3 + 1/4 matches 1/4 + 1/3. D's checker runs this over the full test set.
