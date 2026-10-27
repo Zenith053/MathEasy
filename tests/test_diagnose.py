@@ -68,7 +68,7 @@ def test_eedi_shortlister_builds_a_query_and_returns_eedi_ids():
 def test_eedi_query_for_an_equation():
     from matheasy.diagnosis.interfaces import query
     q = query(locate("x + 3 = 5", "x = 8"))
-    assert "Correct: x = 2" in q and "Changed part: x = 2 -> x = 8" in q
+    assert "Correct: x = 2" in q and "Changed part: 2 -> 8" in q  # the exact wrong term
 
 
 def test_b2_mode():

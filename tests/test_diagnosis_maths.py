@@ -150,3 +150,57 @@ def test_locate_decimals_report_decimals():
 def test_locate_mixed_numbers():
     e = locate("1 1/2 + 2 1/4", "3 2/6")
     assert (e.topic, e.source, e.wrong, e.expected) == ("fractions", "1 1/2 + 2 1/4", "3 2/6", "15/4")
+
+
+# ---- narrowing to the changed part
+
+@pytest.mark.parametrize("before, after, source, wrong", [
+    ("2 × (1/2 + 1/3)", "2 × 2/5", "1/2 + 1/3", "2/5"),          # inside a product
+    ("x + 2(1/2 + 1/3)", "x + 2 × 2/5", "1/2 + 1/3", "2/5"),     # a copied term, then a product
+    ("(1/2 + 1/3)^2", "(2/5)^2", "1/2 + 1/3", "2/5"),            # inside a power
+    ("2(x+3) + 4x", "2x + 3 + 4x", "2(x + 3)", "2x + 3"),
+    ("2(x + 3) = 10", "2x + 3 = 10", "2(x + 3)", "2x + 3"),      # one side of an equation
+    ("6/8", "3/5", "6/8", "3/5"),                                # never inside a fraction
+])
+def test_locate_narrows_to_the_changed_part(before, after, source, wrong):
+    e = locate(before, after)
+    assert (e.source, e.wrong) == (source, wrong)
+
+
+# ---- the exact wrong term
+
+@pytest.mark.parametrize("before, after, wrong_term, expected_term", [
+    # expressions
+    ("1/2 + 1/3", "2/5", "2/5", "5/6"),
+    ("2(x + 3)", "2x + 3", "3", "6"),                 # multiplied only the first term
+    ("3(x - 1)", "3x - 1", "-1", "-3"),
+    ("2(x + 3)", "2x + 8", "8", "6"),
+    ("3x + 2x", "6x", "6x", "5x"),
+    ("3x + 2x + 4", "5x + 6", "6", "4"),
+    ("-(x - 2)", "-x - 2", "-2", "2"),
+    ("x(x + 2)", "x^2 + 2", "2", "2x"),               # an extra and a missing term become one pair
+    ("2(x + 3)", "2x", "(nothing)", "3"),             # a term left out
+    ("0.3 + 0.25", "0.28", "0.28", "0.55"),
+    # equations: terms moved, sides multiplied or divided
+    ("x + 3 = 5", "x = 5 + 3", "3", "-3"),            # moved without changing sign
+    ("x + 3 = 5", "x = 8", "8", "2"),
+    ("x - 4 = 6", "x = 2", "2", "10"),
+    ("5 = x + 3", "x = 8", "8", "2"),                 # sides swapped
+    ("2x + 4 = 10", "x + 4 = 5", "4", "2"),           # divided one term only
+    ("2x = 6", "x = 12", "12", "3"),                  # multiplied instead of divided
+    ("3x = 12", "x = 9", "9", "4"),
+    ("x/2 = 3", "x = 3/2", "3/2", "6"),
+    ("2x + 3 = 11", "2x = 14", "14", "8"),
+    ("4x - 2 = 2x + 6", "2x = 4", "4", "8"),
+    ("x + 1 < 5", "x < 6", "6", "4"),
+])
+def test_locate_finds_the_wrong_term(before, after, wrong_term, expected_term):
+    e = locate(before, after)
+    assert (e.wrong_term, e.expected_term) == (wrong_term, expected_term)
+
+
+def test_expected_values_read_like_student_maths():
+    e = locate("2(x + 3)", "2x + 3")
+    assert (e.expected, e.correct) == ("2x + 6", "2x + 6")
+    for text in (e.expected, e.correct, e.expected_term):
+        parse(text)  # every reported value parses back

@@ -84,7 +84,7 @@ def query(error: LocatedError) -> str:
         difference = sympy_diff(error.wrong_node.to_sympy(), sympy.simplify(error.source_node.to_sympy()))
     return build_query(
         topic=error.topic, before=error.before, student=error.after, correct=error.correct,
-        changed=f"{error.expected} -> {error.wrong}",  # A's convention: correct -> student
+        changed=f"{error.expected_term} -> {error.wrong_term}",  # A's convention: correct -> student
         difference=difference,  # None: build_query falls back to its own diff
     )
 

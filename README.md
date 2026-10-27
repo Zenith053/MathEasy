@@ -50,17 +50,21 @@ except BudgetExceeded:
 
 ## Maths tools, rules and diagnosis
 
-Everything in `matheasy/diagnosis` (owner: B). These signatures are fixed; the week-1 versions handle fractions, and later versions keep the same calls.
+Everything in `matheasy/diagnosis` (owner: B). These signatures are fixed; later versions keep the same calls.
 
 ```python
 from matheasy.diagnosis import parse, equivalent, check_step, locate, run_rule, load_bank, diagnose
 
 parse("1/2 + 1/3")                  # tree in the order the student wrote it; ParseError if unreadable
-equivalent("2(x + 3)", "2x + 6")    # True: exact, also for equations and comparisons
+parse("3 1/2"), parse("25%")        # mixed numbers and percentages; "50% of 20" means 50% × 20
+equivalent("2(x + 3)", "2x + 6")    # True: exact, also for equations and comparisons; 25% is 0.25, not 25
 check_step("1/2 + 1/3", "2/5")      # False
 e = locate("1/2 + 1/3 + x", "2/5 + x")
-e.source, e.wrong, e.expected       # '1/2 + 1/3', '2/5', '5/6'  (None if the step is correct)
-e.to_dict()                         # topic, before, after, source, wrong, expected, difference
+e.source, e.wrong, e.expected       # '1/2 + 1/3', '2/5', '5/6': the changed part (None if the step is correct)
+e = locate("2x + 4 = 10", "x + 4 = 5")
+e.wrong_term, e.expected_term       # '4', '2': the exact wrong term ("(nothing)" for a missing or extra term)
+e.to_dict()                         # topic, before, after, correct, source, wrong, expected, difference,
+                                    # wrong_term, expected_term
 
 run_rule("fractions.add_numerators_denominators", "1/2 + 1/3")   # '2/5'; None if the rule doesn't apply
 

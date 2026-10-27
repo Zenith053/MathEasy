@@ -335,6 +335,8 @@ class LocatedError:
     wrong: str      # what the student wrote for that part
     expected: str   # what that part should have become
     difference: str  # wrong - expected
+    wrong_term: str     # the exact term the student got wrong, as written; "(nothing)" if one is missing
+    expected_term: str  # what that term should be; "(nothing)" if it should not be there
     source_node: Node = field(compare=False, repr=False)
     wrong_node: Node = field(compare=False, repr=False)
 
@@ -347,9 +349,20 @@ class LocatedError:
 def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[LocatedError]:
     """Find the part of `before` the student got wrong in `after`. None if the step is correct.
 
-    Terms the student copied unchanged (or changed correctly) are paired off; what is
-    left on each side is the wrong part. Week-1 version: pairs terms of a sum, and
-    the two sides of a relation. Anything else is treated as one changed part.
+    Two levels, both in the result:
+
+    The changed part (source -> wrong), which rules run on. Parts the student copied
+    or changed correctly are stripped away: terms of a sum are paired off, and the
+    search goes inside brackets, products, quotients and powers while only one side
+    changed. 2 × (1/2 + 1/3) -> 2 × 2/5 gives 1/2 + 1/3 -> 2/5.
+
+    The wrong term (wrong_term -> expected_term). Both lines are expanded and
+    compared monomial by monomial; each monomial that differs is pinned on the
+    student's term that carries it. 2(x + 3) -> 2x + 3 gives 3, which should be 6.
+    For an equation the student may have multiplied or divided both sides, so every
+    factor that could explain the step is tried and the one with the fewest
+    mistakes kept: 2x + 4 = 10 -> x + 4 = 5 gives 4, which should be 2, and
+    x + 3 = 5 -> x = 5 + 3 gives 3, which should be -3.
     """
     b, a = parse(before), parse(after)
     if equivalent(b, a):
@@ -360,30 +373,39 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
         if len(changed) == 1:
             source, wrong = changed[0]
     if not isinstance(source, Rel) and not isinstance(wrong, Rel):
-        source, wrong = _unmatched_terms(source, wrong)
+        source, wrong = _narrow(source, wrong)
     topic = topic_of(source, wrong)
     decimal = topic == "decimals"  # show 0.7, not 7/10
     if isinstance(source, Rel) or isinstance(wrong, Rel):
         expected, difference = _solved(source), ""
     else:
         value = sympy.simplify(source.to_sympy())
+        if value.free_symbols:
+            value = sympy.expand(value)  # 2(x + 3) should become 2x + 6
         expected = _sstr(value, decimal)
         difference = _sstr(sympy.simplify(wrong.to_sympy() - value), decimal)
     correct = _solved(b) if isinstance(b, Rel) else _sstr(sympy.simplify(b.to_sympy()), decimal)
+    term = _wrong_term(source, wrong, decimal)
+    wrong_term, expected_term = term if term else (str(wrong), expected)
     return LocatedError(
         topic=topic, before=str(b), after=str(a), correct=correct,
         source=str(source), wrong=str(wrong), expected=expected, difference=difference,
+        wrong_term=wrong_term, expected_term=expected_term,
         source_node=source, wrong_node=wrong,
     )
 
 
 def _sstr(expr: sympy.Expr, decimal: bool = False) -> str:
-    """SymPy's text with ^ for powers; with decimal=True, a terminating fraction as a decimal (7/10 -> 0.7)."""
+    """SymPy's value written the way a student would (2x + 6, x^2); with decimal=True, a
+    terminating fraction as a decimal (7/10 -> 0.7)."""
     if decimal and isinstance(expr, sympy.Rational) and not expr.is_integer:
         text = _as_decimal(int(expr.p), int(expr.q))
         if text is not None:
             return text
-    return sympy.sstr(expr).replace("**", "^")
+    return _IMPLICIT_TIMES.sub("", sympy.sstr(expr).replace("**", "^"))
+
+
+_IMPLICIT_TIMES = re.compile(r"(?<=[\w)])\*(?=[A-Za-z(])")  # 2*x -> 2x, 2*(x + 1) -> 2(x + 1)
 
 
 def _as_decimal(p: int, q: int) -> Optional[str]:
@@ -441,6 +463,132 @@ def _unmatched_terms(b: Node, a: Node) -> tuple[Node, Node]:
                 tb.remove(match)
                 ta.remove(t)
     return _rebuild(tb), _rebuild(ta)
+
+
+def _narrow(b: Node, a: Node) -> tuple[Node, Node]:
+    """Strip what the student kept or got right, until only the changed part is left."""
+    while True:
+        if _fraction_like(b) or _fraction_like(a):  # a fraction is one number: don't go inside it
+            return b, a
+        if isinstance(b, Neg) and isinstance(a, Neg):
+            b, a = b.operand, a.operand
+            continue
+        if isinstance(b, BinOp) and isinstance(a, BinOp) and b.op == a.op and b.op in "*/^":
+            same_left, same_right = equivalent(b.left, a.left), equivalent(b.right, a.right)
+            if same_left and not same_right:
+                b, a = b.right, a.right
+                continue
+            if same_right and not same_left:
+                b, a = b.left, a.left
+                continue
+            return b, a
+        nb, na = _unmatched_terms(b, a)
+        if len(_terms(nb)) == len(_terms(b)) and len(_terms(na)) == len(_terms(a)):
+            return b, a
+        b, a = nb, na
+
+
+# ---------------------------------------------------------------- the exact wrong term
+
+NOTHING = "(nothing)"
+
+
+@dataclass(frozen=True)
+class _Term:
+    side: int            # +1 left side (or a plain expression), -1 right side of a relation
+    value: sympy.Expr    # its expanded value, with its sign, as it stands on its side
+    text: str            # as the student wrote it, with its sign
+
+
+def _side_terms(node: Node) -> list[_Term]:
+    sides = [(1, node.left), (-1, node.right)] if isinstance(node, Rel) else [(1, node)]
+    return [_Term(side, sympy.expand(sign * t.to_sympy()), str(t if sign > 0 else Neg(t)))
+            for side, part in sides for sign, t in _terms(part)]
+
+
+def _monomials(expr: sympy.Expr) -> dict[sympy.Expr, sympy.Expr]:
+    """2x + 6 -> {x: 2, 1: 6}."""
+    return {m: c for m, c in sympy.expand(expr).as_coefficients_dict().items() if c != 0}
+
+
+def _wrong_term(source: Node, wrong: Node, decimal: bool) -> Optional[tuple[str, str]]:
+    """(wrong_term, expected_term), or None if no single term can be blamed."""
+    if isinstance(source, Rel) != isinstance(wrong, Rel):
+        return None
+    before, after = _side_terms(source), _side_terms(wrong)
+    p_before = sympy.expand(sum((t.side * t.value for t in before), sympy.Integer(0)))
+    p_after = sympy.expand(sum((t.side * t.value for t in after), sympy.Integer(0)))
+
+    # Scale factors to try: 1 (terms moved or combined), and for a relation every
+    # factor that makes some monomial agree (both sides multiplied or divided).
+    factors = [sympy.Integer(1)]
+    if isinstance(source, Rel):
+        mb, ma = _monomials(p_before), _monomials(p_after)
+        for m in mb.keys() & ma.keys():
+            k = ma[m] / mb[m]
+            if k not in factors and (source.op == "=" or k > 0):  # an inequality only keeps its direction for k > 0
+                factors.append(k)
+    # The student's original monomials, for judging which repair is plausible.
+    seen = [(t.side, m * c) for t in before for m, c in _monomials(t.value).items()]
+
+    best = None
+    for k in factors:
+        diff = _monomials(p_after - k * p_before)
+        if not diff:
+            continue
+        pairs, unexplained = [], 0
+        for m, c in diff.items():
+            pick = _blame(m, m * c, after, seen, k, before)
+            if pick is None:
+                break
+            pair, explained = pick
+            pairs.append(pair)
+            unexplained += not explained
+        else:
+            # fewest wrong terms; then mistakes in numbers over mistakes in letter terms;
+            # then repairs that match something the student started with; then no scaling
+            score = (len(diff), sum(m != 1 for m in diff), unexplained, k != 1)
+            if best is None or score < best[0]:
+                best = (score, pairs)
+    if best is None:
+        return None
+    pairs = best[1]
+    extra = [p for p in pairs if p[1] == NOTHING]
+    missing = [p for p in pairs if p[0] == NOTHING]
+    if len(extra) == 1 and len(missing) == 1:  # 2 should not be there and 2x is missing: 2 should be 2x
+        pairs = [p for p in pairs if p not in (extra[0], missing[0])] + [(extra[0][0], missing[0][1])]
+    return ", ".join(_show_value(w, decimal) for w, _ in pairs), ", ".join(_show_value(e, decimal) for _, e in pairs)
+
+
+def _blame(monomial, delta, after: list[_Term], seen, k, before: list[_Term]):
+    """Which of the student's terms carries `delta` (the extra amount on monomial), and its repair.
+
+    Returns ((wrong, expected), explained) or None if a term that mixes several
+    monomials (an unexpanded bracket) is in the way.
+    """
+    holders = []
+    for t in after:
+        mono = _monomials(t.value)
+        if monomial in mono:
+            if len(mono) > 1:
+                return None
+            holders.append(t)
+    if not holders:
+        return (NOTHING, -delta), False  # a term is missing
+    copied = {(t.side, t.text) for t in before}
+
+    def plausible(t: _Term) -> bool:
+        repaired = t.value - t.side * delta
+        return any(sympy.simplify(repaired - k * value * side * t.side) == 0 for side, value in seen)
+
+    holders.sort(key=lambda t: (not plausible(t), (t.side, t.text) in copied if k == 1 else 0))
+    t = holders[0]
+    repaired = sympy.expand(t.value - t.side * delta)
+    return (t.text, NOTHING if repaired == 0 else repaired), plausible(t)
+
+
+def _show_value(v, decimal: bool) -> str:
+    return v if isinstance(v, str) else _sstr(v, decimal)
 
 
 def topic_of(*nodes: Node) -> str:
