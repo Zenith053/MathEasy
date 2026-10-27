@@ -12,10 +12,12 @@ as "1/3 + 1/2") and flattens "2/3 ÷ 4/5", so a rule could not see what the stud
 wrote. We parse with Python's ast into a small tree that keeps order and grouping,
 and use SymPy only to do the maths on it.
 
-Supported input: integers, decimals, fractions, + - × ÷ * / ^, brackets, letters as
-variables (2x, 3ab, 2(x + 1)), and one = < > <= >= per line. A typed "a/b" between
-plain integers is a fraction, so "2/3 ÷ 4/5" and "6 ÷ 2/3" mean what a student means.
-Not yet supported (raise ParseError): mixed numbers ("3 1/2") and percentages.
+Supported input: integers, decimals, fractions, mixed numbers (3 1/2), percentages
+(25%), + - × ÷ * / ^, brackets, letters as variables (2x, 3ab, 2(x + 1)), and one
+= < > <= >= per line. A typed "a/b" between plain integers is a fraction, so
+"2/3 ÷ 4/5" and "6 ÷ 2/3" mean what a student means. 25% is the number 1/4, so it
+equals 0.25 but not 25. Exponents above MAX_EXPONENT and lines longer than
+MAX_LENGTH are refused, so text from an LLM can never make equivalent() hang or crash.
 """
 
 from __future__ import annotations
@@ -51,6 +53,17 @@ class Num(Node):
 
     def to_sympy(self):
         return self.value
+
+
+@dataclass(frozen=True)
+class Mixed(Node):
+    """A mixed number such as 3 1/2, kept as written: (whole, numerator, denominator)."""
+    whole: int
+    num: int
+    den: int
+
+    def to_sympy(self):
+        return sympy.Integer(self.whole) + sympy.Rational(self.num, self.den)
 
 
 @dataclass(frozen=True)
@@ -108,12 +121,24 @@ def as_fraction(node: Node) -> Optional[tuple[int, int]]:
 
 
 def _is_int(node: Node) -> bool:
-    return isinstance(node, Num) and node.value.is_integer and "." not in node.text
+    return isinstance(node, Num) and node.text.isdigit()
+
+
+def _fraction_like(node: Node) -> bool:
+    return as_fraction(node) is not None or isinstance(node, Mixed)
 
 
 # ---------------------------------------------------------------- parsing
 
+MAX_EXPONENT = 50
+MAX_LENGTH = 300  # characters; a student's line is far shorter
+
 _SYMBOLS = {"×": "*", "·": "*", "−": "-", "–": "-", "≤": "<=", "≥": ">=", "^": "**"}
+# Mixed numbers and percentages become placeholder names (_m_3_1_2, _p_12_5) before
+# the other rewrites, so those cannot split them; _convert() turns them back.
+_MIXED_NUMBER = re.compile(r"(?<![\w.)/])(\d+)\s+(\d+)\s*/\s*(\d+)(?![\w.(])")
+_PERCENT = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?|\.\d+)\s*%")
+_OF = re.compile(r"(?<=[\d%])\s*\bof\b\s*")
 _MIXED = re.compile(r"\d\s+\d")
 _FUNCTION = re.compile(r"[A-Za-z]{2,}\s*\(")
 _FRACTION = re.compile(r"(?<![\w.)])(\d+)\s*/\s*(\d+)(?![\w.(])")
@@ -131,12 +156,19 @@ def parse(text: Union[str, Node]) -> Node:
     src = text.strip()
     if not src:
         raise ParseError("empty line")
-    if "%" in src:
-        raise ParseError("percentages are not supported yet")
+    if len(src) > MAX_LENGTH:
+        raise ParseError(f"line longer than {MAX_LENGTH} characters")
+    if "_" in src:
+        raise ParseError(f"cannot read {text!r}")
     for a, b in _SYMBOLS.items():
         src = src.replace(a, b)
+    src = _OF.sub(" * ", src)  # 50% of 20, 1/2 of 12
+    src = _MIXED_NUMBER.sub(r"_m_\1_\2_\3", src)
+    src = _PERCENT.sub(lambda m: "_p_" + m.group(1).replace(".", "_"), src)
+    if "%" in src:
+        raise ParseError(f"cannot read {text!r}")
     if _MIXED.search(src):
-        raise ParseError("mixed numbers are not supported yet")
+        raise ParseError(f"two numbers with nothing between them: {text!r}")
     if _FUNCTION.search(src):
         raise ParseError(f"cannot read {text!r}")  # print(1), sqrt(4): not a product of letters
     src = _FRACTION.sub(r"(\1/\2)", src)  # before ÷, so "6 ÷ 2/3" is 6 ÷ (2/3)
@@ -145,9 +177,9 @@ def parse(text: Union[str, Node]) -> Node:
     src = _EQUALS.sub("==", src)
     try:
         tree = ast.parse(src, mode="eval")
-    except SyntaxError as e:
+        return _convert(tree.body, src, text)
+    except (SyntaxError, RecursionError) as e:
         raise ParseError(f"cannot read {text!r}") from e
-    return _convert(tree.body, src, text)
 
 
 def _convert(n: ast.AST, src: str, original: str) -> Node:
@@ -157,7 +189,12 @@ def _convert(n: ast.AST, src: str, original: str) -> Node:
         return Rel(_RELOPS[type(n.ops[0])], _convert(n.left, src, original),
                    _convert(n.comparators[0], src, original))
     if isinstance(n, ast.BinOp) and type(n.op) in _BINOPS:
-        return BinOp(_BINOPS[type(n.op)], _convert(n.left, src, original), _convert(n.right, src, original))
+        node = BinOp(_BINOPS[type(n.op)], _convert(n.left, src, original), _convert(n.right, src, original))
+        if node.op == "^":
+            power = node.right.to_sympy()
+            if power.is_number and abs(power) > MAX_EXPONENT:
+                raise ParseError(f"exponent too large in {original!r}")
+        return node
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
         return Neg(_convert(n.operand, src, original))
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.UAdd):
@@ -165,6 +202,14 @@ def _convert(n: ast.AST, src: str, original: str) -> Node:
     if isinstance(n, ast.Constant) and type(n.value) in (int, float):
         written = ast.get_source_segment(src, n)
         return Num(sympy.Rational(written), written)
+    if isinstance(n, ast.Name) and n.id.startswith("_m_"):
+        whole, num, den = (int(part) for part in n.id[3:].split("_"))
+        if den == 0:
+            raise ParseError(f"zero denominator in {original!r}")
+        return Mixed(whole, num, den)
+    if isinstance(n, ast.Name) and n.id.startswith("_p_"):
+        written = n.id[3:].replace("_", ".")
+        return Num(sympy.Rational(written) / 100, f"{written}%")
     if isinstance(n, ast.Name) and n.id.isalpha() and n.id.isascii():
         node: Node = Sym(n.id[0])
         for letter in n.id[1:]:  # "ab" is a times b
@@ -182,14 +227,16 @@ def _prec(node: Node) -> int:
         if as_fraction(node):
             return 5
         return {"+": 1, "-": 1, "*": 2, "/": 2, "^": 4}[node.op]
-    if isinstance(node, Neg):
-        return 3
+    if isinstance(node, (Neg, Mixed)):
+        return 3  # brackets when raised to a power: (3 1/2)^2
     return 5
 
 
 def _show(node: Node) -> str:
     if isinstance(node, Num):
         return node.text
+    if isinstance(node, Mixed):
+        return f"{node.whole} {node.num}/{node.den}"
     if isinstance(node, Sym):
         return node.name
     if isinstance(node, Neg):
@@ -209,13 +256,15 @@ def _show(node: Node) -> str:
     right = right if _prec(node.right) > p else f"({right})"
     if node.op == "/":
         # a fraction divided by something reads as ÷, so it parses back the same way
-        if as_fraction(node.left) or as_fraction(node.right):
+        if _fraction_like(node.left) or _fraction_like(node.right):
             return f"{left} ÷ {right}"
         return f"{left}/{right}"
     if node.op == "*":
-        if not as_fraction(node.left) and _prec(node.right) >= p and _show(node.right)[0].isalpha():
+        # juxtapose only after a plain number, letter or bracket: never 1/2x, 3 1/2x or 25%x
+        joinable = not _fraction_like(node.left) and (left[-1].isalnum() or left[-1] == ")")
+        if joinable and _prec(node.right) >= p and _show(node.right)[0].isalpha():
             return f"{left}{_show(node.right)}"  # 2x, 3ab, 3x^2: no brackets needed, × is associative
-        if not as_fraction(node.left) and right.startswith("("):
+        if joinable and right.startswith("("):
             return f"{left}{right}"  # 2(x + 3)
         return f"{left} × {right}"
     return f"{left} {node.op} {right}"
@@ -312,21 +361,45 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
             source, wrong = changed[0]
     if not isinstance(source, Rel) and not isinstance(wrong, Rel):
         source, wrong = _unmatched_terms(source, wrong)
+    topic = topic_of(source, wrong)
+    decimal = topic == "decimals"  # show 0.7, not 7/10
     if isinstance(source, Rel) or isinstance(wrong, Rel):
         expected, difference = _solved(source), ""
     else:
         value = sympy.simplify(source.to_sympy())
-        expected, difference = _sstr(value), _sstr(sympy.simplify(wrong.to_sympy() - value))
-    correct = _solved(b) if isinstance(b, Rel) else _sstr(sympy.simplify(b.to_sympy()))
+        expected = _sstr(value, decimal)
+        difference = _sstr(sympy.simplify(wrong.to_sympy() - value), decimal)
+    correct = _solved(b) if isinstance(b, Rel) else _sstr(sympy.simplify(b.to_sympy()), decimal)
     return LocatedError(
-        topic=topic_of(source, wrong), before=str(b), after=str(a), correct=correct,
+        topic=topic, before=str(b), after=str(a), correct=correct,
         source=str(source), wrong=str(wrong), expected=expected, difference=difference,
         source_node=source, wrong_node=wrong,
     )
 
 
-def _sstr(expr: sympy.Expr) -> str:
+def _sstr(expr: sympy.Expr, decimal: bool = False) -> str:
+    """SymPy's text with ^ for powers; with decimal=True, a terminating fraction as a decimal (7/10 -> 0.7)."""
+    if decimal and isinstance(expr, sympy.Rational) and not expr.is_integer:
+        text = _as_decimal(int(expr.p), int(expr.q))
+        if text is not None:
+            return text
     return sympy.sstr(expr).replace("**", "^")
+
+
+def _as_decimal(p: int, q: int) -> Optional[str]:
+    """p/q written exactly as a decimal, or None if it does not terminate (1/3)."""
+    rest, places = q, 0
+    for factor in (2, 5):
+        count = 0
+        while rest % factor == 0:
+            rest //= factor
+            count += 1
+        places = max(places, count)
+    if rest != 1:
+        return None
+    digits = str(abs(p) * 10 ** places // q).rjust(places + 1, "0")
+    whole, frac = digits[:-places], digits[-places:].rstrip("0")
+    return f"{'-' if p < 0 else ''}{whole}.{frac}"
 
 
 def _solved(node: Node) -> str:
@@ -377,7 +450,7 @@ def topic_of(*nodes: Node) -> str:
     def walk(n: Node):
         if isinstance(n, Sym):
             found.add("expressions")
-        elif isinstance(n, Num) and "." in n.text:
+        elif isinstance(n, Num) and ("." in n.text or "%" in n.text):  # percentages are in the decimals topic
             found.add("decimals")
         for child in (getattr(n, k, None) for k in ("operand", "left", "right")):
             if child is not None:
