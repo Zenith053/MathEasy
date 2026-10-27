@@ -12,7 +12,8 @@ from matheasy.tutor import (
     Verdict, extract_answer, make_problem, run_session,
 )
 from matheasy.tutor.critic import TutorCritic
-from matheasy.tutor.placeholders import InMemoryStore, TemplateHinter
+from matheasy.tutor.placeholders import TemplateHinter
+from matheasy.tutor.store import InMemoryStore
 
 RULE = "fractions.add_numerators_denominators"
 PROBLEM = make_problem("p1", "1/2 + 1/3")

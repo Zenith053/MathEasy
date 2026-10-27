@@ -2,16 +2,15 @@
 with the same interface (see parts.py). Don't build on the logic in here.
 
     TemplateHinter   offline hinter         fixed wording, for demos and tests without an API key
-    InMemoryStore    -> student store and planner (week 2-3)
 
-The real hinter and critic are hinter.LLMHinter and critic.TutorCritic.
+The real parts: hinter.LLMHinter, critic.TutorCritic, store.JsonStudentStore.
 """
 
 from __future__ import annotations
 
 from typing import Callable, Optional, Sequence
 
-from .state import Hint, HintRequest, StudentMemory
+from .state import Hint, HintRequest
 
 
 class TemplateHinter:
@@ -34,19 +33,3 @@ class TemplateHinter:
             if passages:
                 citations = (passages[0]["ref"],)
         return Hint(text, citations)
-
-
-class InMemoryStore:
-    def __init__(self):
-        self._memories: dict[str, StudentMemory] = {}
-
-    def load(self, student_id: str) -> StudentMemory:
-        return self._memories.setdefault(student_id, StudentMemory(student_id))
-
-    def record(self, memory: StudentMemory, misconception_id: str) -> None:
-        memory.times_diagnosed[misconception_id] = memory.times_diagnosed.get(misconception_id, 0) + 1
-
-    def misconception_prior(self, student_id: str, misconception_id: str) -> Optional[float]:
-        """Placeholder until the planner: 0.8 if diagnosed before, else unknown."""
-        memory = self._memories.get(student_id)
-        return 0.8 if memory and memory.times_diagnosed.get(misconception_id) else None

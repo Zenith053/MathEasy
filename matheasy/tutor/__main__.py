@@ -18,7 +18,8 @@ from ..llm import LLMClient
 from . import Orchestrator, TurnLogger, make_problem, run_session
 from .critic import TutorCritic
 from .hinter import LLMHinter
-from .placeholders import InMemoryStore, TemplateHinter
+from .placeholders import TemplateHinter
+from .store import InMemoryStore
 
 RULE = "fractions.add_numerators_denominators"
 

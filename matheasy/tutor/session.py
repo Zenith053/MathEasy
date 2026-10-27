@@ -16,7 +16,7 @@ from typing import Sequence
 
 from ..diagnosis import ParseError, equivalent, parse, topic_of
 from ..evaluation import SimStudent, correct_answer
-from .orchestrator import Orchestrator
+from .parts import Tutor
 from .state import Problem, TutorState
 
 MAX_TURNS_PER_PROBLEM = 8
@@ -36,7 +36,7 @@ def make_problem(pid: str, question: str) -> Problem:
 
 
 def run_session(
-    tutor: Orchestrator,
+    tutor: Tutor,
     student: SimStudent,
     problems: Sequence[Problem],
     *,

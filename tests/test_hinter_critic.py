@@ -11,7 +11,8 @@ from matheasy.tutor import HintRequest, Orchestrator, TurnLogger, TutorState, ma
 from matheasy.tutor import describe, hinter as hinter_module
 from matheasy.tutor.critic import TutorCritic, leaks_answer
 from matheasy.tutor.hinter import LLMHinter
-from matheasy.tutor.placeholders import InMemoryStore, TemplateHinter
+from matheasy.tutor.placeholders import TemplateHinter
+from matheasy.tutor.store import InMemoryStore
 
 RULE = "fractions.add_numerators_denominators"
 PROBLEM = make_problem("p1", "1/2 + 1/3")

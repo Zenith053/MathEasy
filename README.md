@@ -101,3 +101,32 @@ student.misconception_id, student.group   # for the session_start record
 - **`item`:** the runner passes the maths it asked as plain text, so the student never has to read it out of the tutor's prose.
 - **Required log fields:** `matheasy/evaluation/log_fields.py` lists every event the runner must write (`session_start`, `turn`, `diagnosis`, `hint`, `tool_call`, `test`, `session_end`), with the fields each needs and the metrics that read them. Check a run with `.venv/bin/python -m matheasy.evaluation runs/`.
 - **Tests vs probes:** `overlapping(test_items, probe_items)` lists test items that match a probe (same numbers and operations, in any order).
+
+## The tutor, baselines and session runner
+
+Everything in `matheasy/tutor` (owner: C). Run a session end to end with `.venv/bin/python -m matheasy.tutor` (offline) or `--llm` (Gemini).
+
+```python
+from matheasy.llm import LLMClient
+from matheasy.retrieval import retrieve
+from matheasy.tutor import (Orchestrator, B0Tutor, LLMHinter, TutorCritic, JsonStudentStore,
+                            TurnLogger, make_problem, run_session)
+
+llm = LLMClient()
+log = TurnLogger(run_id="run-1", config_hash=llm.config.hash)    # runs/turn_logs/run-1.jsonl
+
+full = Orchestrator(LLMHinter(retrieve), TutorCritic(), JsonStudentStore("runs/students.json"), log)
+b2 = Orchestrator(LLMHinter(retrieve), TutorCritic(), JsonStudentStore("runs/students-b2.json"), log, mode="b2")
+b0 = B0Tutor(log)
+
+result = run_session(full, student, [make_problem("p1", "1/2 + 1/3")],
+                     session_id="s-001", condition="full", session_index=0,
+                     pre_items=[...], post_items=[...], llm_session=llm.session("s-001", "full"))
+result.ended_by, result.pre_correct, result.post_correct
+```
+
+- **One session** = pre-test, tutoring on each problem, post-test, with one token budget (`llm_session`). It writes D's `session_start`, `turn`, `test` and `session_end` records; the tutor writes `diagnosis` and `hint`.
+- **Every full-tutor message passes `TutorCritic`**: code checks first (leak check with B's `equivalent()`), then an LLM review of hints. After 2 rejected rewrites, or when the budget runs out, a safe template is sent.
+- **The hinter never sees a correct answer**: `HintRequest` has no field for one. It cites one of the textbook sections A's `retrieve()` returns.
+- **Tool wrappers** (`ToolBox(standard_tools(retrieve), log)`) check arguments against a schema, retry an unexpected error once, and log D's `tool_call` record. B1 will use them in week 3.
+- **B0** has no tools, retrieval, memory or critic; its diagnosis is free text in `stated_misconception`.

@@ -83,6 +83,7 @@ class TutorState:
     hints_given: int = 0
     diagnosis: Optional[Diagnosis] = None
     solved: bool = False
+    problem_start: int = 0  # index in transcript where the current problem began
 
     @property
     def item(self) -> Optional[str]:
@@ -97,5 +98,5 @@ class TutorReply:
     kind: MessageKind
     text: str
     item: Optional[str]  # the maths the student should answer, passed to D's student as `item`
-    critic_passed: bool
+    critic_passed: Optional[bool]  # None for conditions without a critic (b0, b1)
     done: bool  # the problem is solved
