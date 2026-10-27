@@ -18,11 +18,12 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional
 
-from ..diagnosis import FollowUp, ParseError, check_step, diagnose, load_bank, parse
+from ..diagnosis import FollowUp, ParseError, check_step, diagnose, parse
 from ..diagnosis import Diagnosis
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
+from .describe import misconception_text
 from .parts import Critic, Hinter, StudentStore
-from .state import HintRequest, MessageKind, Problem, TutorReply, TutorState, Utterance
+from .state import Hint, HintRequest, MessageKind, Problem, TutorReply, TutorState, Utterance
 from .turnlog import TurnLogger
 
 MAX_FOLLOWUPS = 2
@@ -54,6 +55,12 @@ def extract_answer(text: str) -> Optional[str]:
     return numbers[-1].strip() if numbers else None
 
 
+def with_citation(hint: Hint) -> str:
+    """The hint as the student sees it. The citation is added after the critic's leak
+    check, so a section number such as 4.5 can't be mistaken for an answer."""
+    return f"{hint.text} (See {hint.citations[0]}.)" if hint.citations else hint.text
+
+
 class Orchestrator:
     def __init__(
         self,
@@ -71,7 +78,6 @@ class Orchestrator:
         self.log = log
         self.mode = mode
         self.diagnose_fn = diagnose_fn
-        self.bank = load_bank()
 
     def start(self, state: TutorState, problem: Problem) -> TutorReply:
         """Pose a new problem. Returns the message for the student."""
@@ -157,7 +163,7 @@ class Orchestrator:
             topic=state.problem.topic,
             question=state.problem.question,
             student_answer=state.wrong_answer,
-            misconception=self.bank[diagnosis.misconception].text if clear else None,
+            misconception=misconception_text(diagnosis.misconception) if clear else None,
             wrong_part=f"{located.source} became {located.wrong}" if located else None,
         )
         state.probe = None
@@ -167,13 +173,14 @@ class Orchestrator:
         reasons: list[list[str]] = []
         for attempt in range(MAX_REWRITES + 1):
             try:
-                hint = self.hinter.hint(request, feedback or None)
-                verdict = self.critic.review(hint.text, "hint", state.problem)
+                hint = self.hinter.hint(request, feedback or None, llm=state.llm)
+                verdict = self.critic.review(hint.text, "hint", state.problem, request=request, llm=state.llm)
             except LLM_ERRORS as e:
                 return self._fallback(state, e, rewrites=attempt, critic_reasons=reasons)
             if verdict.passed:
-                reply = self._deliver(state, "hint", hint.text)
-                self.log.log(state, "hint", turn=state.turn, text=hint.text, citations=list(hint.citations),
+                text = with_citation(hint)
+                reply = self._deliver(state, "hint", text)
+                self.log.log(state, "hint", turn=state.turn, text=text, citations=list(hint.citations),
                              rewrites=attempt, safe_template=False, critic_reasons=reasons)
                 return reply
             feedback = list(verdict.reasons)
@@ -183,7 +190,7 @@ class Orchestrator:
     def _send(self, state: TutorState, kind: MessageKind, text: str) -> TutorReply:
         """Send a message that is not rewritten: question, probe or feedback."""
         try:
-            verdict = self.critic.review(text, kind, state.problem)
+            verdict = self.critic.review(text, kind, state.problem, llm=state.llm)
         except LLM_ERRORS as e:
             return self._fallback(state, e)
         if not verdict.passed:

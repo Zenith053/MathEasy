@@ -8,7 +8,7 @@ HintRequest, which has no field for one.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from ..diagnosis import Diagnosis, FollowUp, Probe
 
@@ -72,6 +72,7 @@ class TutorState:
     transcript: list[Utterance] = field(default_factory=list)
     turn: int = 0  # number of tutor messages sent this session
     budget_exhausted: bool = False
+    llm: Any = None  # the tutor's matheasy.llm Session: one token budget per session
 
     # The problem being worked now. Reset by Orchestrator.start().
     problem: Optional[Problem] = None

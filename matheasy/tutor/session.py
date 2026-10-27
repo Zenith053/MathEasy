@@ -50,7 +50,7 @@ def run_session(
 ) -> SessionResult:
     log = tutor.log
     state = TutorState(session_id=session_id, condition=condition, student_id=student.student_id,
-                       memory=tutor.store.load(student.student_id))
+                       memory=tutor.store.load(student.student_id), llm=llm_session)
     log.log(state, "session_start", session_index=session_index, student_group=student.group,
             planted=[student.misconception_id] if student.misconception_id else [], attack=None)
 

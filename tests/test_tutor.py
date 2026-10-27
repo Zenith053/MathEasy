@@ -11,7 +11,8 @@ from matheasy.tutor import (
     MAX_FOLLOWUPS, MAX_REWRITES, SAFE_TEMPLATE, Hint, HintRequest, Orchestrator, TurnLogger, TutorState,
     Verdict, extract_answer, make_problem, run_session,
 )
-from matheasy.tutor.placeholders import BasicCritic, InMemoryStore, TemplateHinter
+from matheasy.tutor.critic import TutorCritic
+from matheasy.tutor.placeholders import InMemoryStore, TemplateHinter
 
 RULE = "fractions.add_numerators_denominators"
 PROBLEM = make_problem("p1", "1/2 + 1/3")
@@ -23,7 +24,7 @@ def keyword_judge(message, misconception):
 
 def make_tutor(tmp_path, hinter=None, critic=None, store=None, **kwargs):
     log = TurnLogger("test", config_hash="abc123", log_dir=tmp_path)
-    return Orchestrator(hinter or TemplateHinter(), critic or BasicCritic(), store or InMemoryStore(), log, **kwargs)
+    return Orchestrator(hinter or TemplateHinter(), critic or TutorCritic(), store or InMemoryStore(), log, **kwargs)
 
 
 def records(tutor, event=None):
@@ -44,7 +45,7 @@ class RecordingHinter:
     def __init__(self, text="Check how you combined the denominators.", error=None):
         self.text, self.error, self.calls = text, error, []
 
-    def hint(self, request, feedback=None):
+    def hint(self, request, feedback=None, **_):
         self.calls.append((request, feedback))
         if self.error:
             raise self.error
@@ -57,7 +58,7 @@ class RejectingCritic:
     def __init__(self, n):
         self.n = n
 
-    def review(self, text, kind, problem):
+    def review(self, text, kind, problem, **_):
         if kind == "hint" and self.n > 0:
             self.n -= 1
             return Verdict(False, ("too vague",))
@@ -200,7 +201,7 @@ def test_b2_mode_reaches_the_diagnoser(tmp_path):
 
 
 def test_basic_critic_blocks_a_leaked_answer():
-    critic = BasicCritic()
+    critic = TutorCritic()
     assert not critic.review("The answer is 5/6.", "hint", PROBLEM).passed
     assert critic.review("Work out 1/2 + 1/3", "question", PROBLEM).passed
 
