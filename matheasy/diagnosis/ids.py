@@ -11,11 +11,13 @@ shortlist ranked over Eedi labels can be turned into runnable suspects.
 
 from __future__ import annotations
 
+import numbers
 import re
 
 SLIP = "slip"
 
 _RULE_NAME = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
+_EEDI_NUMBER = re.compile(r"^(0|[1-9][0-9]*)$")  # one spelling per number: no leading zeros
 
 
 def rule_id(name: str) -> str:
@@ -26,7 +28,10 @@ def rule_id(name: str) -> str:
 
 
 def eedi_id(misconception_id: int) -> str:
-    """1287 -> 'eedi:1287'."""
+    """1287 -> 'eedi:1287'. Only a non-negative whole number is accepted, so a bad ID fails here."""
+    if (isinstance(misconception_id, bool) or not isinstance(misconception_id, numbers.Integral)
+            or misconception_id < 0):
+        raise ValueError(f"not an Eedi MisconceptionId: {misconception_id!r}")
     return f"eedi:{int(misconception_id)}"
 
 
@@ -37,6 +42,6 @@ def split_id(mid: str) -> tuple[str, str]:
     kind, sep, value = mid.partition(":")
     if sep and kind == "rule" and _RULE_NAME.match(value):
         return kind, value
-    if sep and kind == "eedi" and value.isdigit():
+    if sep and kind == "eedi" and _EEDI_NUMBER.match(value):
         return kind, value
     raise ValueError(f"not a misconception ID: {mid!r} (expected rule:..., eedi:<n> or slip)")
