@@ -147,7 +147,8 @@ MAX_LENGTH = 300  # characters; a student's line is far shorter
 MAX_DEPTH = 100   # nested brackets and signs
 
 _INFIX = {"+": (20, 21), "-": (20, 21), "*": (30, 31), "/": (30, 31), "÷": (30, 31), "^": (50, 50)}
-_TIMES = (30, 31)  # "of", and writing side by side
+_TIMES = (30, 31)    # "of", and writing side by side: 2x, 2(x + 1)
+_LETTERS = (35, 36)  # letters side by side are one term: a/bc is a/(bc), but xy^2 is x × y^2
 _UNARY = 40
 
 _TOKEN = re.compile(r"""
@@ -182,7 +183,11 @@ def _tokenize(line: str) -> list[_Token]:
         elif m["let"] == "of" and tokens and tokens[-1].kind in ("num", "pct"):
             tokens.append(_Token("op", "*", pos, spaced))  # 50% of 20, 1/2 of 12
         elif m["let"]:
-            tokens.append(_Token("let", m["let"], pos, spaced))
+            word = m["let"]
+            if len(word) > 1 and line[m.end():].lstrip().startswith("("):
+                raise ParseError(f"cannot read {word}(...) at character {pos + 1} in {line!r}")  # sqrt(4)
+            for k, letter in enumerate(word):  # one token per letter, so xy^2 is x × y^2
+                tokens.append(_Token("let", letter, pos + k, spaced if k == 0 else False))
         else:
             name = _OP_NAMES.get(m["op"], m["op"])
             tokens.append(_Token("rel" if name in _RELATIONS else "op", name, pos, spaced))
@@ -290,10 +295,10 @@ class _Parser:
                     break
                 self.take()
                 left = self.binop(token, left, self.expression(right_power))
-            elif self.side_by_side(token):
-                if _TIMES[0] < min_power:
+            elif (powers := self.side_by_side(token)) is not None:
+                if powers[0] < min_power:
                     break
-                left = BinOp("*", left, self.expression(_TIMES[1]))
+                left = BinOp("*", left, self.expression(powers[1]))
             elif token.kind in ("num", "pct") and self.previous().kind in ("num", "pct"):
                 raise self.error("two numbers with nothing between them", token)
             else:
@@ -301,15 +306,20 @@ class _Parser:
         self.depth -= 1
         return left
 
-    def side_by_side(self, token: _Token) -> bool:
-        """Writing side by side means times: 2x, 2(x + 1), (x + 1)(x + 2), x(y + 1)."""
+    def side_by_side(self, token: _Token) -> Optional[tuple[int, int]]:
+        """Writing side by side means times: 2x, xy, 2(x + 1), (x + 1)(x + 2), x(y + 1).
+
+        Returns the binding powers, or None if the two cannot stand side by side.
+        """
         before = self.previous()
         opens = token.kind == "op" and token.text == "("
         if token.kind != "let" and not opens:
-            return False
+            return None
         if before.kind == "num" or (before.kind == "op" and before.text == ")"):
-            return True
-        return before.kind == "let" and opens
+            return _TIMES
+        if before.kind == "let" and token.kind == "let":
+            return None if token.spaced else _LETTERS  # xy, but "x y" is two letters with nothing between
+        return _TIMES if before.kind == "let" and opens else None
 
     def binop(self, token: _Token, left: Node, right: Node) -> Node:
         op = "/" if token.text == "÷" else token.text
@@ -343,12 +353,7 @@ class _Parser:
             return Num(sympy.Rational(written) / 100, token.text)
         if token.kind == "let":
             self.take()
-            if len(token.text) > 1 and self.is_op(0, "("):
-                raise self.error(f"cannot read {token.text}(...)", token)  # print(1), sqrt(4)
-            node: Node = Sym(token.text[0])
-            for letter in token.text[1:]:  # "ab" is a times b
-                node = BinOp("*", node, Sym(letter))
-            return node
+            return Sym(token.text)
         raise self.error(f"unexpected {token.text!r}", token)
 
     def number(self) -> Node:
@@ -371,6 +376,11 @@ class _Parser:
 
 
 # ---------------------------------------------------------------- printing
+
+_AFTER_DIVISION = re.compile(r"[/÷][\s-]*[\w.%]+$")  # text ending in a division: 22/7, a/b, 3 1/2, a/-x
+_TRAILING_WHOLE = re.compile(r"(?<![\d.])\d+$")    # text ending in a whole number: x^2, x/2
+_FUNCTION_LIKE = re.compile(r"[A-Za-z]{2}\s*\(")    # two letters before a bracket: read as a function call
+
 
 def _prec(node: Node) -> int:
     if isinstance(node, Rel):
@@ -407,17 +417,23 @@ def _show(node: Node) -> str:
     left = left if _prec(node.left) >= p else f"({left})"
     right = right if _prec(node.right) > p else f"({right})"
     if node.op == "/":
-        # a fraction divided by something reads as ÷, so it parses back the same way
-        if _fraction_like(node.left) or _fraction_like(node.right):
+        # ÷ wherever "/" would be read back as part of a fraction: 1/2 ÷ 3, x^2 ÷ 3 (not x^(2/3))
+        if (_fraction_like(node.left) or _fraction_like(node.right)
+                or (_TRAILING_WHOLE.search(left) and right[0].isdigit())):
             return f"{left} ÷ {right}"
         return f"{left}/{right}"
     if node.op == "*":
-        # juxtapose only after a plain number, letter or bracket: never 1/2x, 3 1/2x or 25%x
-        joinable = not _fraction_like(node.left) and (left[-1].isalnum() or left[-1] == ")")
+        # juxtapose only after a plain number, letter or bracket, and never after a division:
+        # not 1/2x, 22/7r, 3 1/2a, a/bc (each would be read back differently) or 25%x
+        joinable = (not _fraction_like(node.left) and (left[-1].isalnum() or left[-1] == ")")
+                    and not _AFTER_DIVISION.search(left))
+        # never create two letters before a bracket: xy(...) reads as a function, like sqrt(4)
         if joinable and _prec(node.right) >= p and _show(node.right)[0].isalpha():
-            return f"{left}{_show(node.right)}"  # 2x, 3ab, 3x^2: no brackets needed, × is associative
-        if joinable and right.startswith("("):
-            return f"{left}{right}"  # 2(x + 3)
+            joined = f"{left}{_show(node.right)}"  # 2x, 3ab, 3x^2: no brackets needed, × is associative
+            if not _FUNCTION_LIKE.search(joined):
+                return joined
+        if joinable and right.startswith("(") and not _FUNCTION_LIKE.search(left + right):
+            return f"{left}{right}"  # 2(x + 3), x(y + 1)
         return f"{left} × {right}"
     return f"{left} {node.op} {right}"
 

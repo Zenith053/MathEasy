@@ -2,8 +2,95 @@ import random
 import re
 
 import pytest
+import sympy
 
 from matheasy.diagnosis import ParseError, as_fraction, check_step, equivalent, locate, parse
+from matheasy.diagnosis.maths import BinOp, Mixed, Neg, Num, Sym
+
+a, b, c, r, x, y, E, M, C = sympy.symbols("a b c r x y E M C")
+R = sympy.Rational
+
+
+# ---- the meaning table: what each piece of notation MEANS, checked by value.
+# Printing tests cannot catch a wrong reading that prints back the same way
+# (a/bc read as (a/b)c did), so every notation decision is pinned here.
+
+@pytest.mark.parametrize("text, meaning", [
+    # letters written together are one term; a power belongs to the letter before it
+    ("a/bc", a / (b * c)),
+    ("ab/c", a * b / c),
+    ("a/bc^2", a / (b * c**2)),
+    ("xy^2", x * y**2),
+    ("2xy^2", 2 * x * y**2),
+    ("x^2y^3", x**2 * y**3),
+    ("(xy)^2", x**2 * y**2),
+    ("3ab", 3 * a * b),
+    ("3ab^2c", 3 * a * b**2 * c),
+    ("-xy", -x * y),
+    ("E = MC^2", sympy.Eq(E, M * C**2)),
+    # a number written before a letter multiplies like ×, left to right
+    ("1/2x", x / 2),
+    ("x/2y", x * y / 2),
+    ("2x/3", 2 * x / 3),
+    ("2 × 22/7 × r", R(44, 7) * r),
+    # signs and powers
+    ("-x^2", -x**2),
+    ("-2^2", -4),
+    ("2^3^2", 512),
+    ("2^-1", R(1, 2)),
+    # fractions, mixed numbers and percentages are single numbers
+    ("6 ÷ 2/3", 9),
+    ("2/3 ÷ 4/5", R(5, 6)),
+    ("12/3/4", 1),
+    ("1 - 2 - 3", -4),
+    ("3 1/2", R(7, 2)),
+    ("1 / 3 1/2", R(2, 7)),
+    ("25%", R(1, 4)),
+    ("50% of 20", 10),
+    # brackets
+    ("2(x + 3)", 2 * x + 6),
+    ("(x + 1)(x + 2)", (x + 1) * (x + 2)),
+    ("x(y + 1)", x * y + x),
+    ("2(30 + b) = 100", sympy.Eq(2 * b + 60, 100)),
+])
+def test_notation_means(text, meaning):
+    got = parse(text).to_sympy()
+    if isinstance(meaning, sympy.Equality):
+        assert isinstance(got, sympy.Equality)
+        assert sympy.simplify(got.lhs - meaning.lhs) == 0 and sympy.simplify(got.rhs - meaning.rhs) == 0
+    else:
+        assert sympy.simplify(got - meaning) == 0, f"{text} read as {got}, should be {meaning}"
+
+
+# ---- the meaning round trip: printing a tree and reading it back never changes its value.
+
+def _random_tree(rng: random.Random, depth: int):
+    if depth == 0 or rng.random() < 0.3:
+        return rng.choice([
+            Num(sympy.Integer(n), str(n)) for n in (1, 2, 3, 7, 12)
+        ] + [
+            BinOp("/", Num(sympy.Integer(1), "1"), Num(sympy.Integer(2), "2")),
+            BinOp("/", Num(sympy.Integer(22), "22"), Num(sympy.Integer(7), "7")),
+            Mixed(3, 1, 2), Num(R(1, 2), "0.5"), Num(R(1, 4), "25%"),
+            Sym("x"), Sym("y"), Sym("a"),
+        ])
+    kind = rng.choice(["+", "-", "*", "*", "/", "^", "neg"])
+    if kind == "neg":
+        return Neg(_random_tree(rng, depth - 1))
+    if kind == "^":
+        n = rng.choice([2, 3])
+        return BinOp("^", _random_tree(rng, depth - 1), Num(sympy.Integer(n), str(n)))
+    return BinOp(kind, _random_tree(rng, depth - 1), _random_tree(rng, depth - 1))
+
+
+def test_printing_never_changes_meaning():
+    rng = random.Random(20261029)
+    for _ in range(1500):
+        tree = _random_tree(rng, 3)
+        if tree.to_sympy().has(sympy.zoo, sympy.nan):  # divides by zero: no value to keep
+            continue
+        text = str(tree)
+        assert sympy.cancel(parse(text).to_sympy() - tree.to_sympy()) == 0, f"{text!r} lost the meaning of {tree!r}"
 
 
 @pytest.mark.parametrize("text, shown", [
