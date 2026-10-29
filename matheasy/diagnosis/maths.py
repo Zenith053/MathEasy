@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Optional, Union
 
 import sympy
@@ -71,6 +72,16 @@ class Sym(Node):
 
     def to_sympy(self):
         return sympy.Symbol(self.name)
+
+
+@dataclass(frozen=True)
+class Word(Node):
+    """A named quantity written as a word: Area (a known quantity word), or {rate} (marked)."""
+    name: str                         # lower case, so Area and area are one quantity
+    text: str = field(compare=False)  # as written
+
+    def to_sympy(self):
+        return sympy.Symbol(self.name)  # never clashes with a letter: a word has 2+ letters
 
 
 @dataclass(frozen=True)
@@ -141,10 +152,20 @@ def _fraction_like(node: Node) -> bool:
 #   a/b of two whole numbers      read as one number (a fraction) before any operator,
 #   whole + fraction (3 1/2)      so 2/3 ÷ 4/5 and 6 ÷ 2/3 mean what a student means
 #   25%                           a percentage is read with its number: 25% is 1/4
+#   π                             the constant π (22/7 and 3.14 are ordinary numbers)
+#   Area, {rate}                  a known quantity word, or any word in braces, is one
+#                                 quantity; other letters written together multiply
 
 MAX_EXPONENT = 50
 MAX_LENGTH = 300  # characters; a student's line is far shorter
 MAX_DEPTH = 100   # nested brackets and signs
+MIN_RUN = 4       # unknown runs this long or longer may be a word: xyzw or rate? (see notation_issue)
+
+QUANTITY_WORDS_FILE = Path(__file__).with_name("quantity_words.txt")
+QUANTITY_WORDS = frozenset(
+    w.strip().lower() for w in QUANTITY_WORDS_FILE.read_text().splitlines()
+    if w.strip() and not w.lstrip().startswith("#")
+)
 
 _INFIX = {"+": (20, 21), "-": (20, 21), "*": (30, 31), "/": (30, 31), "÷": (30, 31), "^": (50, 50)}
 _TIMES = (30, 31)    # "of", and writing side by side: 2x, 2(x + 1)
@@ -154,6 +175,8 @@ _UNARY = 40
 _TOKEN = re.compile(r"""
     (?P<space>\s+)
   | (?P<num>\d+(?:\.\d*)?|\.\d+)(?P<pct>\s*%)?
+  | (?P<brace>\{\s*(?P<braced>[A-Za-z]{2,})\s*\})
+  | (?P<pi>π)
   | (?P<let>[A-Za-z]+)
   | (?P<op>\*\*|<=|>=|==|[-+*/÷^()=<>×·−–≤≥])
 """, re.VERBOSE)
@@ -163,8 +186,8 @@ _RELATIONS = {"=", "<", ">", "<=", ">="}
 
 @dataclass(frozen=True)
 class _Token:
-    kind: str     # num | pct | let | op | rel
-    text: str     # as written (num, pct, let) or the operator's name (op, rel)
+    kind: str     # num | pct | let (one letter, or π) | word | op | rel
+    text: str     # as written (num, pct, let, word) or the operator's name (op, rel)
     pos: int      # where it starts in the line
     spaced: bool  # whitespace before it
 
@@ -180,14 +203,23 @@ def _tokenize(line: str) -> list[_Token]:
         elif m["num"]:
             kind, text = ("pct", m["num"] + "%") if m["pct"] else ("num", m["num"])
             tokens.append(_Token(kind, text, pos, spaced))
+        elif m["brace"]:  # {rate}: a word marked as one quantity
+            if line[m.end():].lstrip().startswith("("):
+                raise ParseError(f"cannot read {m['brace']}(...) at character {pos + 1} in {line!r}")
+            tokens.append(_Token("word", m["braced"], pos, spaced))
+        elif m["pi"]:
+            tokens.append(_Token("let", "π", pos, spaced))  # stands like a letter: 2πr
         elif m["let"] == "of" and tokens and tokens[-1].kind in ("num", "pct"):
             tokens.append(_Token("op", "*", pos, spaced))  # 50% of 20, 1/2 of 12
         elif m["let"]:
             word = m["let"]
             if len(word) > 1 and line[m.end():].lstrip().startswith("("):
                 raise ParseError(f"cannot read {word}(...) at character {pos + 1} in {line!r}")  # sqrt(4)
-            for k, letter in enumerate(word):  # one token per letter, so xy^2 is x × y^2
-                tokens.append(_Token("let", letter, pos + k, spaced if k == 0 else False))
+            if word.lower() in QUANTITY_WORDS:  # Area: one quantity
+                tokens.append(_Token("word", word, pos, spaced))
+            else:
+                for k, letter in enumerate(word):  # one token per letter, so xy^2 is x × y^2
+                    tokens.append(_Token("let", letter, pos + k, spaced if k == 0 else False))
         else:
             name = _OP_NAMES.get(m["op"], m["op"])
             tokens.append(_Token("rel" if name in _RELATIONS else "op", name, pos, spaced))
@@ -313,6 +345,11 @@ class _Parser:
         """
         before = self.previous()
         opens = token.kind == "op" and token.text == "("
+        after_number = before.kind == "num" or (before.kind == "op" and before.text == ")")
+        if token.kind == "word":  # 2Area, (n + 1){cost}; but a word never runs into letters
+            return _TIMES if after_number else None
+        if before.kind == "word":  # Area x, Area(…): write Area × x
+            return None
         if token.kind != "let" and not opens:
             return None
         if before.kind == "num" or (before.kind == "op" and before.text == ")"):
@@ -353,7 +390,10 @@ class _Parser:
             return Num(sympy.Rational(written) / 100, token.text)
         if token.kind == "let":
             self.take()
-            return Sym(token.text)
+            return Num(sympy.pi, "π") if token.text == "π" else Sym(token.text)
+        if token.kind == "word":
+            self.take()
+            return Word(token.text.lower(), token.text)
         raise self.error(f"unexpected {token.text!r}", token)
 
     def number(self) -> Node:
@@ -375,11 +415,92 @@ class _Parser:
         return num
 
 
+def unknown_runs(line: str) -> list[str]:
+    """Letters written together, MIN_RUN or more, that are not a known quantity word.
+
+    Each could be a word (rate) or letters multiplied (xyzw); only the writer knows.
+    Shorter runs (3ab, 2xy) are letters multiplied, and known words (Area) and words
+    in braces ({rate}) are already decided.
+    """
+    try:
+        tokens = _tokenize(line.strip())
+    except ParseError:
+        return []
+    runs, run = [], ""
+    for token in tokens + [_Token("op", "end", len(line), True)]:
+        if token.kind == "let" and token.text != "π" and run and not token.spaced:
+            run += token.text
+            continue
+        if len(run) >= MIN_RUN and run not in runs:
+            runs.append(run)
+        run = token.text if token.kind == "let" and token.text != "π" else ""
+    return runs
+
+
+def notation_issue(line: str) -> Optional[str]:
+    """Why `line` is not standard notation (docs/input_notation.md), or None if it is.
+
+    parse() gives every line it accepts one fixed reading. This flags the lines whose
+    reading rests on a convention the writer may not share (1/2x, x/2y, a^bc, x^2y,
+    x^2/3, an unknown run of letters such as xyzw or fuel), and lines parse() cannot
+    read at all. a/bc is standard: letters written together are one term.
+    """
+    try:
+        parse(line)
+    except ParseError as e:
+        return f"cannot read: {e}"
+    runs = unknown_runs(line)
+    if runs:
+        return f"is {runs[0]!r} one quantity or letters multiplied? write {{{runs[0]}}} for one quantity"
+    tokens = _tokenize(line.strip())
+    for i, token in enumerate(tokens):
+        if token.kind != "op" or token.text not in ("^", "/", "÷"):
+            continue
+        j = i + 1
+        while j < len(tokens) and tokens[j].kind == "op" and tokens[j].text in ("-", "+"):
+            j += 1  # a sign belongs to the exponent or divisor: x^-2, 6 ÷ -2
+        if j >= len(tokens) or (tokens[j].kind == "op" and tokens[j].text == "("):
+            continue  # a bracketed exponent or divisor is always standard
+        after = tokens[j + 1] if j + 1 < len(tokens) else None
+        if after is None:
+            continue
+        follows = after.kind in ("let", "num", "pct") or (after.kind == "op" and after.text == "(")
+        if token.text == "^":
+            if follows:
+                return "an exponent of more than one term needs brackets: a^(bc), or a^b × c"
+            if after.kind == "op" and after.text == "/":  # x^2/3 and e^2/a: is the division in the exponent?
+                return "a division after an exponent needs brackets: x^(2/3) or e^(2/a), or x^2 ÷ 3"
+        elif after.kind == "let" or (after.kind == "op" and after.text == "("):
+            if tokens[j].kind == "let" and after.kind == "let" and not after.spaced:
+                continue  # a/bc: letters written together are one term, so it means a/(bc)
+            return "a divisor that mixes numbers and letters needs brackets: x/(2y), or 1/2 × x"
+    return None
+
+
 # ---------------------------------------------------------------- printing
 
 _AFTER_DIVISION = re.compile(r"[/÷][\s-]*[\w.%]+$")  # text ending in a division: 22/7, a/b, 3 1/2, a/-x
 _TRAILING_WHOLE = re.compile(r"(?<![\d.])\d+$")    # text ending in a whole number: x^2, x/2
 _FUNCTION_LIKE = re.compile(r"[A-Za-z]{2}\s*\(")    # two letters before a bracket: read as a function call
+_LETTER_RUN = re.compile(r"[A-Za-z]{2,}")
+
+
+def _ends_with_power(node: Node) -> bool:
+    """The printed node ends with an exponent, so nothing may be written straight after it: x^2 × y."""
+    while True:
+        if isinstance(node, BinOp) and node.op == "^":
+            return True
+        if isinstance(node, BinOp) and node.op in ("*", "/") and not as_fraction(node):
+            node = node.right  # a product or division is printed ending with its right side: ÷ 7^2
+        elif isinstance(node, Neg):
+            node = node.operand
+        else:
+            return False
+
+
+def _reads_as_word(text: str) -> bool:
+    """Text holding letters that would be read back as a word, or flagged as a possible one."""
+    return any(len(run) >= MIN_RUN or run.lower() in QUANTITY_WORDS for run in _LETTER_RUN.findall(text))
 
 
 def _prec(node: Node) -> int:
@@ -401,6 +522,8 @@ def _show(node: Node) -> str:
         return f"{node.whole} {node.num}/{node.den}"
     if isinstance(node, Sym):
         return node.name
+    if isinstance(node, Word):
+        return node.text if node.name in QUANTITY_WORDS else f"{{{node.text}}}"
     if isinstance(node, Neg):
         inner = _show(node.operand)
         return f"-{inner}" if _prec(node.operand) > 3 else f"-({inner})"
@@ -412,13 +535,14 @@ def _show(node: Node) -> str:
     left, right = _show(node.left), _show(node.right)
     if node.op == "^":
         left = left if _prec(node.left) > p else f"({left})"
-        right = right if _prec(node.right) >= p else f"({right})"
+        right = right if _prec(node.right) >= p and not _fraction_like(node.right) else f"({right})"  # x^(1/2)
         return f"{left}^{right}"
     left = left if _prec(node.left) >= p else f"({left})"
     right = right if _prec(node.right) > p else f"({right})"
     if node.op == "/":
-        # ÷ wherever "/" would be read back as part of a fraction: 1/2 ÷ 3, x^2 ÷ 3 (not x^(2/3))
-        if (_fraction_like(node.left) or _fraction_like(node.right)
+        # ÷ wherever "/" would be read back as part of a fraction (1/2 ÷ 3), or after an exponent,
+        # where "/" could be read as part of it: x^2 ÷ 3 and e^2 ÷ a, not x^2/3 or e^2/a
+        if (_fraction_like(node.left) or _fraction_like(node.right) or _ends_with_power(node.left)
                 or (_TRAILING_WHOLE.search(left) and right[0].isdigit())):
             return f"{left} ÷ {right}"
         return f"{left}/{right}"
@@ -426,13 +550,15 @@ def _show(node: Node) -> str:
         # juxtapose only after a plain number, letter or bracket, and never after a division:
         # not 1/2x, 22/7r, 3 1/2a, a/bc (each would be read back differently) or 25%x
         joinable = (not _fraction_like(node.left) and (left[-1].isalnum() or left[-1] == ")")
-                    and not _AFTER_DIVISION.search(left))
-        # never create two letters before a bracket: xy(...) reads as a function, like sqrt(4)
+                    and not _AFTER_DIVISION.search(left) and not _ends_with_power(node.left))
+        # never create two letters before a bracket: xy(...) reads as a function, like sqrt(4);
+        # never run letters into a word or an unknown run: a × g × e is not age, 2 × Area not 2Area
         if joinable and _prec(node.right) >= p and _show(node.right)[0].isalpha():
             joined = f"{left}{_show(node.right)}"  # 2x, 3ab, 3x^2: no brackets needed, × is associative
-            if not _FUNCTION_LIKE.search(joined):
+            if not _FUNCTION_LIKE.search(joined) and not _reads_as_word(joined):
                 return joined
-        if joinable and right.startswith("(") and not _FUNCTION_LIKE.search(left + right):
+        if (joinable and right.startswith("(") and not _FUNCTION_LIKE.search(left + right)
+                and not _reads_as_word(left + right)):
             return f"{left}{right}"  # 2(x + 3), x(y + 1)
         return f"{left} × {right}"
     return f"{left} {node.op} {right}"
@@ -764,7 +890,7 @@ def topic_of(*nodes: Node) -> str:
     found = set()
 
     def walk(n: Node):
-        if isinstance(n, Sym):
+        if isinstance(n, (Sym, Word)):
             found.add("expressions")
         elif isinstance(n, Num) and ("." in n.text or "%" in n.text):  # percentages are in the decimals topic
             found.add("decimals")

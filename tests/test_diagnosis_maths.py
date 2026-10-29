@@ -4,8 +4,8 @@ import re
 import pytest
 import sympy
 
-from matheasy.diagnosis import ParseError, as_fraction, check_step, equivalent, locate, parse
-from matheasy.diagnosis.maths import BinOp, Mixed, Neg, Num, Sym
+from matheasy.diagnosis import ParseError, as_fraction, check_step, equivalent, locate, notation_issue, parse
+from matheasy.diagnosis.maths import BinOp, Mixed, Neg, Num, Sym, Word
 
 a, b, c, r, x, y, E, M, C = sympy.symbols("a b c r x y E M C")
 R = sympy.Rational
@@ -52,6 +52,15 @@ R = sympy.Rational
     ("(x + 1)(x + 2)", (x + 1) * (x + 2)),
     ("x(y + 1)", x * y + x),
     ("2(30 + b) = 100", sympy.Eq(2 * b + 60, 100)),
+    # π, and quantity words: a known word, or any word in braces, is one quantity
+    ("2πr", 2 * sympy.pi * r),
+    ("πr^2", sympy.pi * r**2),
+    ("Area = 2πR", sympy.Eq(sympy.Symbol("area"), 2 * sympy.pi * sympy.Symbol("R"))),
+    ("AREA + area", 2 * sympy.Symbol("area")),
+    ("2Area", 2 * sympy.Symbol("area")),
+    ("{fuel} × 3", 3 * sympy.Symbol("fuel")),
+    ("xyzw", x * y * sympy.Symbol("z") * sympy.Symbol("w")),  # an unknown run is letters multiplied
+    ("a × g × e", a * sympy.Symbol("g") * sympy.Symbol("e")),
 ])
 def test_notation_means(text, meaning):
     got = parse(text).to_sympy()
@@ -99,14 +108,17 @@ def _random_tree(rng: random.Random, depth: int):
             BinOp("/", Num(sympy.Integer(1), "1"), Num(sympy.Integer(2), "2")),
             BinOp("/", Num(sympy.Integer(22), "22"), Num(sympy.Integer(7), "7")),
             Mixed(3, 1, 2), Num(R(1, 2), "0.5"), Num(R(1, 4), "25%"),
-            Sym("x"), Sym("y"), Sym("a"),
+            Sym("x"), Sym("y"), Sym("a"), Sym("g"), Sym("e"),
+            Word("area", "Area"), Word("fuel", "fuel"), Num(sympy.pi, "π"),
         ])
     kind = rng.choice(["+", "-", "*", "*", "/", "^", "neg"])
     if kind == "neg":
         return Neg(_random_tree(rng, depth - 1))
     if kind == "^":
-        n = rng.choice([2, 3])
-        return BinOp("^", _random_tree(rng, depth - 1), Num(sympy.Integer(n), str(n)))
+        n = rng.choice([2, 3, "1/2"])
+        power = (BinOp("/", Num(sympy.Integer(1), "1"), Num(sympy.Integer(2), "2")) if n == "1/2"
+                 else Num(sympy.Integer(n), str(n)))
+        return BinOp("^", _random_tree(rng, depth - 1), power)
     return BinOp(kind, _random_tree(rng, depth - 1), _random_tree(rng, depth - 1))
 
 
@@ -118,6 +130,7 @@ def test_printing_never_changes_meaning():
             continue
         text = str(tree)
         assert sympy.cancel(parse(text).to_sympy() - tree.to_sympy()) == 0, f"{text!r} lost the meaning of {tree!r}"
+        assert notation_issue(text) is None, f"printed {text!r} is not standard: {notation_issue(text)}"
 
 
 @pytest.mark.parametrize("text, shown", [

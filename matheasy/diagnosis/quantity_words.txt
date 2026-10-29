@@ -1,0 +1,71 @@
+# Quantity words: a student who writes one of these means one named quantity,
+# not letters multiplied (Area = 2πR, not A·r·e·a). One word per line, any case.
+#
+# Generated with an LLM, then to be reviewed by a person before the final runs.
+# Rules for adding a word: at least 3 letters; a word a student would use to name
+# a quantity in fractions, decimals, algebra or measurement problems; not a word
+# that is also a natural product of letters in algebra. Letter runs not listed here
+# are read as letters multiplied (3ab), except that runs of 4 or more letters are
+# checked with the LLM (xyzw or rate?) and marked in braces when they are words.
+
+# measurement and geometry
+angle
+area
+base
+breadth
+capacity
+circumference
+depth
+diameter
+distance
+height
+length
+mass
+perimeter
+radius
+side
+speed
+temperature
+time
+velocity
+volume
+weight
+width
+
+# money
+amount
+balance
+budget
+change
+cost
+discount
+fee
+income
+interest
+loss
+pay
+price
+principal
+profit
+salary
+savings
+spend
+tax
+total
+wage
+
+# counting and statistics
+age
+average
+count
+marks
+mean
+median
+number
+population
+quantity
+ratio
+rate
+score
+share
+sum
