@@ -15,9 +15,24 @@ def test_ids():
     assert split_id("rule:fractions.x") == ("rule", "fractions.x")
     assert split_id("eedi:12") == ("eedi", "12")
     assert split_id(SLIP) == ("slip", "")
-    for bad in ["fractions.x", "rule:Fractions", "eedi:abc", "Slip"]:
+    for bad in ["fractions.x", "rule:Fractions", "eedi:abc", "Slip",
+                "eedi:007", "eedi:-5", "eedi:", "eedi:٣"]:  # leading zeros, negatives, non-ASCII digits
         with pytest.raises(ValueError):
             split_id(bad)
+
+
+def test_eedi_id_accepts_only_whole_numbers():
+    import numpy as np
+    assert eedi_id(0) == "eedi:0"
+    assert eedi_id(np.int64(1287)) == "eedi:1287"  # pandas columns give numpy integers
+    for bad in [-5, 3.7, True, "12", None]:
+        with pytest.raises(ValueError):
+            eedi_id(bad)
+
+
+def test_every_built_id_splits_back():
+    for mid in [rule_id("fractions.add_numerators_denominators"), eedi_id(0), eedi_id(1287), SLIP]:
+        split_id(mid)
 
 
 # ---- rules: MalruleLib's own examples, then the student's own expressions
