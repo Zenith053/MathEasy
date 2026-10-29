@@ -9,8 +9,8 @@
 
 SymPy's own parser reorders terms even with evaluate=False ("1/2 + 1/3" comes back
 as "1/3 + 1/2") and flattens "2/3 ÷ 4/5", so a rule could not see what the student
-wrote. We parse with Python's ast into a small tree that keeps order and grouping,
-and use SymPy only to do the maths on it.
+wrote. We parse with our own small Pratt parser into a tree that keeps order and
+grouping, and use SymPy only to do the maths on it.
 
 Supported input: integers, decimals, fractions, mixed numbers (3 1/2), percentages
 (25%), + - × ÷ * / ^, brackets, letters as variables (2x, 3ab, 2(x + 1)), and one
@@ -22,7 +22,6 @@ MAX_LENGTH are refused, so text from an LLM can never make equivalent() hang or 
 
 from __future__ import annotations
 
-import ast
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Optional, Union
@@ -129,93 +128,246 @@ def _fraction_like(node: Node) -> bool:
 
 
 # ---------------------------------------------------------------- parsing
+#
+# A Pratt parser: each operator has a binding power, and an operand belongs to
+# whichever neighbouring operator binds tighter. Student notation is handled where
+# it is read, not by rewriting the text first:
+#
+#   = < > <= >=                   relation, lowest, at most one per line
+#   + -                    20     left to right
+#   × ÷ * /  "of"  2x 2(x+1)  30  left to right; "of" and writing side by side mean ×
+#   unary - +              40     -x^2 is -(x^2), as in maths
+#   ^ **                   50     right to left: 2^3^2 is 2^(9)
+#   a/b of two whole numbers      read as one number (a fraction) before any operator,
+#   whole + fraction (3 1/2)      so 2/3 ÷ 4/5 and 6 ÷ 2/3 mean what a student means
+#   25%                           a percentage is read with its number: 25% is 1/4
 
 MAX_EXPONENT = 50
 MAX_LENGTH = 300  # characters; a student's line is far shorter
+MAX_DEPTH = 100   # nested brackets and signs
 
-_SYMBOLS = {"×": "*", "·": "*", "−": "-", "–": "-", "≤": "<=", "≥": ">=", "^": "**"}
-# Mixed numbers and percentages become placeholder names (_m_3_1_2, _p_12_5) before
-# the other rewrites, so those cannot split them; _convert() turns them back.
-_MIXED_NUMBER = re.compile(r"(?<![\w.)/])(\d+)\s+(\d+)\s*/\s*(\d+)(?![\w.(])")
-_PERCENT = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?|\.\d+)\s*%")
-_OF = re.compile(r"(?<=[\d%])\s*\bof\b\s*")
-_MIXED = re.compile(r"\d\s+\d")
-_FUNCTION = re.compile(r"[A-Za-z]{2,}\s*\(")
-_FRACTION = re.compile(r"(?<![\w.)])(\d+)\s*/\s*(\d+)(?![\w.(])")
-_IMPLICIT = re.compile(r"(?<=[\d)])\s*(?=[A-Za-z(])|(?<=[A-Za-z])\s*(?=\()")
-_EQUALS = re.compile(r"(?<![<>=!])=(?!=)")
+_INFIX = {"+": (20, 21), "-": (20, 21), "*": (30, 31), "/": (30, 31), "÷": (30, 31), "^": (50, 50)}
+_TIMES = (30, 31)  # "of", and writing side by side
+_UNARY = 40
 
-_BINOPS = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/", ast.Pow: "^"}
-_RELOPS = {ast.Eq: "=", ast.Lt: "<", ast.Gt: ">", ast.LtE: "<=", ast.GtE: ">="}
+_TOKEN = re.compile(r"""
+    (?P<space>\s+)
+  | (?P<num>\d+(?:\.\d*)?|\.\d+)(?P<pct>\s*%)?
+  | (?P<let>[A-Za-z]+)
+  | (?P<op>\*\*|<=|>=|==|[-+*/÷^()=<>×·−–≤≥])
+""", re.VERBOSE)
+_OP_NAMES = {"**": "^", "×": "*", "·": "*", "−": "-", "–": "-", "==": "=", "≤": "<=", "≥": ">="}
+_RELATIONS = {"=", "<", ">", "<=", ">="}
+
+
+@dataclass(frozen=True)
+class _Token:
+    kind: str     # num | pct | let | op | rel
+    text: str     # as written (num, pct, let) or the operator's name (op, rel)
+    pos: int      # where it starts in the line
+    spaced: bool  # whitespace before it
+
+
+def _tokenize(line: str) -> list[_Token]:
+    tokens, pos, spaced = [], 0, False
+    while pos < len(line):
+        m = _TOKEN.match(line, pos)
+        if m is None:
+            raise ParseError(f"unexpected {line[pos]!r} at character {pos + 1} in {line!r}")
+        if m["space"]:
+            spaced = True
+        elif m["num"]:
+            kind, text = ("pct", m["num"] + "%") if m["pct"] else ("num", m["num"])
+            tokens.append(_Token(kind, text, pos, spaced))
+        elif m["let"] == "of" and tokens and tokens[-1].kind in ("num", "pct"):
+            tokens.append(_Token("op", "*", pos, spaced))  # 50% of 20, 1/2 of 12
+        elif m["let"]:
+            tokens.append(_Token("let", m["let"], pos, spaced))
+        else:
+            name = _OP_NAMES.get(m["op"], m["op"])
+            tokens.append(_Token("rel" if name in _RELATIONS else "op", name, pos, spaced))
+        if not m["space"]:
+            spaced = False
+        pos = m.end()
+    return tokens
 
 
 def parse(text: Union[str, Node]) -> Node:
     """Parse one line of student maths without simplifying it. Raises ParseError."""
     if isinstance(text, Node):
         return text
-    src = text.strip()
-    if not src:
+    line = text.strip()
+    if not line:
         raise ParseError("empty line")
-    if len(src) > MAX_LENGTH:
+    if len(line) > MAX_LENGTH:
         raise ParseError(f"line longer than {MAX_LENGTH} characters")
-    if "_" in src:
-        raise ParseError(f"cannot read {text!r}")
-    for a, b in _SYMBOLS.items():
-        src = src.replace(a, b)
-    src = _OF.sub(" * ", src)  # 50% of 20, 1/2 of 12
-    src = _MIXED_NUMBER.sub(r"_m_\1_\2_\3", src)
-    src = _PERCENT.sub(lambda m: "_p_" + m.group(1).replace(".", "_"), src)
-    if "%" in src:
-        raise ParseError(f"cannot read {text!r}")
-    if _MIXED.search(src):
-        raise ParseError(f"two numbers with nothing between them: {text!r}")
-    if _FUNCTION.search(src):
-        raise ParseError(f"cannot read {text!r}")  # print(1), sqrt(4): not a product of letters
-    src = _FRACTION.sub(r"(\1/\2)", src)  # before ÷, so "6 ÷ 2/3" is 6 ÷ (2/3)
-    src = src.replace("÷", "/")
-    src = _IMPLICIT.sub("*", src)
-    src = _EQUALS.sub("==", src)
     try:
-        tree = ast.parse(src, mode="eval")
-        return _convert(tree.body, src, text)
-    except (SyntaxError, RecursionError) as e:
-        raise ParseError(f"cannot read {text!r}") from e
+        return _Parser(line).line()
+    except RecursionError as e:  # a safety net; MAX_DEPTH stops this first
+        raise ParseError(f"cannot read {line!r}") from e
 
 
-def _convert(n: ast.AST, src: str, original: str) -> Node:
-    if isinstance(n, ast.Compare):
-        if len(n.ops) != 1 or type(n.ops[0]) not in _RELOPS:
-            raise ParseError(f"only one = < > <= >= per line: {original!r}")
-        return Rel(_RELOPS[type(n.ops[0])], _convert(n.left, src, original),
-                   _convert(n.comparators[0], src, original))
-    if isinstance(n, ast.BinOp) and type(n.op) in _BINOPS:
-        node = BinOp(_BINOPS[type(n.op)], _convert(n.left, src, original), _convert(n.right, src, original))
-        if node.op == "^":
-            power = node.right.to_sympy()
+class _Parser:
+    def __init__(self, line: str):
+        self.line_text = line
+        self.tokens = _tokenize(line)
+        self.i = 0
+        self.depth = 0
+
+    # -- token helpers
+
+    def peek(self, ahead: int = 0) -> Optional[_Token]:
+        j = self.i + ahead
+        return self.tokens[j] if j < len(self.tokens) else None
+
+    def take(self) -> _Token:
+        token = self.tokens[self.i]
+        self.i += 1
+        return token
+
+    def previous(self) -> _Token:
+        return self.tokens[self.i - 1]
+
+    def error(self, reason: str, token: Optional[_Token] = None) -> ParseError:
+        where = f"at character {token.pos + 1}" if token else "at the end"
+        return ParseError(f"{reason} {where} in {self.line_text!r}")
+
+    def is_whole(self, ahead: int) -> bool:
+        token = self.peek(ahead)
+        return token is not None and token.kind == "num" and token.text.isdigit()
+
+    def is_op(self, ahead: int, op: str) -> bool:
+        token = self.peek(ahead)
+        return token is not None and token.kind == "op" and token.text == op
+
+    def glued(self, ahead: int) -> bool:
+        """The token is followed, with no space, by a letter or a bracket: 1/2x, 3 1/2(."""
+        token = self.peek(ahead)
+        return (token is not None and not token.spaced
+                and (token.kind == "let" or (token.kind == "op" and token.text == "(")))
+
+    def mixed_at(self, ahead: int) -> bool:
+        """A mixed number starts here: whole, space, whole / whole (3 1/2).
+
+        Not straight after a "/" with no space (6/3 1/2 is two numbers), and a mixed
+        number wins over a fraction: in 1 / 3 1/2 the 3 belongs to 3 1/2.
+        """
+        start = self.peek(ahead)
+        top = self.peek(ahead + 1)
+        if not (self.is_whole(ahead) and self.is_whole(ahead + 1) and top.spaced
+                and self.is_op(ahead + 2, "/") and self.is_whole(ahead + 3) and not self.glued(ahead + 4)):
+            return False
+        j = self.i + ahead
+        after_slash = j > 0 and self.tokens[j - 1].kind == "op" and self.tokens[j - 1].text == "/"
+        return not (after_slash and not start.spaced)
+
+    # -- grammar
+
+    def line(self) -> Node:
+        left = self.expression(0)
+        token = self.peek()
+        if token is not None and token.kind == "rel":
+            self.take()
+            right = self.expression(0)
+            extra = self.peek()
+            if extra is not None and extra.kind == "rel":
+                raise self.error("only one = < > <= >= per line", extra)
+            left = Rel(token.text, left, right)
+        token = self.peek()
+        if token is not None:
+            raise self.error(f"unexpected {token.text!r}", token)
+        return left
+
+    def expression(self, min_power: int) -> Node:
+        self.depth += 1
+        if self.depth > MAX_DEPTH:
+            raise self.error("brackets or signs nested too deeply")
+        left = self.operand()
+        while (token := self.peek()) is not None:
+            if token.kind == "op" and token.text in _INFIX:
+                left_power, right_power = _INFIX[token.text]
+                if left_power < min_power:
+                    break
+                self.take()
+                left = self.binop(token, left, self.expression(right_power))
+            elif self.side_by_side(token):
+                if _TIMES[0] < min_power:
+                    break
+                left = BinOp("*", left, self.expression(_TIMES[1]))
+            elif token.kind in ("num", "pct") and self.previous().kind in ("num", "pct"):
+                raise self.error("two numbers with nothing between them", token)
+            else:
+                break
+        self.depth -= 1
+        return left
+
+    def side_by_side(self, token: _Token) -> bool:
+        """Writing side by side means times: 2x, 2(x + 1), (x + 1)(x + 2), x(y + 1)."""
+        before = self.previous()
+        opens = token.kind == "op" and token.text == "("
+        if token.kind != "let" and not opens:
+            return False
+        if before.kind == "num" or (before.kind == "op" and before.text == ")"):
+            return True
+        return before.kind == "let" and opens
+
+    def binop(self, token: _Token, left: Node, right: Node) -> Node:
+        op = "/" if token.text == "÷" else token.text
+        node = BinOp(op, left, right)
+        if op == "^":
+            power = right.to_sympy()
             if power.is_number and abs(power) > MAX_EXPONENT:
-                raise ParseError(f"exponent too large in {original!r}")
+                raise self.error("exponent too large", token)
         return node
-    if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
-        return Neg(_convert(n.operand, src, original))
-    if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.UAdd):
-        return _convert(n.operand, src, original)
-    if isinstance(n, ast.Constant) and type(n.value) in (int, float):
-        written = ast.get_source_segment(src, n)
-        return Num(sympy.Rational(written), written)
-    if isinstance(n, ast.Name) and n.id.startswith("_m_"):
-        whole, num, den = (int(part) for part in n.id[3:].split("_"))
-        if den == 0:
-            raise ParseError(f"zero denominator in {original!r}")
-        return Mixed(whole, num, den)
-    if isinstance(n, ast.Name) and n.id.startswith("_p_"):
-        written = n.id[3:].replace("_", ".")
-        return Num(sympy.Rational(written) / 100, f"{written}%")
-    if isinstance(n, ast.Name) and n.id.isalpha() and n.id.isascii():
-        node: Node = Sym(n.id[0])
-        for letter in n.id[1:]:  # "ab" is a times b
-            node = BinOp("*", node, Sym(letter))
-        return node
-    raise ParseError(f"cannot read {original!r}")
+
+    def operand(self) -> Node:
+        token = self.peek()
+        if token is None:
+            raise self.error("expected a number, letter or bracket")
+        if token.kind == "op" and token.text in "-+":
+            self.take()
+            inner = self.expression(_UNARY)
+            return Neg(inner) if token.text == "-" else inner
+        if token.kind == "op" and token.text == "(":
+            self.take()
+            inner = self.expression(0)
+            if not self.is_op(0, ")"):
+                raise self.error("missing )", self.peek())
+            self.take()
+            return inner
+        if token.kind == "num":
+            return self.number()
+        if token.kind == "pct":
+            self.take()
+            written = token.text[:-1]
+            return Num(sympy.Rational(written) / 100, token.text)
+        if token.kind == "let":
+            self.take()
+            if len(token.text) > 1 and self.is_op(0, "("):
+                raise self.error(f"cannot read {token.text}(...)", token)  # print(1), sqrt(4)
+            node: Node = Sym(token.text[0])
+            for letter in token.text[1:]:  # "ab" is a times b
+                node = BinOp("*", node, Sym(letter))
+            return node
+        raise self.error(f"unexpected {token.text!r}", token)
+
+    def number(self) -> Node:
+        """A number, a typed fraction a/b, or a mixed number 3 1/2."""
+        if self.mixed_at(0):
+            whole, top, _, bottom = self.take(), self.take(), self.take(), self.take()
+            if int(bottom.text) == 0:
+                raise self.error("zero denominator", bottom)
+            return Mixed(int(whole.text), int(top.text), int(bottom.text))
+        token = self.take()
+        num = Num(sympy.Rational(token.text), token.text)
+        if not token.text.isdigit():
+            return num
+        # fraction: whole / whole, read as one number, unless the bottom starts a mixed number
+        if self.is_op(0, "/") and self.is_whole(1) and not self.glued(2) and not self.mixed_at(1):
+            self.take()
+            bottom = self.take()
+            return BinOp("/", num, Num(sympy.Rational(bottom.text), bottom.text))
+        return num
 
 
 # ---------------------------------------------------------------- printing

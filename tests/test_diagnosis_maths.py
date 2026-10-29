@@ -1,3 +1,6 @@
+import random
+import re
+
 import pytest
 
 from matheasy.diagnosis import ParseError, as_fraction, check_step, equivalent, locate, parse
@@ -70,6 +73,66 @@ def test_parse_values(text, value):
 def test_parse_errors(text):
     with pytest.raises(ParseError):
         parse(text)
+
+
+@pytest.mark.parametrize("text", [
+    "25%1", "25%12",            # the old parser read these as 251% and 2512%
+    "25%25%", "25%3 1/2",       # the old parser crashed with TypeError
+    "(1/2) of 1/2",             # the old parser read "of" as the letters o × f
+    "x 1/2", "(x + 1) 1/2",     # a fraction cannot follow a letter or bracket with nothing between
+    "(" * 101 + "1" + ")" * 101,  # nested deeper than MAX_DEPTH
+    "-" * 150 + "1",
+])
+def test_parse_rejects_what_the_old_parser_misread(text):
+    with pytest.raises(ParseError):
+        parse(text)
+
+
+@pytest.mark.parametrize("text, message", [
+    ("x ! 2", "unexpected '!' at character 3"),
+    ("(x + 1", "missing ) at the end"),
+    ("x +", "expected a number, letter or bracket at the end"),
+    ("1 < 2 < 3", "only one = < > <= >= per line at character 7"),
+    ("25 % 4", "two numbers with nothing between them at character 6"),
+    ("2^60", "exponent too large at character 2"),
+    ("sqrt(4)", "cannot read sqrt(...)"),
+    ("3 1/0", "zero denominator at character 5"),
+])
+def test_parse_errors_say_what_and_where(text, message):
+    with pytest.raises(ParseError, match=re.escape(message)):
+        parse(text)
+
+
+@pytest.mark.parametrize("text, shown", [
+    ("1 / 3 1/2", "1 ÷ 3 1/2"),   # a mixed number wins over a fraction
+    ("6 ÷ 3 1/2", "6 ÷ 3 1/2"),
+    ("x = 5.", "x = 5."),          # a full stop after an answer
+    ("2^3^2", "2^3^2"),            # powers group right to left
+    ("-x^2", "-x^2"),
+])
+def test_parse_notation(text, shown):
+    node = parse(text)
+    assert str(node) == shown
+    assert parse(str(node)) == node
+
+
+def test_parse_groups_like_maths():
+    assert parse("2^3^2").to_sympy() == 512        # 2^(3^2)
+    assert parse("-2^2").to_sympy() == -4          # -(2^2)
+    assert parse("12/3/4").to_sympy() == 1         # (12/3)/4
+    assert parse("1 - 2 - 3").to_sympy() == -4     # (1 - 2) - 3
+    assert parse("6/3 × 2").to_sympy() == 4
+
+
+def test_parse_never_crashes_on_garbage():
+    rng = random.Random(20261029)
+    alphabet = "0123456789 .+-*/^()=<>%xyab×÷−≤_!,of"
+    for _ in range(3000):
+        text = "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 25)))
+        try:
+            parse(text)
+        except ParseError:
+            pass
 
 
 @pytest.mark.parametrize("a, b, same", [
