@@ -62,6 +62,33 @@ def test_notation_means(text, meaning):
         assert sympy.simplify(got - meaning) == 0, f"{text} read as {got}, should be {meaning}"
 
 
+# ---- every standard example in docs/input_notation.md, read by value
+
+A, n = sympy.symbols("A n")
+
+
+@pytest.mark.parametrize("text, meaning", [
+    ("x + 3 = 5", sympy.Eq(x + 3, 5)),
+    ("3ab", 3 * a * b), ("2xy", 2 * x * y), ("A = 30 × 20", sympy.Eq(A, 600)),
+    ("x^2", x**2), ("2^n", 2**n), ("a^(bc)", a**(b * c)), ("(x + 1)^(xy)", (x + 1)**(x * y)),
+    ("yx^2", y * x**2), ("x^2 × y", x**2 * y),
+    ("xy^2", x * y**2), ("(xy)^2", x**2 * y**2),
+    ("a/(bc)", a / (b * c)), ("x/2", x / 2), ("2x/3", 2 * x / 3), ("1/2 × x", x / 2), ("xy/2", x * y / 2),
+    ("x^(2/3)", x**R(2, 3)), ("x^2 ÷ 3", x**2 / 3),
+    ("2/3 ÷ 4/5", R(5, 6)), ("6 ÷ 2/3", 9), ("3 1/2", R(7, 2)),
+    ("25%", R(1, 4)), ("50% of 20", 10), ("1/2 of 12", 6), ("25% × x", x / 4),
+    ("-x", -x), ("6 ÷ -2", -3), ("x - (-3)", x + 3),
+    ("A = 30 × 20 − 22/7 × 7^2", sympy.Eq(A, 446)),
+])
+def test_standard_notation(text, meaning):
+    got = parse(text).to_sympy()
+    if isinstance(meaning, sympy.Equality):
+        assert sympy.simplify(got.lhs - meaning.lhs) == 0 and sympy.simplify(got.rhs - meaning.rhs) == 0
+    else:
+        assert sympy.simplify(got - meaning) == 0, f"{text} read as {got}, should be {meaning}"
+    assert parse(str(parse(text))).to_sympy() == got  # printed back in standard notation, same value
+
+
 # ---- the meaning round trip: printing a tree and reading it back never changes its value.
 
 def _random_tree(rng: random.Random, depth: int):

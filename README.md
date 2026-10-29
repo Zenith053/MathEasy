@@ -80,6 +80,7 @@ d.to_log()                          # JSON-safe record for the run logs
 - **What `diagnose()` needs from A and C** (`matheasy/diagnosis/interfaces.py`): a shortlister `shortlist(error: LocatedError, k) -> list[Candidate]`, and a student store with `misconception_prior(student_id, misconception_id) -> float | None`. Pass them as `diagnose(..., shortlister=..., store=...)`. `EediShortlister()` wraps A's `shortlist()`: it builds the query with A's `build_query()` from `locate()`'s output and returns `eedi:` IDs. It needs A's Eedi data. Without a shortlister, a stand-in ranks the bank's rules that reproduce the answer.
 - **Call order:** `check_step()` first; `diagnose()` only on a wrong step (it raises `StepIsCorrect` otherwise). When it returns a probe, ask it and call `diagnose()` again with `follow_ups=[FollowUp(probe, answer)]`; at most 2.
 - **Rules list and probe number ranges:** [docs/diagnosis_rules.md](docs/diagnosis_rules.md).
+- **Standard notation:** [docs/input_notation.md](docs/input_notation.md). Everything passed to `parse()` (student answers after the LLM tagger, test items, probes) should be written this way; ambiguous forms such as `a/bc` or `a^bc` must use brackets.
 
 ## Simulated students and run logs
 
