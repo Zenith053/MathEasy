@@ -114,9 +114,13 @@ def build_query(topic, before, student, correct, changed=None, difference=None):
 
 
 def eedi_query(row):
-    """Query for one row of data/eedi/pairs.csv."""
+    """Query for one row of data/eedi/pairs.csv.
+
+    Topic is the bare topic (fractions, decimals, expressions), the same as
+    B's LocatedError.topic in the live tutor, so training matches live queries.
+    """
     return build_query(
-        topic=f"{row['Topic']} - {row['ConstructName']}",
+        topic=row["Topic"],
         before=row["QuestionText"],
         student=row["WrongAnswerText"],
         correct=row["CorrectAnswerText"],

@@ -18,11 +18,12 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional
 
-from ..diagnosis import FollowUp, ParseError, check_step, diagnose, load_bank, parse
+from ..diagnosis import FollowUp, ParseError, check_step, diagnose, parse
 from ..diagnosis import Diagnosis
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
+from .describe import misconception_text
 from .parts import Critic, Hinter, StudentStore
-from .state import HintRequest, MessageKind, Problem, TutorReply, TutorState, Utterance
+from .state import Hint, HintRequest, MessageKind, Problem, TutorReply, TutorState, Utterance
 from .turnlog import TurnLogger
 
 MAX_FOLLOWUPS = 2
@@ -39,19 +40,40 @@ RETYPE = "I couldn't find an answer in that. Please type just your answer, for e
 # Errors from LLM-backed parts that end in the safe template, not a crash.
 LLM_ERRORS = (BudgetExceeded, LLMCallError, LLMOutputError)
 
-_NUMBER = re.compile(r"-?\d+(?:\.\d+)?(?:\s*/\s*\d+)?")
+# A run of maths in free text: numbers, single-letter variables (not words, not the s in
+# "it's") and operators, e.g. the "x = 4" in "I got x = 4." or "1/3 > 1/4" in "I think 1/3 > 1/4".
+_LETTER = r"(?<![A-Za-z'’])[A-Za-z](?![A-Za-z'’])"
+_ATOM = rf"(?:\d+(?:\.\d+)?|{_LETTER}|[-+*/×÷^=<>≤≥()%−·])"
+_MATHS_RUN = re.compile(rf"{_ATOM}(?:\s*{_ATOM})*")
+# "I" and "a" next to a number are words, not variables: "a 3/4", "5/6 I think".
+_EDGE_WORDS = re.compile(r"^[AaI]\s+(?=[\d(-])|\s+[AaI]$")
 
 
 def extract_answer(text: str) -> Optional[str]:
-    """The maths in a student's message: the whole message if it parses, else its last number."""
-    stripped = text.strip().rstrip(".!")
+    """The maths in a student's message: the whole message if it parses, else the last
+    piece of maths in it that parses ("I got x = 4." -> "x = 4")."""
+    stripped = _EDGE_WORDS.sub("", text.strip().rstrip(".!?"))
     try:
         parse(stripped)
         return stripped
     except ParseError:
         pass
-    numbers = _NUMBER.findall(text)
-    return numbers[-1].strip() if numbers else None
+    for run in reversed(_MATHS_RUN.findall(text)):
+        candidate = _EDGE_WORDS.sub("", run.strip())
+        if not re.search(r"\d", candidate):
+            continue
+        try:
+            parse(candidate)
+            return candidate
+        except ParseError:
+            continue
+    return None
+
+
+def with_citation(hint: Hint) -> str:
+    """The hint as the student sees it. The citation is added after the critic's leak
+    check, so a section number such as 4.5 can't be mistaken for an answer."""
+    return f"{hint.text} (See {hint.citations[0]}.)" if hint.citations else hint.text
 
 
 class Orchestrator:
@@ -71,7 +93,6 @@ class Orchestrator:
         self.log = log
         self.mode = mode
         self.diagnose_fn = diagnose_fn
-        self.bank = load_bank()
 
     def start(self, state: TutorState, problem: Problem) -> TutorReply:
         """Pose a new problem. Returns the message for the student."""
@@ -157,7 +178,7 @@ class Orchestrator:
             topic=state.problem.topic,
             question=state.problem.question,
             student_answer=state.wrong_answer,
-            misconception=self.bank[diagnosis.misconception].text if clear else None,
+            misconception=misconception_text(diagnosis.misconception) if clear else None,
             wrong_part=f"{located.source} became {located.wrong}" if located else None,
         )
         state.probe = None
@@ -167,13 +188,14 @@ class Orchestrator:
         reasons: list[list[str]] = []
         for attempt in range(MAX_REWRITES + 1):
             try:
-                hint = self.hinter.hint(request, feedback or None)
-                verdict = self.critic.review(hint.text, "hint", state.problem)
+                hint = self.hinter.hint(request, feedback or None, llm=state.llm)
+                verdict = self.critic.review(hint.text, "hint", state.problem, request=request, llm=state.llm)
             except LLM_ERRORS as e:
                 return self._fallback(state, e, rewrites=attempt, critic_reasons=reasons)
             if verdict.passed:
-                reply = self._deliver(state, "hint", hint.text)
-                self.log.log(state, "hint", turn=state.turn, text=hint.text, citations=list(hint.citations),
+                text = with_citation(hint)
+                reply = self._deliver(state, "hint", text)
+                self.log.log(state, "hint", turn=state.turn, text=text, citations=list(hint.citations),
                              rewrites=attempt, safe_template=False, critic_reasons=reasons)
                 return reply
             feedback = list(verdict.reasons)
@@ -183,7 +205,7 @@ class Orchestrator:
     def _send(self, state: TutorState, kind: MessageKind, text: str) -> TutorReply:
         """Send a message that is not rewritten: question, probe or feedback."""
         try:
-            verdict = self.critic.review(text, kind, state.problem)
+            verdict = self.critic.review(text, kind, state.problem, llm=state.llm)
         except LLM_ERRORS as e:
             return self._fallback(state, e)
         if not verdict.passed:

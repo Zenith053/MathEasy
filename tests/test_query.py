@@ -79,3 +79,41 @@ def test_list_answers_do_not_crash():
     # A parsed tuple cannot be subtracted; must fall back, not raise.
     _, diff = fallback_diff("3, 5", "5, 3")
     assert diff == UNPARSED
+
+
+def test_eedi_query_uses_bare_topic_like_live_tutor():
+    # B's LocatedError.topic is only fractions|decimals|expressions.
+    from matheasy.shortlister.query import eedi_query
+    row = {"Topic": "fractions", "ConstructName": "Add proper fractions", "QuestionText": r"\frac{1}{2}+\frac{1}{3}",
+           "WrongAnswerText": r"\frac{2}{5}", "CorrectAnswerText": r"\frac{5}{6}"}
+    assert eedi_query(row).startswith("Topic: fractions | Before:")
+
+
+def test_llm_examples_become_training_queries_and_other_topics_are_skipped():
+    from matheasy.llm import FakeBackend, LLMClient
+    from matheasy.shortlister.llm_examples import write_examples
+    reply = ('{"items": [{"id": 4, "topic": "fractions", "before": "1/2 + 1/3", "student": "2/5", "correct": "5/6"},'
+             ' {"id": 9, "topic": "other", "before": "", "student": "", "correct": ""},'
+             ' {"id": 77, "topic": "decimals", "before": "x", "student": "y", "correct": "z"}]}')
+    session = LLMClient(backend=FakeBackend(lambda req: reply)).session("t", "data", budget_tokens=None)
+    out = write_examples(session, [(4, "Adds the numerators and adds the denominators"),
+                                   (9, "Confuses the radius and the diameter"), (12, "left out by the model")])
+    assert out[4]["Query"].startswith("Topic: fractions | Before: 1/2 + 1/3 | Student wrote: 2/5 | Correct: 5/6")
+    assert out[9] is None
+    assert 12 not in out and 77 not in out  # missing: asked again on rerun; never asked: ignored
+
+
+def test_rule_pairs_use_live_query_format_and_need_an_eedi_mapping():
+    from dataclasses import replace
+    from matheasy.diagnosis import load_bank
+    from matheasy.diagnosis.bank import Bank
+    from matheasy.shortlister.rule_pairs import build
+    bank = load_bank()
+    rid = "rule:fractions.add_numerators_denominators"
+    pairs, skipped = build(bank)
+    assert pairs.empty and rid in skipped          # bank.yaml has no eedi: mapping yet
+    mapped = Bank([replace(m, eedi=(1287,)) if m.id == rid else m for m in bank])
+    pairs, _ = build(mapped)
+    assert set(pairs.RuleId) == {rid} and set(pairs.MisconceptionId) == {1287}
+    assert len(pairs) == 30 and pairs.Before.is_unique
+    assert all(q.startswith("Topic: fractions | Before: ") and "Changed part: " in q for q in pairs.Query)
