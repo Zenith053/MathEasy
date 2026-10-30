@@ -23,7 +23,7 @@ Slips: `slip_rate` is the chance of a careless slip on an item the student would
 otherwise get right. Students with no misconception slip at SLIP_ONLY_RATE and give
 the over-claiming rate. A slip is never an answer some rule would give.
 
-Several sessions: the runner calls begin_session(index) before each session.
+Several sessions: C's run_session() calls begin_session(index) before each session.
 save() and load() keep a student between processes. `relapse_rate` is the chance
 that a fixed misconception comes back at the start of a later session (0 by default).
 Every random draw is seeded by (seed, student_id, what it is for), so a restored
@@ -230,6 +230,7 @@ class SimStudent:
         self.targeted_hints = 0  # kept across sessions: the same object, or a saved one, plays every session
         self.items_answered = 0  # numbers the slip draws
         self.session_index: Optional[int] = None
+        self.relapsed = False  # at the start of the current session
 
     def _random(self, purpose: str, n: int) -> random.Random:
         return random.Random(f"{self.seed}:{self.student_id}:{purpose}:{n}")
@@ -262,14 +263,17 @@ class SimStudent:
         return right, False
 
     def begin_session(self, session_index: int) -> bool:
-        """Call before each session. From the second session on, a fixed misconception comes
-        back with probability relapse_rate. Returns True if it came back."""
-        relapsed = (session_index > 0 and self.misconception is not None and not self.holds_misconception
-                    and self._random("relapse", session_index).random() < self.relapse_rate)
-        if relapsed:
+        """Called by C's run_session() before each session. From the second session on, a
+        fixed misconception comes back with probability relapse_rate. Returns True if it
+        came back; calling it again for the same session gives the same answer."""
+        if session_index == self.session_index:
+            return self.relapsed
+        self.relapsed = (session_index > 0 and self.misconception is not None and not self.holds_misconception
+                         and self._random("relapse", session_index).random() < self.relapse_rate)
+        if self.relapsed:
             self.targeted_hints = 0
         self.session_index = session_index
-        return relapsed
+        return self.relapsed
 
     def to_state(self) -> dict:
         """Everything needed to carry on later. The judge and phraser are passed again on load."""
@@ -279,7 +283,7 @@ class SimStudent:
             "student_id": self.student_id, "misconception": self.misconception, "hints_to_fix": self.hints_to_fix,
             "slip_rate": self.slip_rate, "relapse_rate": self.relapse_rate, "seed": self.seed,
             "targeted_hints": self.targeted_hints, "items_answered": self.items_answered,
-            "session_index": self.session_index,
+            "session_index": self.session_index, "relapsed": self.relapsed,
         }
 
     @classmethod
@@ -291,6 +295,7 @@ class SimStudent:
         student.targeted_hints = state["targeted_hints"]
         student.items_answered = state["items_answered"]
         student.session_index = state["session_index"]
+        student.relapsed = state.get("relapsed", False)
         return student
 
     def save(self, directory: Union[str, Path]) -> Path:

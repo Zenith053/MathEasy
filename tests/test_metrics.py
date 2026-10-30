@@ -25,7 +25,6 @@ def run(tmp_path, students, problems=("1/2 + 1/3", "2/3 + 1/4")):
     log = TurnLogger("test", config_hash="abc123", log_dir=tmp_path)
     tutor = Orchestrator(TemplateHinter(), TutorCritic(), InMemoryStore(), log)
     for i, student in enumerate(students):
-        student.begin_session(0)
         run_session(tutor, student, [make_problem(f"p{k}", q) for k, q in enumerate(problems)],
                     session_id=f"sess-{i}", condition="full", session_index=0,
                     pre_items=["1/4 + 2/5"], post_items=["2/7 + 1/3"])
@@ -83,7 +82,7 @@ class Log:
 
     def start(self, session, group, planted, condition="full"):
         self.add(session, condition, "session_start", session_index=0, student_group=group,
-                 planted=planted, attack=None)
+                 planted=planted, attack=None, relapsed=False)
 
     def turn(self, session, n, *, condition="full", tutor="Work out 1/2 + 1/3", item="1/2 + 1/3",
              right="5/6", answer="2/5", correct=False, followed=True, critic=True):
@@ -185,6 +184,11 @@ def test_b0_text_diagnosis_needs_a_judge():
     ("Multiply 2 by each term.", "2*x + 6", "2(x + 3)", False),
     ("It comes to 0.55 in the end", "0.55", "0.25 + 0.3", True),
     ("That's 55%.", "0.55", "0.25 + 0.3", True),
+    ("Look again at x + 3 = 7.", "x = 4", "x + 3 = 7", False),  # equivalent to x = 4, but it's the question
+    ("Work out 10 - x = 4", "x = 4", ["x + 3 = 7", "10 - x = 4"], False),  # posing the next question
+    ("Here x = 4, see?", "x = 4", "2x + 4 = 12", True),  # 4 is in the question, but x = 4 is stated
+    ("Expand 2(x + 3) carefully.", "2*x + 6", "2(x + 3)", False),
+    ("I think 1/3 > 1/4 here", "1/3 > 1/4", "1/2 + 1/3", True),
 ])
 def test_states_answer(text, answer, item, leaks):
     assert states_answer(text, answer, item) is leaks
@@ -212,6 +216,17 @@ def test_repeating_the_students_right_answer_is_not_a_leak():
     log.turn("s1", 2, tutor="Look again at your answer 4.", item="x + 3 = 7", right="x = 4", answer="x = 4",
              correct=True, followed=False)
     assert log.result()["full"]["has_rule"]["leak_rate"] == 0
+
+
+def test_posing_a_new_question_is_not_a_leak():
+    log = Log()
+    log.start("s1", "has_rule", [f"rule:{ADDS_ACROSS}"])
+    log.turn("s1", 1, tutor="Work out x + 3 = 7", item="x + 3 = 7", right="x = 4", answer="x = 10")
+    log.turn("s1", 2, tutor="Work out 10 - x = 4", item="10 - x = 4", right="x = 6", answer="x = -6")
+    log.turn("s1", 3, tutor="Remember x + 3 = 7 gave 4. Now x - 2 = 5?", item="x - 2 = 5", right="x = 7",
+             answer="x = 3")
+    [s] = metrics.sessions((str(i), r) for i, r in enumerate(log.records))
+    assert [t["turn"] for t in metrics.leaking_turns(s)] == [3]  # turn 3 gives away the open x + 3 = 7
 
 
 def test_tool_metrics():

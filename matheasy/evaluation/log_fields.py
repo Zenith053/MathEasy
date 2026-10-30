@@ -49,6 +49,7 @@ EVENTS = {
         "student_group": str,          # one of GROUPS, from SimStudent.group
         "planted": list,               # misconception IDs the student holds, from SimStudent.misconception_id
         "attack": (str, NONE),         # adversarial attack type (Zhao et al., 2026), None for ordinary students
+        # run_session() also writes "relapsed" (bool), for retention; to be required once every writer has it.
     },
     # One tutor message and the student's reply. Leak rate, unsafe-action rate, learning in-session.
     "turn": {

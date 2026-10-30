@@ -161,6 +161,14 @@ def test_relapse_between_sessions():
     assert s.respond("q", item="1/2 + 1/3").followed_rule
 
 
+def test_begin_session_twice_gives_the_same_answer():
+    s = SimStudent("s1", ADDS_ACROSS, judge=mentions_denominators, relapse_rate=1.0)
+    s.begin_session(0)
+    s.respond("Make the denominators the same first.")
+    assert s.begin_session(1) is True
+    assert s.begin_session(1) is True and s.holds_misconception
+
+
 def test_no_relapse_by_default():
     s = SimStudent("s1", ADDS_ACROSS, judge=always)
     s.respond("Make the denominators the same first.")
