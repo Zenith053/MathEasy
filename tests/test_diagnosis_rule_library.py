@@ -114,6 +114,14 @@ PREDICTS = [
     ("buggy_multiplication.column_mimics_addition", "68 × 46", "24"),
     ("multiplication_division.alignment_error_in_multi_digit", "23 × 14", "115"),
     ("multiplication_division.forget_to_add_carried_number", "23 × 4", "82"),
+    # ---- standard form
+    ("scientific_notation.add_coefficients_when_multiplying", "(3 × 10^4) × (2 × 10^5)", "5 × 10^9"),
+    ("scientific_notation.add_coefficients_when_multiplying", "3 × 10^4 × 8 × 10^2", "1.1 × 10^7"),
+    ("scientific_notation.add_coefficients_when_multiplying", "(6 × 10^8) ÷ (2 × 10^3)", "8 × 10^5"),
+    ("scientific_notation.count_all_zeros_for_exponent", "45000", "4.5 × 10^3"),
+    ("scientific_notation.count_all_zeros_for_exponent", "3050", "3.05 × 10^2"),
+    ("scientific_notation.wrong_exponent_sign", "45000", "4.5 × 10^-4"),
+    ("scientific_notation.wrong_exponent_sign", "0.0032", "3.2 × 10^3"),
 ]
 
 # (rule, a problem its misconception says nothing about)
@@ -154,6 +162,9 @@ SILENT = [
     ("buggy_addition.single_digit_linked", "12 + 34"),                   # no single digit
     ("buggy_multiplication.column_mimics_addition", "68 × 4"),           # MalruleLib: two-digit by two-digit
     ("buggy_addition.add_all_digits", "2.3 + 4.5"),                      # not whole numbers
+    ("scientific_notation.add_coefficients_when_multiplying", "3 × 10^4"),  # one number only
+    ("scientific_notation.count_all_zeros_for_exponent", "0.0032"),      # counting zeros happens to be right
+    ("scientific_notation.wrong_exponent_sign", "7"),                    # exponent 0 has no sign
 ]
 
 # (step before, the student's step, a rule that must be among the suspects)
@@ -181,6 +192,8 @@ DIAGNOSED = [
     ("62 - 37", "35", "subtraction.smaller_from_larger"),
     ("x + 47 + 38", "x + 715", "subtraction.no_column_limit"),          # inside a line
     ("2x = 304 - 75", "2x = 139", "buggy_subtraction.move_over_zero_borrow"),
+    ("45000", "4.5 × 10^3", "scientific_notation.count_all_zeros_for_exponent"),
+    ("(3 × 10^4) × (2 × 10^5)", "5 × 10^9", "scientific_notation.add_coefficients_when_multiplying"),
 ]
 
 

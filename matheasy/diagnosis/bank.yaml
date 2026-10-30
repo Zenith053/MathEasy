@@ -233,6 +233,18 @@ misconceptions:
     text: Forgets to add the carried digit when multiplying, e.g. 23 × 4 = 82.
     eedi: []
 
+  rule:scientific_notation.add_coefficients_when_multiplying:
+    text: Adds the coefficients instead of multiplying them in standard form, e.g. (3 × 10^4) × (2 × 10^5) = 5 × 10^9.
+    eedi: []
+
+  rule:scientific_notation.count_all_zeros_for_exponent:
+    text: Uses the number of zeros as the exponent, e.g. 45000 = 4.5 × 10^3.
+    eedi: []
+
+  rule:scientific_notation.wrong_exponent_sign:
+    text: Gives the exponent the wrong sign, e.g. 45000 = 4.5 × 10^-4 and 0.0032 = 3.2 × 10^3.
+    eedi: []
+
   slip:
     text: A careless mistake with no underlying misconception.
     eedi: []
