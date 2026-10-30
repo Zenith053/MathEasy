@@ -54,3 +54,29 @@ def test_retrieve_finds_the_fractions_section():
     assert {"ref", "text", "book", "section", "score"} <= set(out[0])
     assert any("Fractions" in p["section_title"] for p in out)
     assert out[0]["ref"].startswith(("Prealgebra 2e, ", "Elementary Algebra 2e, "))
+
+
+def test_hard_negatives_are_siblings_first_and_never_the_answer():
+    import pandas as pd
+    from matheasy.shortlister.hard_negatives import mine
+    names = pd.DataFrame({"MisconceptionId": [1, 2, 3, 4],
+                          "MisconceptionName": ["Adds the numerators and adds the denominators",
+                                                "Adds the numerators and the denominators",  # near-duplicate of 1
+                                                "Multiplies the numerators and the denominators",
+                                                "Thinks a longer decimal is bigger"]})
+    pairs = pd.DataFrame({"QuestionId": [7, 7], "WrongAnswer": ["A", "B"], "MisconceptionId": [1, 4]})
+    negs = mine(pairs, names).set_index("WrongAnswer").NegativeIds.str.split()
+    assert negs["A"][0] == "4"                      # sibling option of the same question comes first
+    assert "1" not in negs["A"] and "2" not in negs["A"]   # never the answer or a rewording of it
+    assert "3" in negs["A"]
+
+
+def test_hard_negatives_skip_more_general_names():
+    import pandas as pd
+    from matheasy.shortlister.hard_negatives import mine
+    names = pd.DataFrame({"MisconceptionId": [1, 2, 3],
+                          "MisconceptionName": ["Ignores negative sign when expanding bracket",
+                                                "Ignores the negative sign",
+                                                "Only multiplies the first term in the expansion of a bracket"]})
+    pairs = pd.DataFrame({"QuestionId": [7], "WrongAnswer": ["A"], "MisconceptionId": [1]})
+    assert mine(pairs, names).NegativeIds[0].split() == ["3"]

@@ -79,3 +79,11 @@ def test_list_answers_do_not_crash():
     # A parsed tuple cannot be subtracted; must fall back, not raise.
     _, diff = fallback_diff("3, 5", "5, 3")
     assert diff == UNPARSED
+
+
+def test_eedi_query_uses_bare_topic_like_live_tutor():
+    # B's LocatedError.topic is only fractions|decimals|expressions.
+    from matheasy.shortlister.query import eedi_query
+    row = {"Topic": "fractions", "ConstructName": "Add proper fractions", "QuestionText": r"\frac{1}{2}+\frac{1}{3}",
+           "WrongAnswerText": r"\frac{2}{5}", "CorrectAnswerText": r"\frac{5}{6}"}
+    assert eedi_query(row).startswith("Topic: fractions | Before:")
