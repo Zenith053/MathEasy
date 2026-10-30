@@ -80,3 +80,24 @@ def test_hard_negatives_skip_more_general_names():
                                                 "Only multiplies the first term in the expansion of a bracket"]})
     pairs = pd.DataFrame({"QuestionId": [7], "WrongAnswer": ["A"], "MisconceptionId": [1]})
     assert mine(pairs, names).NegativeIds[0].split() == ["3"]
+
+
+def test_uk_maths_words_get_us_words_added():
+    from matheasy.retrieval.retrieve import americanise
+    q = americanise("Only multiplies the first term when expanding the bracket")
+    assert q.startswith("Only multiplies") and "parentheses" in q and "distribute" in q
+    assert americanise("adds fractions") == "adds fractions"
+
+
+@needs_openstax
+def test_hybrid_retrieve_finds_distributive_property_for_brackets():
+    from matheasy.retrieval import retrieve
+    out = retrieve("Only multiplies the first term inside the bracket, 3(x + 2) = 3x + 2 expressions", k=3)
+    assert any(p["section_title"] in ("Distributive Property", "Properties of Real Numbers", "Multiply Polynomials")
+               for p in out)
+
+
+@needs_openstax
+def test_hybrid_beats_or_matches_bm25_on_right_section_set():
+    from matheasy.retrieval.retrieve import right_section_rate
+    assert right_section_rate(3, "hybrid")[0] >= right_section_rate(3, "bm25")[0]
