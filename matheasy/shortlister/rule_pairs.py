@@ -38,8 +38,10 @@ def fraction_inputs():
     return [f"{x} {op} {y}" for x, y in itertools.product(fracs, repeat=2) for op in ["+", "-", "×", "÷"]]
 
 
-# Topic -> input generator. Decimals and expressions are added as B releases those rules.
-INPUTS = {"fractions": fraction_inputs}
+# Input generators. Every rule is tried on all of them: a rule returns None where its
+# misconception does not apply, so each rule picks its own inputs. Add decimals and
+# expressions generators here to cover those rules.
+INPUTS = [fraction_inputs]
 
 
 def pairs_for_rule(rule_id, inputs, n=PER_RULE, seed=SEED):
@@ -62,13 +64,14 @@ def pairs_for_rule(rule_id, inputs, n=PER_RULE, seed=SEED):
 def build(bank=None):
     bank = bank or load_bank()
     rows, skipped = [], []
-    inputs = {topic: make() for topic, make in INPUTS.items()}
+    inputs = [before for make in INPUTS for before in make()]
     for rule_id in bank.rules():
         m = bank[rule_id]
-        if not m.eedi or m.topic not in inputs:
+        pairs = pairs_for_rule(rule_id, inputs) if m.eedi else []
+        if not pairs:
             skipped.append(rule_id)
             continue
-        for before, q in pairs_for_rule(rule_id, inputs[m.topic]):
+        for before, q in pairs:
             rows += [{"MisconceptionId": e, "RuleId": rule_id, "Before": before, "Query": q} for e in m.eedi]
     return pd.DataFrame(rows, columns=["MisconceptionId", "RuleId", "Before", "Query"]), skipped
 
@@ -77,7 +80,7 @@ if __name__ == "__main__":
     pairs, skipped = build()
     print(f"{len(pairs)} pairs from {pairs.RuleId.nunique()} rules, {pairs.MisconceptionId.nunique()} Eedi misconceptions")
     if skipped:
-        print(f"skipped {len(skipped)} rules (no Eedi mapping in bank.yaml, or no input generator for the topic):")
+        print(f"skipped {len(skipped)} rules (no Eedi mapping in bank.yaml, or no generated input it applies to):")
         print(*skipped, sep="\n  ")
     out = DATA / "rule_pairs.csv"
     pairs.to_csv(out, index=False)

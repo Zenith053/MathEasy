@@ -117,7 +117,7 @@ def eedi_query(row):
     """Query for one row of data/eedi/pairs.csv.
 
     Topic is the bare topic (fractions, decimals, expressions), the same as
-    B's LocatedError.topic in the live tutor, so training matches live queries.
+    the live tutor's query() (topic_of() of the wrong part), so training matches live queries.
     """
     return build_query(
         topic=row["Topic"],
