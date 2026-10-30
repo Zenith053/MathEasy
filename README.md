@@ -83,22 +83,30 @@ d.to_log()                          # JSON-safe record for the run logs
 
 ## Simulated students and run logs
 
-Everything in `matheasy/evaluation` (owner: D). The week-1 student handles B's fraction rules.
+Everything in `matheasy/evaluation` (owner: D).
 
 ```python
-from matheasy.evaluation import SimStudent, LLMFeedbackJudge
+from matheasy.evaluation import SimStudent, LLMFeedbackJudge, roster
 
 judge = LLMFeedbackJudge(llm.session(session_id, condition, budget_tokens=None))
 student = SimStudent("student-001", "fractions.add_numerators_denominators", judge=judge)
 
+student.begin_session(session_index)    # before each session
 reply = student.respond("Try this one: 1/2 + 1/3", item="1/2 + 1/3")
 reply.text, reply.answer            # 'I got 2/5.', '2/5'
-reply.to_log()                      # ground truth: followed_rule, holds_misconception, ...
+reply.to_log()                      # ground truth: followed_rule, holds_misconception, slipped, ...
 student.misconception_id, student.group   # for the session_start record
+
+students = roster(judge, copies=1, slip_only=10)   # one student per rule, plus slip-only students
+student.save("runs/students"); SimStudent.load("runs/students", "student-001", judge=judge)
 ```
 
-- **The rule decides every answer.** The student keeps its misconception until a tutor message targets it (the judge decides), then answers correctly. Use one `SimStudent` object for all of a student's sessions.
-- **`item`:** the runner passes the maths it asked as plain text, so the student never has to read it out of the tutor's prose.
+- **The rule decides every answer.** The student keeps its misconception until a tutor message targets it (the judge decides), then answers correctly.
+- **Any rule, by name:** B's rules run through `run_rule()`; the 10 held-back rules, which B's runner refuses, through D's code in `matheasy/evaluation/held_back.py` (MalruleLib's wrong answers). The tutor must never import that module.
+- **Slips:** `slip_rate` is the chance of a careless slip on an item the student would otherwise get right; slip-only students (`misconception=None`) use 0.3. A slip is never an answer any rule gives, so it can't look like a misconception.
+- **Several sessions:** call `begin_session(index)` before each session. Keep the same object, or `save()` and `load()` it between processes; a loaded student carries on exactly as if it had never stopped. `relapse_rate` (default 0) is the chance a fixed misconception comes back at the start of a later session.
+- **`item`:** the runner passes the maths it asked as plain text, so the student never has to read it out of the tutor's prose. Equations are answered `x = 4`. Comparisons are written as a relation (`1/3 > 1/4`, sign ignored) and answered with the relation the student believes; that format still needs agreement with B and C.
+- **Metrics:** `python -m matheasy.evaluation.metrics runs/turn_logs` prints every week-2 metric per condition and student group: top-1 diagnosis accuracy, follow-ups per diagnosis, over-claiming on slips, claims on misconceptions the tutor can't know, leak rate, unsafe-action rate, critic rewrites and safe templates, tool-call validity and recovery. Learning gain, retention and calibration come in week 3.
 - **Required log fields:** `matheasy/evaluation/log_fields.py` lists every event the runner must write (`session_start`, `turn`, `diagnosis`, `hint`, `tool_call`, `test`, `session_end`), with the fields each needs and the metrics that read them. Check a run with `.venv/bin/python -m matheasy.evaluation runs/`.
 - **Tests vs probes:** `overlapping(test_items, probe_items)` lists test items that match a probe (same numbers and operations, in any order).
 
