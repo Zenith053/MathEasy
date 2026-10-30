@@ -3,11 +3,14 @@
 #   eedi:<MisconceptionId>   known only as text
 #   slip                     a careless mistake; always a suspect
 #
+# A twin (same wrong answer on every problem) has no entry of its own: its
+# rule's entry stands for it. See twins= in matheasy/diagnosis/rules/.
+#
 # `eedi` lists the Eedi MisconceptionIds a rule matches. It is filled in once A
 # shares the Eedi misconception list; until then every rule has an empty list.
 # Held-back rules (eval/held_back_rules.json) must never appear here.
 #
-# Week 1: three fraction rules. Rules are added topic by topic in week 2.
+# Rules are added module by module; see docs/diagnosis_rules.md.
 
 misconceptions:
   rule:fractions.add_numerators_denominators:
@@ -20,6 +23,22 @@ misconceptions:
 
   rule:fractions.multiply_across_for_division:
     text: Divides fractions by multiplying straight across without flipping the divisor, e.g. 2/3 ÷ 4/5 = 8/15.
+    eedi: []
+
+  rule:fractions.ignore_denominators:
+    text: Works on the numerators only and ignores the denominators, e.g. 2/3 + 1/5 = 3.
+    eedi: []
+
+  rule:fractions.natural_number_bias_numerator_only:
+    text: Compares fractions by their numerators only, e.g. 3/4 < 5/8 because 3 < 5.
+    eedi: []
+
+  rule:ratios_proportions.additive_instead_of_multiplicative:
+    text: Keeps the difference between quantities instead of the ratio, e.g. 2/3 = 6/x gives x = 7.
+    eedi: []
+
+  rule:ratios_proportions.swap_ratios_or_units:
+    text: Sets one ratio of a proportion up the wrong way round, e.g. 2/3 = 6/x solved as 3/2 = 6/x, so x = 4.
     eedi: []
 
   slip:

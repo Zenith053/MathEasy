@@ -52,25 +52,35 @@ class Rule:
 
 
 _REGISTRY: dict[str, Rule] = {}
+_ALIASES: dict[str, str] = {}  # twin name -> the rule registered for it
 _HELD_BACK = held_back_rules()
 
 
-def rule(name: str):
-    """Decorator that registers a rule function under its MalruleLib name."""
-    rule_id(name)  # a name no misconception ID can refer to is refused here, not found missing later
+def rule(name: str, twins: tuple[str, ...] = ()):
+    """Decorator that registers a rule function under its MalruleLib name.
+
+    `twins` are MalruleLib names that give the same wrong answer on every problem the
+    rule applies to. No follow-up question can tell them apart, so they are one
+    suspect: run_rule() accepts their names, and the diagnoser names the rule.
+    """
+    for n in (name, *twins):
+        rule_id(n)  # a name no misconception ID can refer to is refused here, not found missing later
 
     def register(fn: Callable[[Node], Optional[Node]]):
-        if name in _HELD_BACK:
-            raise HeldBackRuleError(f"{name} is held back for evaluation and cannot be a rule")
-        if name in _REGISTRY:
-            raise ValueError(f"rule {name} registered twice")
+        for n in (name, *twins):
+            if n in _HELD_BACK:
+                raise HeldBackRuleError(f"{n} is held back for evaluation and cannot be a rule")
+            if n in _REGISTRY or n in _ALIASES:
+                raise ValueError(f"rule {n} registered twice")
         _REGISTRY[name] = Rule(name, fn)
+        _ALIASES.update({twin: name for twin in twins})
         return fn
     return register
 
 
 def _name(rule_or_id: str) -> str:
-    return split_id(rule_or_id)[1] if rule_or_id.startswith("rule:") else rule_or_id
+    name = split_id(rule_or_id)[1] if rule_or_id.startswith("rule:") else rule_or_id
+    return _ALIASES.get(name, name)
 
 
 def get_rule(rule_or_id: str) -> Rule:
@@ -81,8 +91,13 @@ def get_rule(rule_or_id: str) -> Rule:
 
 
 def rule_names() -> list[str]:
-    """Names of every registered rule."""
+    """Names of every registered rule (not their twins)."""
     return sorted(_REGISTRY)
+
+
+def twin_names() -> dict[str, str]:
+    """Each twin's MalruleLib name -> the rule that stands for it."""
+    return dict(_ALIASES)
 
 
 def run_rule(rule_or_id: str, expr: Union[str, Node]) -> Optional[str]:
@@ -100,4 +115,4 @@ def run_rule(rule_or_id: str, expr: Union[str, Node]) -> Optional[str]:
     return None if result is None else str(result)
 
 
-from . import fractions  # noqa: E402,F401  (registers the rules)
+from . import fractions, ratios  # noqa: E402,F401  (registers the rules)

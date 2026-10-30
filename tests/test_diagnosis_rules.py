@@ -149,6 +149,6 @@ def test_bank_eedi_mapping(tmp_path):
 def test_bank_entry_without_a_rule_fails(tmp_path):
     path = tmp_path / "bank.yaml"
     path.write_text(yaml.safe_dump({"misconceptions": {
-        "rule:fractions.ignore_denominators": {"text": "x"}}}))
+        "rule:fractions.not_written_yet": {"text": "x"}}}))
     with pytest.raises(KeyError):
         load_bank(path)
