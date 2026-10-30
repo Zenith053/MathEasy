@@ -25,10 +25,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional, Union
 
-from ..ids import split_id
+from ..ids import rule_id, split_id
 from ..maths import Node, parse
 
 HELD_BACK_FILE = Path(__file__).resolve().parents[3] / "eval" / "held_back_rules.json"
+TOPICS = ("fractions", "decimals", "expressions")
 
 
 def held_back_rules() -> frozenset[str]:
@@ -39,6 +40,10 @@ def held_back_rules() -> frozenset[str]:
 
 class HeldBackRuleError(ValueError):
     """Someone tried to register a rule that D held back for evaluation."""
+
+
+class RuleError(RuntimeError):
+    """A rule crashed: the rule has a bug. Callers skip it and carry on with the other rules."""
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,10 @@ _HELD_BACK = held_back_rules()
 
 def rule(name: str, topic: str):
     """Decorator that registers a rule function under its MalruleLib name."""
+    rule_id(name)  # a name no misconception ID can refer to is refused here, not found missing later
+    if topic not in TOPICS:
+        raise ValueError(f"rule {name}: topic must be one of {', '.join(TOPICS)}, not {topic!r}")
+
     def register(fn: Callable[[Node], Optional[Node]]):
         if name in _HELD_BACK:
             raise HeldBackRuleError(f"{name} is held back for evaluation and cannot be a rule")
@@ -81,8 +90,17 @@ def rule_names(topic: Optional[str] = None) -> list[str]:
 
 
 def run_rule(rule_or_id: str, expr: Union[str, Node]) -> Optional[str]:
-    """The answer the misconception predicts for `expr`, or None if it does not apply."""
-    result = get_rule(rule_or_id).apply(parse(expr))
+    """The answer the misconception predicts for `expr`, or None if it does not apply.
+
+    Raises KeyError for an unknown rule and ParseError for an unreadable expression
+    (the caller's mistakes), and RuleError if the rule itself crashes (a bug in it).
+    """
+    found = get_rule(rule_or_id)
+    node = parse(expr)
+    try:
+        result = found.apply(node)
+    except Exception as e:  # only errors from inside the rule function
+        raise RuleError(f"rule {found.name} failed on {node}: {type(e).__name__}: {e}") from e
     return None if result is None else str(result)
 
 

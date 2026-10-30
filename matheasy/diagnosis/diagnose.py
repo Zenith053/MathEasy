@@ -98,7 +98,8 @@ def diagnose(
     candidates = sorted(shortlister(located, k), key=lambda c: -c.score)
     trace = [
         {"stage": "locate", **located.to_dict()},
-        {"stage": "shortlist", "candidates": [[c.id, c.score] for c in candidates]},
+        {"stage": "shortlist", "candidates": [[c.id, c.score] for c in candidates],
+         "failed_rules": list(getattr(shortlister, "failed", []))},  # rules that crashed: bugs to fix
     ]
     total = sum(max(c.score, 0.0) for c in candidates)
     beliefs = {c.id: (max(c.score, 0.0) / total if total else 1 / len(candidates)) for c in candidates}

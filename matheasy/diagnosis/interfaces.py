@@ -19,7 +19,7 @@ import sympy
 from .bank import Bank, load_bank
 from .ids import eedi_id
 from .maths import LocatedError, Rel, equivalent
-from .rules import run_rule
+from .rules import RuleError, run_rule
 
 
 @dataclass(frozen=True)
@@ -40,16 +40,22 @@ class RuleShortlister:
     """Placeholder for A's shortlist(): ranks the bank's rules that reproduce the student's answer.
 
     Every rule whose prediction equals what the student wrote scores 1; the rest
-    are left out. Replace with A's shortlist() as soon as it exists.
+    are left out. A rule that crashes is skipped, so one buggy rule cannot stop a
+    diagnosis; `failed` lists the rules that crashed on the last call, for the logs.
     """
 
     def __init__(self, bank: Optional[Bank] = None):
         self.bank = bank or load_bank()
+        self.failed: list[str] = []
 
     def __call__(self, error: LocatedError, k: int = 25) -> list[Candidate]:
-        hits = []
+        hits, self.failed = [], []
         for mid in self.bank.rules():
-            predicted = run_rule(mid, error.source_node)
+            try:
+                predicted = run_rule(mid, error.source_node)
+            except RuleError as e:
+                self.failed.append(str(e))
+                continue
             if predicted is not None and equivalent(predicted, error.wrong_node):
                 hits.append(Candidate(mid, 1.0))
         return hits[:k]
