@@ -18,7 +18,7 @@ import sympy
 
 from .bank import Bank, load_bank
 from .ids import eedi_id
-from .maths import LocatedError, Rel, equivalent, topic_of
+from .maths import UNDEFINED, LocatedError, Rel, equivalent, topic_of, undefined
 from .rules import RuleError, run_rule
 
 
@@ -86,7 +86,9 @@ def query(error: LocatedError) -> str:
     from matheasy.shortlister.query import build_query, sympy_diff
 
     difference = None
-    if not isinstance(error.wrong_node, Rel) and not isinstance(error.source_node, Rel):
+    if undefined(error.wrong_node) or undefined(error.source_node):
+        difference = UNDEFINED  # A's sympy_diff would write 'zoo'
+    elif not isinstance(error.wrong_node, Rel) and not isinstance(error.source_node, Rel):
         difference = sympy_diff(error.wrong_node.to_sympy(), sympy.simplify(error.source_node.to_sympy()))
     return build_query(
         topic=topic_of(error.source_node, error.wrong_node),  # of the wrong part, not the whole line

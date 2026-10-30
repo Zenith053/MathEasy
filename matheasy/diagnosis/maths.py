@@ -678,7 +678,8 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
         expected = _sstr(value, decimal)
         difference = _sstr(sympy.simplify(wrong.to_sympy() - value), decimal)
     correct = _solved(b) if isinstance(b, Rel) else _sstr(sympy.simplify(b.to_sympy()), decimal)
-    term = _wrong_term(source, wrong, decimal)
+    # a side that divides by zero (2/0) has no value, so no single term can be blamed
+    term = None if undefined(source) or undefined(wrong) else _wrong_term(source, wrong, decimal)
     wrong_term, expected_term = term if term else (str(wrong), expected)
     return LocatedError(
         before=str(b), after=str(a), correct=correct,
@@ -688,9 +689,23 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
     )
 
 
+UNDEFINED = "undefined (divides by zero)"
+
+
+def undefined(node: Node) -> bool:
+    """True if the value divides by zero somewhere: 2/0, 6 ÷ (3 - 3)."""
+    return _has_no_value(node.to_sympy())
+
+
+def _has_no_value(expr) -> bool:
+    return expr.has(sympy.zoo, sympy.nan, sympy.oo, -sympy.oo)
+
+
 def _sstr(expr: sympy.Expr, decimal: bool = False) -> str:
     """SymPy's value written the way a student would (2x + 6, x^2); with decimal=True, each
     terminating fraction as a decimal (7/10 -> 0.7, 3x/4 -> 0.75x)."""
+    if _has_no_value(expr):
+        return UNDEFINED  # never 'zoo' or 'nan'
     if decimal and isinstance(expr, sympy.Rational) and not expr.is_integer:
         text = _as_decimal(int(expr.p), int(expr.q))
         if text is not None:

@@ -5,7 +5,7 @@ import pytest
 import sympy
 
 from matheasy.diagnosis import ParseError, as_fraction, check_step, equivalent, locate, notation_issue, parse
-from matheasy.diagnosis.maths import BinOp, Mixed, Neg, Num, Sym, Word
+from matheasy.diagnosis.maths import UNDEFINED, BinOp, Mixed, Neg, Num, Sym, Word
 
 a, b, c, r, x, y, E, M, C = sympy.symbols("a b c r x y E M C")
 R = sympy.Rational
@@ -401,3 +401,14 @@ def test_typed_fraction_is_marked():
     # 6/2 typed as one number and 6 ÷ 2 are equal in value and as trees; only the flag differs.
     assert parse("6/2").typed_fraction and not parse("6 ÷ 2").typed_fraction
     assert parse("6/2") == parse("6 ÷ 2")
+
+
+def test_locate_division_by_zero_is_written_undefined():
+    # The student's answer divides by zero: a real mistake (subtracting across gives 2/0).
+    e = locate("3/4 - 1/4", "2/0")
+    assert (e.expected, e.difference, e.expected_term, e.wrong_term) == ("1/2", UNDEFINED, "1/2", "2/0")
+    # The line before already divides by zero: it has no value to compare with.
+    e = locate("2/0 + 1", "3")
+    assert (e.correct, e.expected) == (UNDEFINED, UNDEFINED)
+    for e in [locate("3/4 - 1/4", "2/0"), locate("6 ÷ 0", "0"), locate("x = 5", "x = 1/0")]:
+        assert not any(bad in str(v) for v in e.to_dict().values() for bad in ("zoo", "nan", "oo"))

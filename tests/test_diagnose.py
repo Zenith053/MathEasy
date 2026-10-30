@@ -101,3 +101,9 @@ def test_log_record():
     json.dumps(log)
     assert [step["stage"] for step in log["trace"]] == ["locate", "shortlist", "decide"]
     assert log["located"]["wrong"] == "2/5"
+
+
+def test_query_for_an_undefined_answer():
+    from matheasy.diagnosis.interfaces import query
+    q = query(locate("3/4 - 1/4", "2/0"))
+    assert "Difference: undefined (divides by zero)" in q and "zoo" not in q and "nan" not in q
