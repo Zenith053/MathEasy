@@ -1,6 +1,6 @@
 # Design decisions: reading student maths
 
-Owner: B. Covers how the diagnosis engine reads what a student writes: the parser, the notation standard and the LLM transcriber (`matheasy/diagnosis/maths.py`, `transcribe.py`, `docs/input_notation.md`). Each entry gives the decision, the alternatives considered, and why. Open questions are listed at the end.
+Owner: B. Covers how the diagnosis engine reads what a student writes: the parser, the notation standard and the LLM transcriber (`matheasy/diagnosis/maths.py`, `transcribe.py`, `docs/input_notation.md`), and how a located mistake is handed to A's shortlister (`matheasy/diagnosis/interfaces.py`, `matheasy/shortlister/`). Each entry gives the decision, the alternatives considered, and why. Open questions are listed at the end.
 
 ## 1. Parsing
 
@@ -119,6 +119,79 @@ A word decided by the model is written in braces (`{fuel}`), so the decision sur
 | C owns the transcriber (the plan gives the Read stage to C) | Considered |
 | **B owns `transcribe()`, C calls it** | **Chosen** |
 
+## 7. From a located mistake to suspects: the shortlister query
+
+### 7.1 How it works
+
+Diagnosis needs a short list of suspect misconceptions before it can test any of them. The suspects come from about 2,600 Eedi misconceptions, far more than our rules cover, so A's shortlister ranks them. The steps:
+
+1. **`locate()` (B, `maths.py`) does all the maths.** It narrows the step to the part the student changed and finds the wrong term, returning a `LocatedError`.
+2. **`query()` (B, `interfaces.py`) is the only bridge.** `maths.py` and A's code never call each other. `query()` copies the `LocatedError` fields into A's `build_query()`.
+3. **`build_query()` (A, `query.py`) only formats.** It joins six fields into one line of text:
+
+   ```
+   Topic: fractions | Before: 1/2 + 1/3 | Student wrote: 2/5 | Correct: 5/6 | Changed part: 5/6 -> 2/5 | Difference: student - correct = -13/30; student / correct = 12/25
+   ```
+
+   | Field | Where it comes from |
+   |---|---|
+   | Topic | `topic_of()` on the narrowed part: any letter gives expressions, else any `.` or `%` gives decimals, else fractions |
+   | Before, Student wrote, Correct | the step and the correct value, from `locate()` |
+   | Changed part | `expected_term -> wrong_term` from `locate()`. Both lines are expanded into monomials (`2x + 6` is `{x: 2, 1: 6}`) and compared, so `2(x + 3) -> 2x + 3` gives `6 -> 3` |
+   | Difference | A's `sympy_diff()` on the narrowed part: student − correct, and student ÷ correct when both are numbers |
+
+4. **`shortlist(query, k)` (A) ranks the misconception names** and returns the top k as `eedi:` candidates.
+5. **`diagnose()` (B) tests the suspects.** It runs our rule for each suspect that has one, and asks a follow-up question when more than one survives.
+
+### 7.2 The query states facts, not a guess
+
+| Considered | Outcome |
+|---|---|
+| **The query describes the evidence: where the answer went wrong and by how much** | **Chosen**: it never says what the misconception is. Matching the evidence to a misconception is the model's job, and checking it is the diagnoser's |
+| An LLM writes a sentence naming the likely mistake ("added numerators and denominators") and adds it to the query | Not used for now: it costs one more model call per diagnosis, and a wrong guess sends the shortlister confidently the wrong way. That is the kind of guess "diagnose before you hint" sets out to test, not trust. A can try it as an experiment if ranking stays weak |
+
+### 7.3 What the shortlister model learns and searches
+
+The model (A, `train_shortlister.ipynb`) is a **bi-encoder**: one fine-tuned language model turns any text into a vector.
+
+- **Training.** Each labelled Eedi wrong answer gives one pair: its query from `build_query()`, and the name of its misconception. The model learns to place each query's vector close to its own misconception name, and far from the other names in the batch.
+- **Live use.** All misconception **names** are embedded once. The student's query is embedded, the names are ranked by how close they are, and the top 25 become the suspects.
+
+| Eedi table | Example | Used |
+|---|---|---|
+| Questions with labelled wrong answers | `\frac{1}{2}+\frac{1}{3}` → `\frac{2}{5}`, labelled with one misconception | **Training only** |
+| Misconception names (about 2,600) | "Adds numerators and adds denominators when adding fractions" | **Searched live** |
+
+The shortlister does **not** look for similar Eedi questions. What it learned from them is stored in the model's weights, and live it searches only the names. So it can rank a misconception that never appeared in training, because it scores the name's text. That is how held-back misconceptions can still be found.
+
+Until the model is trained, `shortlist()` uses BM25 word matching over the names, and `diagnose()` uses `RuleShortlister` (every rule is run, and the ones that reproduce the student's answer are kept).
+
+### 7.4 Training and live queries must match
+
+The model only works well on queries shaped like the ones it was trained on. Today the two are built differently, because Eedi's data does not fit `locate()`. Its maths is LaTeX (`\frac{1}{2}`), and many questions are word problems or multiple choice, with no step to narrow down. So in training, `build_query()` fills in the missing fields itself (`fallback_diff()`).
+
+| Field | Training (Eedi) | Live (our `locate()`) |
+|---|---|---|
+| Topic | our topic plus Eedi's construct name, e.g. `fractions - Add fractions with different denominators` | `fractions` only |
+| Before, Student wrote, Correct | LaTeX: `\frac{2}{5}` | our notation: `2/5` |
+| Changed part | a text diff: `5 -> 2; 6 -> 5` | the wrong term: `5/6 -> 2/5` |
+| Difference | `sympy_diff()` on the whole answers | `sympy_diff()` on the narrowed part (the same for most Eedi rows) |
+
+| Considered | Outcome |
+|---|---|
+| Live queries copy the training format | Possible, but it throws away the sharper wrong-term signal |
+| **Training converts the LaTeX of plain-expression Eedi rows to our notation and runs `locate()`. The text diff is kept only for rows we cannot read, and used the same way live** | **Proposed**, to agree with A before the full training run. First step: count how many Eedi rows are plain expressions |
+
+**The construct name in Topic.** In training it is the model's strongest clue, and nothing provides it live.
+
+| Considered | Outcome |
+|---|---|
+| Drop the construct name from training, so both sides use only our topic | **Candidate**: no labels needed, but a weaker clue |
+| Give every tutor question a hand-written skill label in Eedi's style, passed to `diagnose()` and on into the query | **Candidate**: the clue stays, at the cost of labelling the question bank |
+| Generate the phrase in code from the narrowed part | Rejected: hand-written rules mapping operations to phrases would be brittle |
+
+To decide between the two candidates, A trains with and without the construct name and compares MAP@25 on validation.
+
 ## Open questions
 
 | Question | Who decides |
@@ -129,3 +202,4 @@ A word decided by the model is written in braces (`{fuel}`), so the decision sur
 | Clarification questions logged separately, so they do not count as diagnostic follow-ups in H1 metrics | C and D |
 | Human review of `quantity_words.txt` before the final runs | B |
 | D's `item_key()` handles the new `Word` and `Mixed` nodes | D |
+| Training and live shortlister queries in one format (7.4), including where the topic comes from | A and B |
