@@ -90,6 +90,30 @@ PREDICTS = [
     ("exponents.forget_exponent_on_coefficient", "(3x^2y)^2", "3x^4y^2"),
     ("exponents.distribute_exponent_over_addition", "(2 + 3)^2", "13"),
     ("exponents.distribute_exponent_over_addition", "(x + 1 + 2)^2", "x^2 + 5"),
+    # ---- whole-number column arithmetic (checked against MalruleLib's own worked test cases)
+    ("buggy_addition.add_all_digits", "23 + 45", "14"),
+    ("buggy_addition.carry_adds_to_same_column", "37 + 25", "53"),
+    ("buggy_addition.carry_not_reset", "328 + 917", "1345"),
+    ("buggy_addition.left_justify", "8 + 12", "92"),
+    ("buggy_addition.single_digit_linked", "8 + 12", "128"),
+    ("buggy_addition.write_carry_forget_units", "87 + 93", "11"),
+    ("subtraction.no_column_limit", "47 + 38", "715"),
+    ("buggy_subtraction.borrow_into_1_equals_10", "321 - 89", "231"),
+    ("buggy_subtraction.borrow_writes_10", "403 - 168", "245"),
+    ("buggy_subtraction.diff_0_n_equals_0", "140 - 21", "120"),
+    ("buggy_subtraction.diff_n_0_equals_0", "403 - 208", "105"),
+    ("buggy_subtraction.forget_borrow_over_blanks", "85 - 127", "158"),
+    ("buggy_subtraction.left_ten_ok", "302 - 7", "395"),
+    ("buggy_subtraction.move_over_zero_borrow", "304 - 75", "139"),
+    ("subtraction.always_borrow_left", "85 - 23", "52"),
+    ("subtraction.borrow_from_bottom", "52 - 17", "55"),
+    ("subtraction.borrow_no_decrement", "52 - 17", "45"),
+    ("subtraction.diff_0_n_equals_n", "140 - 21", "121"),
+    ("subtraction.smaller_from_larger", "62 - 37", "35"),
+    ("subtraction.stops_borrow_at_zero", "402 - 6", "404"),
+    ("buggy_multiplication.column_mimics_addition", "68 × 46", "24"),
+    ("multiplication_division.alignment_error_in_multi_digit", "23 × 14", "115"),
+    ("multiplication_division.forget_to_add_carried_number", "23 × 4", "82"),
 ]
 
 # (rule, a problem its misconception says nothing about)
@@ -123,6 +147,13 @@ SILENT = [
     ("exponents.multiply_exponents_when_multiplying_powers", "x^2 × y^3"),  # different bases
     ("exponents.forget_exponent_on_coefficient", "(x^3)^2"),             # no number in front
     ("exponents.distribute_exponent_over_addition", "(x - 3)^2"),        # MalruleLib: sums only
+    ("buggy_addition.carry_not_reset", "23 + 14"),                       # no carry: the bug gives the right answer
+    ("buggy_subtraction.borrow_writes_10", "89 - 54"),                   # no borrow
+    ("subtraction.smaller_from_larger", "37 - 62"),                      # top number smaller
+    ("buggy_subtraction.forget_borrow_over_blanks", "127 - 85"),         # no blank columns on top
+    ("buggy_addition.single_digit_linked", "12 + 34"),                   # no single digit
+    ("buggy_multiplication.column_mimics_addition", "68 × 4"),           # MalruleLib: two-digit by two-digit
+    ("buggy_addition.add_all_digits", "2.3 + 4.5"),                      # not whole numbers
 ]
 
 # (step before, the student's step, a rule that must be among the suspects)
@@ -147,6 +178,9 @@ DIAGNOSED = [
     ("(x^2)^3", "x^5", "exponents.add_exponents_for_power_of_power"),
     ("2^-2", "-4", "exponents.negative_exponent_makes_negative"),
     ("(x - 3)^2", "x^2 + 9", "algebra.distribute_over_non_distributive"),
+    ("62 - 37", "35", "subtraction.smaller_from_larger"),
+    ("x + 47 + 38", "x + 715", "subtraction.no_column_limit"),          # inside a line
+    ("2x = 304 - 75", "2x = 139", "buggy_subtraction.move_over_zero_borrow"),
 ]
 
 

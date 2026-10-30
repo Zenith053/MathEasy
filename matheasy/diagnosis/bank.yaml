@@ -141,6 +141,98 @@ misconceptions:
     text: Raises each term of a sum separately, e.g. (2 + 3)^2 = 13.
     eedi: []
 
+  rule:buggy_addition.add_all_digits:
+    text: Adds every digit regardless of place value, e.g. 23 + 45 = 14.
+    eedi: []
+
+  rule:buggy_addition.carry_adds_to_same_column:
+    text: Adds the carry into the same column instead of the next, e.g. 37 + 25 = 53.
+    eedi: []
+
+  rule:buggy_addition.carry_not_reset:
+    text: Never resets the carry, adding it into every later column, e.g. 328 + 917 = 1345.
+    eedi: []
+
+  rule:buggy_addition.left_justify:
+    text: Lines numbers up on the left instead of the right, e.g. 8 + 12 = 92.
+    eedi: []
+
+  rule:buggy_addition.single_digit_linked:
+    text: Writes a single digit next to the other number instead of adding, e.g. 8 + 12 = 128.
+    eedi: []
+
+  rule:buggy_addition.write_carry_forget_units:
+    text: Writes the carry and forgets the units digit, e.g. 87 + 93 = 11.
+    eedi: []
+
+  rule:subtraction.no_column_limit:
+    text: Writes each column's whole sum without regrouping, e.g. 47 + 38 = 715.
+    eedi: []
+
+  rule:buggy_subtraction.borrow_into_1_equals_10:
+    text: Borrowing into a 1 gives 10 instead of 11, e.g. 321 - 89 = 231.
+    eedi: []
+
+  rule:buggy_subtraction.borrow_writes_10:
+    text: Borrowing across a 0 turns it into 10 instead of 9, e.g. 403 - 168 = 245.
+    eedi: []
+
+  rule:buggy_subtraction.diff_0_n_equals_0:
+    text: Writes 0 whenever the top digit is 0, e.g. 140 - 21 = 120.
+    eedi: []
+
+  rule:buggy_subtraction.diff_n_0_equals_0:
+    text: Writes 0 whenever the bottom digit is 0, e.g. 403 - 208 = 105.
+    eedi: []
+
+  rule:buggy_subtraction.forget_borrow_over_blanks:
+    text: Does not borrow over blank columns when the top number is shorter, e.g. 85 - 127 = 158.
+    eedi: []
+
+  rule:buggy_subtraction.left_ten_ok:
+    text: Changes a 0 to 9 without borrowing further, e.g. 302 - 7 = 395.
+    eedi: []
+
+  rule:buggy_subtraction.move_over_zero_borrow:
+    text: Skips over a 0 when borrowing, leaving it 0, e.g. 304 - 75 = 139.
+    eedi: []
+
+  rule:subtraction.always_borrow_left:
+    text: Borrows in every column, needed or not, e.g. 85 - 23 = 52.
+    eedi: []
+
+  rule:subtraction.borrow_from_bottom:
+    text: Borrows from the bottom number instead of the top, e.g. 52 - 17 = 55.
+    eedi: []
+
+  rule:subtraction.borrow_no_decrement:
+    text: Adds 10 when borrowing but never takes 1 from the next column, e.g. 52 - 17 = 45.
+    eedi: []
+
+  rule:subtraction.diff_0_n_equals_n:
+    text: Writes the bottom digit whenever the top digit is 0, e.g. 140 - 21 = 121.
+    eedi: []
+
+  rule:subtraction.smaller_from_larger:
+    text: Takes the smaller digit from the larger in every column, e.g. 62 - 37 = 35.
+    eedi: []
+
+  rule:subtraction.stops_borrow_at_zero:
+    text: Stops borrowing at a 0 and takes smaller from larger, e.g. 402 - 6 = 404.
+    eedi: []
+
+  rule:buggy_multiplication.column_mimics_addition:
+    text: Multiplies column by column like adding, e.g. 68 × 46 = 24.
+    eedi: []
+
+  rule:multiplication_division.alignment_error_in_multi_digit:
+    text: Does not shift partial products by place value, e.g. 23 × 14 = 115.
+    eedi: []
+
+  rule:multiplication_division.forget_to_add_carried_number:
+    text: Forgets to add the carried digit when multiplying, e.g. 23 × 4 = 82.
+    eedi: []
+
   slip:
     text: A careless mistake with no underlying misconception.
     eedi: []

@@ -116,6 +116,6 @@ def run_rule(rule_or_id: str, expr: Union[str, Node]) -> Optional[str]:
 
 
 from . import (  # noqa: E402,F401  (registers the rules)
-    algebra, decimals, exponents, fractions, multiplication_division, negative_numbers, order_of_operations,
-    ratios,
+    algebra, arithmetic, decimals, exponents, fractions, multiplication_division, negative_numbers,
+    order_of_operations, ratios,
 )
