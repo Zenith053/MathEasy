@@ -43,7 +43,7 @@ from typing import Callable, Optional, Protocol, Sequence, Union
 import sympy
 
 from ..diagnosis import (
-    ParseError, equivalent, held_back_rules, parse, rule_id, rule_names, run_rule, topic_of,
+    ParseError, RuleError, equivalent, held_back_rules, parse, rule_id, rule_names, run_rule, topic_of,
 )
 from ..diagnosis.maths import Rel
 from ..diagnosis.rules import HELD_BACK_FILE, get_rule
@@ -140,7 +140,7 @@ def rule_answers(item: str) -> list[str]:
     for name in rule_names():
         try:
             answers.append(run_rule(name, item))
-        except (ParseError, ValueError, ZeroDivisionError):
+        except (ParseError, ValueError, ZeroDivisionError, RuleError):  # RuleError: a buggy rule, skipped
             pass
     answers += [held_back_rule(name).predict(item) for name in held_back_names()]
     return [a for a in answers if a is not None]

@@ -36,17 +36,9 @@ from statistics import mean
 from typing import Callable, Iterable, Optional, Sequence, Union
 
 from ..diagnosis import SLIP, ParseError, eedi_id, equivalent, load_bank, rule_id, split_id
-from ..diagnosis.rules import HELD_BACK_FILE
+from ..diagnosis.rules import HELD_BACK_FILE, twin_names
 from .held_back import held_back_rule
 from .log_fields import read_jsonl
-
-# Rules that give the same wrong answer on every item, so no probe can tell them apart
-# (B, docs/diagnosis_rules.md "Known twins"). A diagnosis of either counts as correct.
-TWINS = [
-    {"fractions.add_numerators_denominators", "fractions.common_denominator_numerator"},
-    {"order_of_operations.pemdas_strictly_sequential", "order_of_operations.addition_before_subtraction_always",
-     "order_of_operations.multiplication_before_division_always"},
-]
 
 TextJudge = Callable[[str, str], bool]
 
@@ -87,10 +79,16 @@ def _eedi_status() -> dict:
 
 
 def accepted(planted: str, group: str) -> set[str]:
-    """Diagnoses that count as correct for a student holding `planted` (a rule: ID)."""
+    """Diagnoses that count as correct for a student holding `planted` (a rule: ID).
+
+    Twins (B's rule registry, docs/diagnosis_rules.md) give the same wrong answer on every
+    problem, so no probe can tell them apart; the diagnoser names the rule that stands for
+    the twin, and a diagnosis of either counts as correct."""
     name = split_id(planted)[1]
     if group == "has_rule":
-        return {rule_id(n) for twins in TWINS if name in twins for n in twins} | {planted}
+        twins = twin_names()
+        stands_for = twins.get(name, name)
+        return {rule_id(stands_for)} | {rule_id(t) for t, r in twins.items() if r == stands_for} | {planted}
     if group == "known_as_text":
         return {eedi_id(int(_eedi_status()[name]))}
     return set()  # never_seen, unchecked: no diagnosis can be right

@@ -108,6 +108,17 @@ def test_twin_counts_as_correct():
     assert log.result()["full"]["has_rule"]["top1_accuracy"] == 1.0
 
 
+@pytest.mark.parametrize("planted,diagnosed,right", [
+    # B's diagnoser names the rule that stands for a twin
+    ("ratios_proportions.ratio_as_division_only", "ratios_proportions.swap_ratios_or_units", True),
+    ("ratios_proportions.swap_ratios_or_units", "ratios_proportions.ratio_as_division_only", True),
+    # not twins: they only agree on some problems, so a probe can separate them
+    ("order_of_operations.strict_left_to_right", "order_of_operations.ignore_parentheses", False),
+])
+def test_twins_come_from_bs_registry(planted, diagnosed, right):
+    assert (f"rule:{diagnosed}" in metrics.accepted(f"rule:{planted}", "has_rule")) is right
+
+
 def test_episode_scored_on_its_last_diagnosis():
     log = Log()
     log.start("s1", "has_rule", [f"rule:{ADDS_ACROSS}"])
