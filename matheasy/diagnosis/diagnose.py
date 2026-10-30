@@ -24,8 +24,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Sequence, Union
 
+from .explain import Explanation, explain
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
 from .maths import LocatedError, Node, locate
+from .solve_back import rules_for, solve_back
 
 MAX_FOLLOW_UPS = 2
 
@@ -55,9 +57,11 @@ class Diagnosis:
     located: LocatedError
     mode: Mode
     trace: tuple[dict, ...] = field(default=())  # every reasoning step, for the logs
+    explanation: Optional[Explanation] = None    # the LLM's reading of an 'unknown' step, if a session was given
 
     def to_log(self) -> dict:
         return {
+            "explanation": None if self.explanation is None else self.explanation.to_log(),
             "status": self.status,
             "misconception": self.misconception,
             "beliefs": self.beliefs,
@@ -83,8 +87,14 @@ def diagnose(
     store: Optional[StudentStore] = None,
     mode: Mode = "full",
     k: int = 25,
+    question: str = "",
+    session=None,
 ) -> Diagnosis:
-    """Diagnose the wrong step before -> after. Raises ParseError or StepIsCorrect."""
+    """Diagnose the wrong step before -> after. Raises ParseError or StepIsCorrect.
+
+    With an LLM `session`, a step no rule reproduces is passed to explain(), so the
+    result carries the model's reading of it; without one, no model is called.
+    """
     if mode not in ("full", "b2"):
         raise ValueError(f"unknown mode {mode!r}")
     if len(follow_ups) > MAX_FOLLOW_UPS:
@@ -111,4 +121,21 @@ def diagnose(
     else:
         status, top = "clear", candidates[0].id
     trace.append({"stage": "decide", "status": status, "misconception": top})
-    return Diagnosis(status, top, beliefs, None, located, mode, tuple(trace))
+
+    pieces = []
+    if status == "unknown":  # a whole line turned into one number: find which operation went wrong
+        pieces = [(p, rules_for(p)) for p in solve_back(before, after)]
+        trace.append({"stage": "solve_back", "pieces": [[p.source, p.wrong, rules] for p, rules in pieces]})
+        hits = {rule: p for p, rules in pieces for rule in rules}
+        if hits:
+            beliefs = {rule: 1 / len(hits) for rule in hits}
+            status, top = ("clear", next(iter(hits))) if len(hits) == 1 else ("ambiguous", None)
+            if len({id(p) for p in hits.values()}) == 1:
+                located = next(iter(hits.values()))  # the wrong piece, not the whole line
+            trace.append({"stage": "decide", "status": status, "misconception": top})
+
+    explanation = None
+    if status == "unknown" and session is not None:
+        explanation = explain(located, question=question, session=session, pieces=[p for p, _ in pieces])
+        trace.append({"stage": "explain", **explanation.to_log()})
+    return Diagnosis(status, top, beliefs, None, located, mode, tuple(trace), explanation)
