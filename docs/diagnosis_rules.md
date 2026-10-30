@@ -1,82 +1,85 @@
-# Diagnosis rules: which rules, in what order
+# Diagnosis rules: which rules, and how they run
 
-Owner: B. Status: end of week 1. Items marked **needs agreement** are proposals until the named role agrees.
+Owner: B. Items marked **needs agreement** are proposals until the named role agrees.
 
-Week-1 check: `python -m matheasy.tutor` runs D's student holding `fractions.add_numerators_denominators` through C's orchestrator and B's `diagnose()`; the diagnosis is correct and the log passes D's checker.
+Rules re-implement [MalruleLib](https://github.com/sonkar-lab/malrulelib) (Chen, Liu and Sonkar, 2026, [arXiv:2601.03217](https://arxiv.org/abs/2601.03217)), keeping its names and its wrong answers but running on the student's own expression. MalruleLib's code was read, never copied or run: each rule follows its `calculate_expected_answer()`, and the column-arithmetic rules were checked against the 120 worked cases in MalruleLib's own tests (all agree).
 
-Rules re-implement [MalruleLib](https://github.com/sonkar-lab/malrulelib) (Chen, Liu and Sonkar, 2026, [arXiv:2601.03217](https://arxiv.org/abs/2601.03217)), keeping its names and its wrong answers but running on the student's own expression.
+MalruleLib's licence is non-commercial and share-alike. Our local copy lives in `Dataset/` and is git-ignored. **Needs agreement (team):** whether the repo's licence must match.
 
-## Rule count: 24, not about 40 (needs team agreement)
+## Coverage: 60 of MalruleLib's 102 rules
 
-The team plan asks for about 40 rules. D's draw (`eval/held_back_rules.json`) leaves 39 bank candidates, but 15 of them are outside the tutor's topics: no item the tutor asks could make a student show them. Writing them would add rules that can never fire.
+58 runnable rules, plus 2 twins merged into them (see Twins). The other 42 are held back, out of scope or not expressible (see the end).
 
-That leaves **24 rules** to implement, listed below. If the team wants more, the options are to widen the topics or to take rules from MalruleLib folders outside D's pool of 49. Either needs D to redo the held-back draw.
+| Module (`matheasy/diagnosis/rules/`) | Rules |
+|---|---|
+| `fractions.py` | 4 + 1 twin |
+| `ratios.py` | 2 + 1 twin |
+| `decimals.py` (with percentages) | 4 |
+| `multiplication_division.py` | 3 |
+| `negative_numbers.py` | 2 |
+| `order_of_operations.py` | 5 |
+| `algebra.py` | 4 |
+| `exponents.py` | 7 |
+| `arithmetic.py` (whole-number column bugs) | 23 |
+| `scientific_notation.py` | 3 |
 
-## Rules to implement
+Every rule has MalruleLib's example in its docstring, a bank entry, and tests in `tests/test_diagnosis_rule_library.py`: the wrong answer it predicts, where it stays silent, and a real step that `diagnose()` traces back to it.
 
-Released topic by topic in week 2. Each rule is ready once it runs on real student expressions and has tests.
+## How a rule runs
 
-Examples for the week-2 rules illustrate MalruleLib's descriptions. The exact wrong answers will be checked against MalruleLib's code as each rule is written.
+A rule takes the part of the step the student got wrong (`LocatedError.source_node`) and returns the answer a student holding the misconception would write, or `None` if the misconception says nothing about that expression. A rule also returns `None` when the misconception happens to give the right answer (for example, no carry is needed), since a correct answer is never diagnosed.
 
-### Fractions (9)
+MalruleLib poses many problems in words. In our notation they become:
 
-| Rule | Example | Week |
+| MalruleLib asks | The rule runs on | It returns |
 |---|---|---|
-| `fractions.add_numerators_denominators` | 1/2 + 1/3 = 2/5 | **1 (done)** |
-| `fractions.keep_common_denominator_for_multiplication` | 2/5 × 3/5 = 6/5 | **1 (done)** |
-| `fractions.multiply_across_for_division` | 2/3 ÷ 4/5 = 8/15 | **1 (done)** |
-| `fractions.common_denominator_numerator` | 1/4 + 1/6 = 2/10 = 1/5 | 2 |
-| `fractions.ignore_denominators` | 2/3 + 1/5 = 3 | 2 |
-| `fractions.natural_number_bias_numerator_only` | 3/4 < 5/8 because 3 < 5 | 2 |
-| `ratios_proportions.additive_instead_of_multiplicative` | 2 : 3 = 6 : 7 | 2 |
-| `ratios_proportions.ratio_as_division_only` | 3 : 4 read as 0.75 | 2 |
-| `ratios_proportions.swap_ratios_or_units` | proportion set up inverted | 2 |
+| "Which is larger, 3/4 or 5/8?" | a comparison, as the true statement: `3/4 > 5/8` | the comparison the student would write: `3/4 < 5/8` |
+| a proportion word problem | the proportion with one unknown: `2/3 = 6/x` | the student's solution: `x = 7` |
+| "Solve for x" | the equation: `2x + 4 = 10` | `x = 1` |
+| "Write 45000 in standard form" | the number: `45000` | `4.5 × 10^3` |
+| column arithmetic | two whole numbers: `304 - 75` | `139` |
 
-### Decimals (4)
+**Needs agreement (C and D):** comparison items must reach `diagnose()` with the true statement as the step before, and the student's comparison as the step after.
 
-| Rule | Example | Week |
-|---|---|---|
-| `decimals.longer_is_larger` | 0.45 > 0.8 | 2 |
-| `decimals.whole_number_thinking` | decimals treated as whole numbers | 2 |
-| `decimals.ignore_decimal_point` | 0.3 × 0.2 = 6 | 2 |
-| `percentages.percent_equals_decimal` | 25% = 25 | 2 |
+The parser now marks a typed fraction (`6/2`) apart from a division (`6 ÷ 2`): `BinOp.typed_fraction`. Both are equal in value and as trees, and only the order-of-operations rules read the flag. A typed fraction is one number, while a `÷` is an operation done in order.
 
-### Expressions (11)
+## Twins: merged into one rule
 
-| Rule | Example | Week |
-|---|---|---|
-| `algebra.cancel_across_equals` | cancels terms across = as if they were factors | 2 |
-| `algebra.distribute_over_non_distributive` | (a + b)² = a² + b² | 2 |
-| `algebra.divide_one_term_only` | 2x + 4 = 10 → x + 4 = 5 | 2 |
-| `algebra.variable_letter_has_value` | letters have fixed values | 2 |
-| `negative_numbers.larger_absolute_value_always_wins` | sign taken from the larger number | 2 |
-| `negative_numbers.negative_times_negative_negative` | (−2)(−3) = −6 | 2 |
-| `order_of_operations.addition_before_subtraction_always` | 10 − 2 + 3 = 5 | 2 |
-| `order_of_operations.ignore_parentheses` | brackets ignored | 2 |
-| `order_of_operations.multiplication_before_division_always` | 12 ÷ 2 × 3 = 2 | 2 |
-| `order_of_operations.pemdas_strictly_sequential` | PEMDAS as six steps | 2 |
-| `order_of_operations.strict_left_to_right` | 2 + 3 × 4 = 20 | 2 |
+Two names that give the same wrong answer on every problem can never be told apart by a follow-up question, so keeping both would make every such diagnosis `ambiguous`. A twin is registered on its rule with `twins=`: `run_rule()` accepts its name, it has no bank entry of its own, and the diagnoser names the rule.
 
-### Known twins
+| Rule | Twin |
+|---|---|
+| `fractions.add_numerators_denominators` | `fractions.common_denominator_numerator` |
+| `ratios_proportions.swap_ratios_or_units` | `ratios_proportions.ratio_as_division_only` (MalruleLib asks it only where they agree) |
 
-Some pairs give the same wrong answer on every item, so no follow-up question can separate them:
-- `fractions.add_numerators_denominators` and `fractions.common_denominator_numerator`, on every addition.
-- `order_of_operations.pemdas_strictly_sequential` overlaps with `addition_before_subtraction_always` and `multiplication_before_division_always`.
+**Needs agreement with D:** a simulated student holding a twin is diagnosed as its rule, and should be counted as correct.
 
-The hypothesis tester will report these pairs as `ambiguous` and never `clear`. D's metric should count a diagnosis of either twin as correct. **Needs agreement with D.**
+## Overlaps: rules that agree on some problems only
 
-## Not implemented: out of the tutor's topics (15)
+These give the same answer on some problems but not others. `diagnose()` reports `ambiguous` there, and a follow-up question can separate them:
 
-`percentages.add_percentages_directly`, `percentages.reverse_percentage_error` (word problems); `rounding.decimal_places_same_as_sig_figs`, `scientific_notation.*` (3), `measurement.*` (2) (not tutor skills); `algebra.forget_negative_division` (inequalities); `linear_equations.*` (3) (graphs); `factoring.*` (3) (quadratics).
+- `fractions.multiply_across_for_division` and `multiplication_division.division_makes_smaller`, on a fraction divided by a fraction below 1 (`2/3 ÷ 4/5`); a divisor above 1 separates them.
+- `order_of_operations.pemdas_strictly_sequential` with `addition_before_subtraction_always` (on lines of only + and −) and with `multiplication_before_division_always` (on lines of only × and ÷); a line that mixes both separates them.
+- `algebra.distribute_over_non_distributive` and `exponents.distribute_exponent_over_addition`, on `(x + c)^2`; `(x − c)^2` and `(2 + 3)^2` separate them.
+- `decimals.ignore_decimal_point` and `decimals.whole_number_thinking`, on + − ×; a comparison or a division separates them.
 
-## Held back
+## Not implemented (42)
 
-The 10 rules in `eval/held_back_rules.json` are never implemented here. The rule registry and the bank both refuse them, and a test checks this.
+| Why | Rules |
+|---|---|
+| Held back by D for evaluation | the 10 in `eval/held_back_rules.json`. The registry and the bank refuse them, and a test checks this |
+| Skipped (B's decision) | `rounding.decimal_places_same_as_sig_figs` |
+| Word problems only (input is expressions only) | `percentages.add_percentages_directly`, `percentages.reverse_percentage_error` |
+| Not an expression | `subtraction.decompose_by_place_value_label` (place-value labels such as "3 thousands") |
+| No notation for it | `absolute_value.*` (3), `radicals.*` (4) |
+| Outside the tutor's topics | `algebra.forget_negative_division` (inequalities), `functions.*` (4), `geometry.*` (4), `graphing.*` (1), `statistics.*` (3), `linear_equations.*` (3, graphs), `factoring.*` (3, quadratics), `measurement.*` (2) |
+
+**Needs agreement (A and D):** the tutor's topics. A's Eedi subset includes rounding and standard form, while D's held-back draw marks them "not a tutor skill". The column-arithmetic and exponent rules also widen what the bank covers beyond D's pool of 49, which shifts the balance between known and held-back misconceptions in D's results.
 
 ## Probe and test items never overlap (agreed: D implemented it in `matheasy/evaluation/items.py`)
 
 1. **Probes:** fractions use denominators 2–12 and numerators below the denominator. Decimals have at most two decimal places. Expression coefficients and constants are −12 to 12.
-2. **B publishes every probe item** (`probe_items()` in week 3, also used for A's shortlist cache). The probe bank is finite, so this is a complete list.
+2. **B publishes every probe item** (`probe_items()`, also used for A's shortlist cache). The probe bank is finite, so this is a complete list.
 3. **D's test generator rejects any item that matches a probe.** Two items match if they have the same operation on the same numbers, in any order. For example, 1/3 + 1/4 matches 1/4 + 1/3. D's checker runs this over the full test set.
 
 This keeps tests and probes apart without forcing the tests onto harder numbers than the probes, which would change what the pre/post tests measure.
