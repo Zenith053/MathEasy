@@ -192,6 +192,15 @@ The model only works well on queries shaped like the ones it was trained on. Tod
 
 To decide between the two candidates, A trains with and without the construct name and compares MAP@25 on validation.
 
+## 8. Misconception rules: our own code, following MalruleLib
+
+| Considered | Outcome |
+|---|---|
+| Import MalruleLib and call its rules | Rejected: MalruleLib is a problem-and-answer generator. Each rule makes its own problem from templates and gives the wrong answer to that problem. It has no way to take an expression a student wrote (`1/2 + 1/3` inside a longer line) and say what the misconception predicts, which is the question diagnosis asks. Its rules also read the problem's text and metadata, so they cannot run on our parsed tree; and importing its code would bring its share-alike non-commercial licence into our repo |
+| **Write our own rules, keeping MalruleLib's names and wrong answers** | **Chosen**: each rule follows MalruleLib's `calculate_expected_answer()`, but runs on any expression the student writes and returns `None` where the misconception says nothing. The names keep IDs shared with the literature and with D's held-back list, and the held-back rules can be refused in code. The column-arithmetic rules were checked against the 120 worked cases in MalruleLib's own tests |
+
+MalruleLib's code was read, never copied or run. Rules that give the same answer on every problem (twins) are merged into one rule, so that a diagnosis is never permanently ambiguous. Coverage and conventions are in `docs/diagnosis_rules.md`.
+
 ## Open questions
 
 | Question | Who decides |
