@@ -115,4 +115,4 @@ def run_rule(rule_or_id: str, expr: Union[str, Node]) -> Optional[str]:
     return None if result is None else str(result)
 
 
-from . import fractions, ratios  # noqa: E402,F401  (registers the rules)
+from . import decimals, fractions, multiplication_division, ratios  # noqa: E402,F401  (registers the rules)

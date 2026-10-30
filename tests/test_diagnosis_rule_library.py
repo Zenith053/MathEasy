@@ -27,6 +27,24 @@ PREDICTS = [
     ("ratios_proportions.swap_ratios_or_units", "2/3 = 6/x", "x = 4"),
     ("ratios_proportions.swap_ratios_or_units", "2/3 = x/9", "x = 27/2"),
     ("ratios_proportions.ratio_as_division_only", "2/3 = 6/x", "x = 4"),
+    # ---- decimals and percentages
+    ("decimals.ignore_decimal_point", "0.3 × 0.2", "6"),
+    ("decimals.ignore_decimal_point", "1.5 + 0.25", "40"),
+    ("decimals.ignore_decimal_point", "4.8 ÷ 0.2", "24"),
+    ("decimals.whole_number_thinking", "0.5 + 0.25", "30"),
+    ("decimals.whole_number_thinking", "1.2 - 0.5", "7"),
+    ("decimals.whole_number_thinking", "0.45 < 0.8", "0.45 > 0.8"),
+    ("decimals.longer_is_larger", "0.45 < 0.8", "0.45 > 0.8"),
+    ("decimals.longer_is_larger", "0.01 < 0.3", "0.01 > 0.3"),    # where whole_number_thinking is right
+    ("percentages.percent_equals_decimal", "25%", "25"),
+    ("percentages.percent_equals_decimal", "25% of 80", "2000"),
+    ("percentages.percent_equals_decimal", "50% + 0.2", "50.2"),
+    # ---- what multiplying and dividing do
+    ("multiplication_division.division_makes_smaller", "4 ÷ 0.5", "2"),
+    ("multiplication_division.division_makes_smaller", "3 ÷ 1/4", "3/4"),
+    ("multiplication_division.divide_larger_by_smaller_always", "4 ÷ 6", "1.5"),
+    ("multiplication_division.multiplication_makes_bigger", "0.5 × 4", "4.5"),
+    ("multiplication_division.multiplication_makes_bigger", "1/2 × 1/3", "5/6"),
 ]
 
 # (rule, a problem its misconception says nothing about)
@@ -38,6 +56,13 @@ SILENT = [
     ("fractions.natural_number_bias_numerator_only", "0.75 > 0.5"),    # not fractions
     ("ratios_proportions.additive_instead_of_multiplicative", "2/3 = 6/9"),  # no unknown
     ("ratios_proportions.additive_instead_of_multiplicative", "x/3 = y/9"),  # two unknowns
+    ("decimals.ignore_decimal_point", "3 + 4"),                       # no decimal point
+    ("decimals.ignore_decimal_point", "0.5 < 0.8"),                   # a comparison
+    ("decimals.longer_is_larger", "0.5 + 0.25"),                      # not a comparison
+    ("percentages.percent_equals_decimal", "0.5 + 0.2"),              # no percentage
+    ("multiplication_division.division_makes_smaller", "8 ÷ 2"),      # division does make it smaller
+    ("multiplication_division.divide_larger_by_smaller_always", "6 ÷ 4"),
+    ("multiplication_division.multiplication_makes_bigger", "3 × 4"),
 ]
 
 # (step before, the student's step, a rule that must be among the suspects)
@@ -46,6 +71,11 @@ DIAGNOSED = [
     ("3/4 > 5/8", "3/4 < 5/8", "fractions.natural_number_bias_numerator_only"),
     ("2/3 = 6/x", "x = 7", "ratios_proportions.additive_instead_of_multiplicative"),
     ("2/3 = 6/x", "x = 4", "ratios_proportions.swap_ratios_or_units"),
+    ("0.3 × 0.2", "6", "decimals.ignore_decimal_point"),
+    ("0.45 < 0.8", "0.45 > 0.8", "decimals.longer_is_larger"),
+    ("25% of 80", "2000", "percentages.percent_equals_decimal"),
+    ("4 ÷ 0.5", "2", "multiplication_division.division_makes_smaller"),
+    ("x + 4 ÷ 6", "x + 1.5", "multiplication_division.divide_larger_by_smaller_always"),  # inside a line
 ]
 
 

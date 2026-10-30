@@ -41,6 +41,34 @@ misconceptions:
     text: Sets one ratio of a proportion up the wrong way round, e.g. 2/3 = 6/x solved as 3/2 = 6/x, so x = 4.
     eedi: []
 
+  rule:decimals.ignore_decimal_point:
+    text: Drops the decimal points and works with whole numbers, e.g. 0.3 × 0.2 = 6.
+    eedi: []
+
+  rule:decimals.whole_number_thinking:
+    text: Treats decimals as whole numbers, e.g. 0.5 + 0.25 = 30, and 0.45 > 0.8 because 45 > 8.
+    eedi: []
+
+  rule:decimals.longer_is_larger:
+    text: Thinks a decimal with more digits is larger, e.g. 0.45 > 0.8.
+    eedi: []
+
+  rule:percentages.percent_equals_decimal:
+    text: Treats a percentage as the plain number, e.g. 25% = 25, so 25% of 80 = 2000.
+    eedi: []
+
+  rule:multiplication_division.division_makes_smaller:
+    text: Expects division to make a number smaller, so multiplies instead, e.g. 4 ÷ 0.5 = 2.
+    eedi: []
+
+  rule:multiplication_division.divide_larger_by_smaller_always:
+    text: Always divides the larger number by the smaller, e.g. 4 ÷ 6 = 1.5.
+    eedi: []
+
+  rule:multiplication_division.multiplication_makes_bigger:
+    text: Expects multiplication to make a number bigger, so adds instead, e.g. 0.5 × 4 = 4.5.
+    eedi: []
+
   slip:
     text: A careless mistake with no underlying misconception.
     eedi: []

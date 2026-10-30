@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fractions import Fraction
-from typing import Optional
+from typing import Callable, Optional
 
 import sympy
 
@@ -61,6 +61,26 @@ def value_of(node: Node) -> Optional[Fraction]:
     if fraction is not None and fraction[1] != 0:
         return Fraction(*fraction)
     return None
+
+
+def evaluate(node: Node, number: Callable[[Node], Optional[Fraction]] = value_of) -> Optional[Fraction]:
+    """The value of a tree of numbers, reading each number with `number`; None if a letter, π,
+    a division by zero or a power that is not a whole number is met."""
+    if isinstance(node, BinOp) and not as_fraction(node):
+        a, b = evaluate(node.left, number), evaluate(node.right, number)
+        if a is None or b is None:
+            return None
+        if node.op == "^":
+            if b.denominator != 1 or abs(b) > 50 or (a == 0 and b < 0):
+                return None
+            return a ** int(b)
+        if node.op == "/" and b == 0:
+            return None
+        return {"+": a + b, "-": a - b, "*": a * b, "/": a / b if b else None}[node.op]
+    if isinstance(node, Neg):
+        inner = evaluate(node.operand, number)
+        return None if inner is None else -inner
+    return number(node)
 
 
 def whole(node: Node) -> Optional[int]:

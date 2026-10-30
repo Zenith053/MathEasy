@@ -19,8 +19,16 @@ def test_end_to_end_fraction_example():
 
 
 def test_inside_a_longer_line():
-    d = diagnose("x + 2/3 ÷ 4/5", "x + 8/15")
-    assert d.misconception == "rule:fractions.multiply_across_for_division"
+    d = diagnose("x + 2/5 × 3/5", "x + 6/5")
+    assert d.misconception == "rule:fractions.keep_common_denominator_for_multiplication"
+
+
+def test_rules_that_agree_on_a_step_are_ambiguous():
+    # Both predict 8/15 here; a divisor above 1 (2/3 ÷ 5/4) would tell them apart.
+    d = diagnose("2/3 ÷ 4/5", "8/15")
+    assert d.status == "ambiguous"
+    assert set(d.beliefs) == {"rule:fractions.multiply_across_for_division",
+                              "rule:multiplication_division.division_makes_smaller"}
 
 
 def test_no_rule_fits_is_unknown():
