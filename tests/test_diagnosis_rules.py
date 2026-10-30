@@ -2,8 +2,11 @@ import pytest
 import yaml
 
 from matheasy.diagnosis import (
-    SLIP, HeldBackRuleError, diagnose, eedi_id, held_back_rules, load_bank, rule_id, rule_names, run_rule, split_id,
+    SLIP, HeldBackRuleError, RuleError, RuleShortlister, diagnose, eedi_id, held_back_rules, load_bank, rule_id,
+    rule_names, run_rule, split_id,
 )
+from matheasy.diagnosis import rules
+from matheasy.diagnosis.bank import Bank, Misconception
 from matheasy.diagnosis.rules import rule
 
 
@@ -68,6 +71,39 @@ def test_unknown_rule():
         run_rule("fractions.no_such_rule", "1/2 + 1/3")
 
 
+def test_bad_rule_name_is_refused():
+    for bad in ["Fractions.add", "fractions", "fractions.add-across"]:
+        with pytest.raises(ValueError):
+            rule(bad)
+
+
+# ---- a rule that crashes
+
+CRASHING = "fractions.crashes_for_test"
+
+
+@pytest.fixture
+def crashing_rule(monkeypatch):
+    def crash(node):
+        raise ZeroDivisionError("division by zero")
+    monkeypatch.setitem(rules._REGISTRY, CRASHING, rules.Rule(CRASHING, crash))
+    return rule_id(CRASHING)
+
+
+def test_crashing_rule_raises_rule_error(crashing_rule):
+    with pytest.raises(RuleError, match=f"rule {CRASHING} failed on 1/2 \\+ 1/3: ZeroDivisionError"):
+        run_rule(crashing_rule, "1/2 + 1/3")
+
+
+def test_diagnosis_survives_a_crashing_rule(crashing_rule):
+    bank = Bank([Misconception(crashing_rule, "crashes", ()),
+                 Misconception(rule_id("fractions.add_numerators_denominators"), "adds across", ())])
+    d = diagnose("1/2 + 1/3", "2/5", shortlister=RuleShortlister(bank))
+    assert d.misconception == "rule:fractions.add_numerators_denominators"
+    failed = d.to_log()["trace"][1]["failed_rules"]
+    assert len(failed) == 1 and failed[0].startswith(f"rule {CRASHING} failed")
+
+
 # ---- held-back rules never get in
 
 def test_no_held_back_rule_is_registered():
@@ -78,13 +114,13 @@ def test_no_held_back_rule_is_registered():
 
 def test_registering_a_held_back_rule_fails():
     with pytest.raises(HeldBackRuleError):
-        rule("fractions.subtract_across", topic="fractions")(lambda node: None)
+        rule("fractions.subtract_across")(lambda node: None)
 
 
 def test_bank_rejects_held_back_rule(tmp_path):
     path = tmp_path / "bank.yaml"
     path.write_text(yaml.safe_dump({"misconceptions": {
-        "rule:fractions.subtract_across": {"topic": "fractions", "text": "x", "eedi": []}}}))
+        "rule:fractions.subtract_across": {"text": "x", "eedi": []}}}))
     with pytest.raises(HeldBackRuleError):
         load_bank(path)
 
@@ -103,8 +139,8 @@ def test_bank_matches_rules():
 def test_bank_eedi_mapping(tmp_path):
     path = tmp_path / "bank.yaml"
     path.write_text(yaml.safe_dump({"misconceptions": {
-        "rule:fractions.add_numerators_denominators": {"topic": "fractions", "text": "x", "eedi": [1287]},
-        "eedi:99": {"topic": "fractions", "text": "y"}}}))
+        "rule:fractions.add_numerators_denominators": {"text": "x", "eedi": [1287]},
+        "eedi:99": {"text": "y"}}}))
     bank = load_bank(path)
     assert bank.for_eedi(1287) == ["rule:fractions.add_numerators_denominators"]
     assert bank["eedi:99"].rule is None
@@ -113,6 +149,6 @@ def test_bank_eedi_mapping(tmp_path):
 def test_bank_entry_without_a_rule_fails(tmp_path):
     path = tmp_path / "bank.yaml"
     path.write_text(yaml.safe_dump({"misconceptions": {
-        "rule:fractions.ignore_denominators": {"topic": "fractions", "text": "x"}}}))
+        "rule:fractions.ignore_denominators": {"text": "x"}}}))
     with pytest.raises(KeyError):
         load_bank(path)

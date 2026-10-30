@@ -29,7 +29,6 @@ from ..ids import rule_id, split_id
 from ..maths import Node, parse
 
 HELD_BACK_FILE = Path(__file__).resolve().parents[3] / "eval" / "held_back_rules.json"
-TOPICS = ("fractions", "decimals", "expressions")
 
 
 def held_back_rules() -> frozenset[str]:
@@ -49,7 +48,6 @@ class RuleError(RuntimeError):
 @dataclass(frozen=True)
 class Rule:
     name: str   # MalruleLib name, e.g. fractions.add_numerators_denominators
-    topic: str  # fractions | decimals | expressions
     apply: Callable[[Node], Optional[Node]]
 
 
@@ -57,18 +55,16 @@ _REGISTRY: dict[str, Rule] = {}
 _HELD_BACK = held_back_rules()
 
 
-def rule(name: str, topic: str):
+def rule(name: str):
     """Decorator that registers a rule function under its MalruleLib name."""
     rule_id(name)  # a name no misconception ID can refer to is refused here, not found missing later
-    if topic not in TOPICS:
-        raise ValueError(f"rule {name}: topic must be one of {', '.join(TOPICS)}, not {topic!r}")
 
     def register(fn: Callable[[Node], Optional[Node]]):
         if name in _HELD_BACK:
             raise HeldBackRuleError(f"{name} is held back for evaluation and cannot be a rule")
         if name in _REGISTRY:
             raise ValueError(f"rule {name} registered twice")
-        _REGISTRY[name] = Rule(name, topic, fn)
+        _REGISTRY[name] = Rule(name, fn)
         return fn
     return register
 
@@ -84,9 +80,9 @@ def get_rule(rule_or_id: str) -> Rule:
         raise KeyError(f"no such rule: {rule_or_id}") from None
 
 
-def rule_names(topic: Optional[str] = None) -> list[str]:
-    """Names of every registered rule, optionally only one topic's."""
-    return sorted(n for n, r in _REGISTRY.items() if topic is None or r.topic == topic)
+def rule_names() -> list[str]:
+    """Names of every registered rule."""
+    return sorted(_REGISTRY)
 
 
 def run_rule(rule_or_id: str, expr: Union[str, Node]) -> Optional[str]:

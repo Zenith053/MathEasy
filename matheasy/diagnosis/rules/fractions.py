@@ -37,7 +37,7 @@ def _fractions(node: Node, op: str) -> Optional[list[tuple[int, int]]]:
     return parts
 
 
-@rule("fractions.add_numerators_denominators", topic="fractions")
+@rule("fractions.add_numerators_denominators")
 def add_numerators_denominators(node: Node) -> Optional[Node]:
     """Adds the numerators and adds the denominators: 1/2 + 1/3 = 2/5."""
     parts = _fractions(node, "+")
@@ -46,7 +46,7 @@ def add_numerators_denominators(node: Node) -> Optional[Node]:
     return _fraction_node(Fraction(sum(n for n, _ in parts), sum(d for _, d in parts)))
 
 
-@rule("fractions.keep_common_denominator_for_multiplication", topic="fractions")
+@rule("fractions.keep_common_denominator_for_multiplication")
 def keep_common_denominator_for_multiplication(node: Node) -> Optional[Node]:
     """Keeps the shared denominator when multiplying: 2/5 × 3/5 = 6/5."""
     parts = _fractions(node, "*")
@@ -55,7 +55,7 @@ def keep_common_denominator_for_multiplication(node: Node) -> Optional[Node]:
     return _fraction_node(Fraction(prod(n for n, _ in parts), parts[0][1]))
 
 
-@rule("fractions.multiply_across_for_division", topic="fractions")
+@rule("fractions.multiply_across_for_division")
 def multiply_across_for_division(node: Node) -> Optional[Node]:
     """Multiplies straight across instead of flipping the divisor: 2/3 ÷ 4/5 = 8/15."""
     if not (isinstance(node, BinOp) and node.op == "/"):

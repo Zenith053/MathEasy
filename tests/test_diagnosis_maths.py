@@ -300,13 +300,12 @@ def test_locate_correct_step_is_none():
 
 def test_locate_whole_answer():
     e = locate("1/2 + 1/3", "2/5")
-    assert (e.topic, e.source, e.wrong, e.expected, e.difference) == ("fractions", "1/2 + 1/3", "2/5", "5/6", "-13/30")
+    assert (e.source, e.wrong, e.expected, e.difference) == ("1/2 + 1/3", "2/5", "5/6", "-13/30")
 
 
 def test_locate_pairs_off_copied_terms():
     e = locate("1/2 + 1/3 + x", "2/5 + x")
     assert (e.source, e.wrong, e.expected) == ("1/2 + 1/3", "2/5", "5/6")
-    assert e.topic == "fractions"  # topic of the wrong part, not the whole line
 
 
 def test_locate_pairs_off_correctly_changed_terms():
@@ -330,16 +329,18 @@ def test_locate_record_is_json_safe():
 
 def test_locate_decimals_report_decimals():
     e = locate("0.3 + 0.25", "0.28")
-    assert (e.topic, e.expected, e.correct, e.difference) == ("decimals", "0.55", "0.55", "-0.27")
+    assert (e.expected, e.correct, e.difference) == ("0.55", "0.55", "-0.27")
     e = locate("50% + 0.2", "0.52")
-    assert (e.topic, e.expected) == ("decimals", "0.7")
+    assert e.expected == "0.7"
     e = locate("0.1 ÷ 3", "0.3")                      # not a terminating decimal: stays a fraction
     assert e.expected == "1/30"
+    e = locate("0.5x + 0.25x", "0.7x")                # decimals with letters stay decimals
+    assert (e.expected, e.difference) == ("0.75x", "-0.05x")
 
 
 def test_locate_mixed_numbers():
     e = locate("1 1/2 + 2 1/4", "3 2/6")
-    assert (e.topic, e.source, e.wrong, e.expected) == ("fractions", "1 1/2 + 2 1/4", "3 2/6", "15/4")
+    assert (e.source, e.wrong, e.expected) == ("1 1/2 + 2 1/4", "3 2/6", "15/4")
 
 
 # ---- narrowing to the changed part

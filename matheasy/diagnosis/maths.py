@@ -621,8 +621,7 @@ def check_step(before: Union[str, Node], after: Union[str, Node]) -> bool:
 class LocatedError:
     """Where a wrong step went wrong. A's build_query() turns this into the shortlister's query."""
 
-    topic: str      # fractions | decimals | expressions, of the wrong part
-    before: str     # the line before the step, as parsed
+    before: str    # the line before the step, as parsed
     after: str      # the student's line
     correct: str    # what the whole line should have become
     source: str     # the part of `before` the student changed
@@ -668,8 +667,7 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
             source, wrong = changed[0]
     if not isinstance(source, Rel) and not isinstance(wrong, Rel):
         source, wrong = _narrow(source, wrong)
-    topic = topic_of(source, wrong)
-    decimal = topic == "decimals"  # show 0.7, not 7/10
+    decimal = "decimals" in _kinds(source, wrong)  # show 0.7, not 7/10, and 0.75x, not 3x/4
     if isinstance(source, Rel) or isinstance(wrong, Rel):
         expected, difference = _solved(source), ""
     else:
@@ -682,7 +680,7 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
     term = _wrong_term(source, wrong, decimal)
     wrong_term, expected_term = term if term else (str(wrong), expected)
     return LocatedError(
-        topic=topic, before=str(b), after=str(a), correct=correct,
+        before=str(b), after=str(a), correct=correct,
         source=str(source), wrong=str(wrong), expected=expected, difference=difference,
         wrong_term=wrong_term, expected_term=expected_term,
         source_node=source, wrong_node=wrong,
@@ -690,13 +688,24 @@ def locate(before: Union[str, Node], after: Union[str, Node]) -> Optional[Locate
 
 
 def _sstr(expr: sympy.Expr, decimal: bool = False) -> str:
-    """SymPy's value written the way a student would (2x + 6, x^2); with decimal=True, a
-    terminating fraction as a decimal (7/10 -> 0.7)."""
+    """SymPy's value written the way a student would (2x + 6, x^2); with decimal=True, each
+    terminating fraction as a decimal (7/10 -> 0.7, 3x/4 -> 0.75x)."""
     if decimal and isinstance(expr, sympy.Rational) and not expr.is_integer:
         text = _as_decimal(int(expr.p), int(expr.q))
         if text is not None:
             return text
+    if decimal and expr.free_symbols:  # term by term, so the decimals do not change the order of terms
+        terms = [_IMPLICIT_TIMES.sub("", sympy.sstr(_decimal_symbols(t)).replace("**", "^"))
+                 for t in expr.as_ordered_terms()]
+        return terms[0] + "".join(f" - {t[1:]}" if t.startswith("-") else f" + {t}" for t in terms[1:])
     return _IMPLICIT_TIMES.sub("", sympy.sstr(expr).replace("**", "^"))
+
+
+def _decimal_symbols(expr: sympy.Expr) -> sympy.Expr:
+    """Each terminating fraction replaced by a symbol named as its decimal (3x/4 -> "0.75"·x), sign outside."""
+    return expr.xreplace({r: sympy.sign(r) * sympy.Symbol(_as_decimal(abs(int(r.p)), int(r.q)))
+                          for r in expr.atoms(sympy.Rational)
+                          if not r.is_integer and _as_decimal(int(r.p), int(r.q)) is not None})
 
 
 _IMPLICIT_TIMES = re.compile(r"(?<=[\w)])\*(?=[A-Za-z(])")  # 2*x -> 2x, 2*(x + 1) -> 2(x + 1)
@@ -885,8 +894,8 @@ def _show_value(v, decimal: bool) -> str:
     return v if isinstance(v, str) else _sstr(v, decimal)
 
 
-def topic_of(*nodes: Node) -> str:
-    """expressions if any letter appears, decimals if any decimal number does, else fractions."""
+def _kinds(*nodes: Node) -> set[str]:
+    """Which of 'expressions' (a letter) and 'decimals' (a decimal number or %) appear in the nodes."""
     found = set()
 
     def walk(n: Node):
@@ -900,4 +909,10 @@ def topic_of(*nodes: Node) -> str:
 
     for n in nodes:
         walk(n)
+    return found
+
+
+def topic_of(*nodes: Node) -> str:
+    """expressions if any letter appears, decimals if any decimal number does, else fractions."""
+    found = _kinds(*nodes)
     return "expressions" if "expressions" in found else "decimals" if "decimals" in found else "fractions"

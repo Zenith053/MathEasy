@@ -63,7 +63,7 @@ e = locate("1/2 + 1/3 + x", "2/5 + x")
 e.source, e.wrong, e.expected       # '1/2 + 1/3', '2/5', '5/6': the changed part (None if the step is correct)
 e = locate("2x + 4 = 10", "x + 4 = 5")
 e.wrong_term, e.expected_term       # '4', '2': the exact wrong term ("(nothing)" for a missing or extra term)
-e.to_dict()                         # topic, before, after, correct, source, wrong, expected, difference,
+e.to_dict()                         # before, after, correct, source, wrong, expected, difference,
                                     # wrong_term, expected_term
 
 run_rule("fractions.add_numerators_denominators", "1/2 + 1/3")   # '2/5'; None if the rule doesn't apply

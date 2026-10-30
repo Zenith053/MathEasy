@@ -26,7 +26,6 @@ BANK_FILE = Path(__file__).with_name("bank.yaml")
 @dataclass(frozen=True)
 class Misconception:
     id: str
-    topic: str
     text: str
     eedi: tuple[int, ...]  # Eedi MisconceptionIds this misconception matches
 
@@ -53,8 +52,8 @@ class Bank:
     def __len__(self) -> int:
         return len(self._by_id)
 
-    def rules(self, topic: Optional[str] = None) -> list[str]:
-        return [m.id for m in self if m.rule and (topic is None or m.topic == topic)]
+    def rules(self) -> list[str]:
+        return [m.id for m in self if m.rule]
 
     def for_eedi(self, misconception_id: int) -> list[str]:
         return [m.id for m in self if misconception_id in m.eedi]
@@ -71,7 +70,7 @@ def _load(path: Path) -> Bank:
     held = held_back_rules()
     items = []
     for mid, entry in raw.items():
-        m = Misconception(mid, entry["topic"], entry["text"].strip(), tuple(int(e) for e in entry.get("eedi", [])))
+        m = Misconception(mid, entry["text"].strip(), tuple(int(e) for e in entry.get("eedi", [])))
         if m.rule in held:
             raise HeldBackRuleError(f"{m.rule} is held back for evaluation and cannot be in the bank")
         if m.rule:
