@@ -97,6 +97,7 @@ class BinOp(Node):
     op: str  # + - * / ^
     left: Node
     right: Node
+    typed_fraction: bool = field(default=False, compare=False, repr=False)  # 3/4 typed as one number, not 3 ÷ 4
 
     def to_sympy(self):
         a, b = self.left.to_sympy(), self.right.to_sympy()
@@ -411,7 +412,7 @@ class _Parser:
         if self.is_op(0, "/") and self.is_whole(1) and not self.glued(2) and not self.mixed_at(1):
             self.take()
             bottom = self.take()
-            return BinOp("/", num, Num(sympy.Rational(bottom.text), bottom.text))
+            return BinOp("/", num, Num(sympy.Rational(bottom.text), bottom.text), typed_fraction=True)
         return num
 
 

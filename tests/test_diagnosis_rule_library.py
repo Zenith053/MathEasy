@@ -45,6 +45,25 @@ PREDICTS = [
     ("multiplication_division.divide_larger_by_smaller_always", "4 ÷ 6", "1.5"),
     ("multiplication_division.multiplication_makes_bigger", "0.5 × 4", "4.5"),
     ("multiplication_division.multiplication_makes_bigger", "1/2 × 1/3", "5/6"),
+    # ---- negative numbers
+    ("negative_numbers.larger_absolute_value_always_wins", "3 × -2", "6"),
+    ("negative_numbers.larger_absolute_value_always_wins", "5 - 8", "3"),
+    ("negative_numbers.larger_absolute_value_always_wins", "-5 - 3", "-2"),
+    ("negative_numbers.larger_absolute_value_always_wins", "6 ÷ -2", "3"),
+    ("negative_numbers.larger_absolute_value_always_wins", "-9 < 4", "-9 > 4"),
+    ("negative_numbers.negative_times_negative_negative", "(-2) × (-3)", "-6"),
+    ("negative_numbers.negative_times_negative_negative", "-12 ÷ -4", "-3"),
+    ("negative_numbers.negative_times_negative_negative", "(-2)(-3) + 4", "-2"),
+    # ---- order of operations
+    ("order_of_operations.strict_left_to_right", "2 + 3 × 4", "20"),
+    ("order_of_operations.strict_left_to_right", "12 - 4 ÷ 2", "4"),
+    ("order_of_operations.strict_left_to_right", "1/2 + 1/3 × 6", "5"),       # a typed fraction is one number
+    ("order_of_operations.ignore_parentheses", "2 × (3 + 4)", "10"),
+    ("order_of_operations.ignore_parentheses", "20 - (3 + 2)", "19"),
+    ("order_of_operations.addition_before_subtraction_always", "10 - 3 + 2", "5"),
+    ("order_of_operations.multiplication_before_division_always", "6 ÷ 2 × 3", "1"),
+    ("order_of_operations.pemdas_strictly_sequential", "12 ÷ 2 × 3", "2"),
+    ("order_of_operations.pemdas_strictly_sequential", "8 - 2 × 3 + 1", "1"),
 ]
 
 # (rule, a problem its misconception says nothing about)
@@ -63,6 +82,13 @@ SILENT = [
     ("multiplication_division.division_makes_smaller", "8 ÷ 2"),      # division does make it smaller
     ("multiplication_division.divide_larger_by_smaller_always", "6 ÷ 4"),
     ("multiplication_division.multiplication_makes_bigger", "3 × 4"),
+    ("negative_numbers.larger_absolute_value_always_wins", "-7 × 2"),    # the larger size has the right sign
+    ("negative_numbers.negative_times_negative_negative", "-2 × 3"),     # no negative × negative
+    ("order_of_operations.strict_left_to_right", "2 × 3 + 4"),           # left to right is right here
+    ("order_of_operations.strict_left_to_right", "2 × (3 + 4)"),         # brackets: ignore_parentheses' case
+    ("order_of_operations.ignore_parentheses", "2 + 3 × 4"),             # no brackets
+    ("order_of_operations.addition_before_subtraction_always", "10 + 3 - 2"),
+    ("order_of_operations.multiplication_before_division_always", "6/2 × 3"),  # typed fraction: no division
 ]
 
 # (step before, the student's step, a rule that must be among the suspects)
@@ -76,6 +102,11 @@ DIAGNOSED = [
     ("25% of 80", "2000", "percentages.percent_equals_decimal"),
     ("4 ÷ 0.5", "2", "multiplication_division.division_makes_smaller"),
     ("x + 4 ÷ 6", "x + 1.5", "multiplication_division.divide_larger_by_smaller_always"),  # inside a line
+    ("3 × -2", "6", "negative_numbers.larger_absolute_value_always_wins"),
+    ("(-2) × (-3)", "-6", "negative_numbers.negative_times_negative_negative"),
+    ("2 + 3 × 4", "20", "order_of_operations.strict_left_to_right"),
+    ("2 × (3 + 4)", "10", "order_of_operations.ignore_parentheses"),
+    ("6 ÷ 2 × 3", "1", "order_of_operations.multiplication_before_division_always"),
 ]
 
 

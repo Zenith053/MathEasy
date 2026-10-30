@@ -395,3 +395,9 @@ def test_expected_values_read_like_student_maths():
     assert (e.expected, e.correct) == ("2x + 6", "2x + 6")
     for text in (e.expected, e.correct, e.expected_term):
         parse(text)  # every reported value parses back
+
+
+def test_typed_fraction_is_marked():
+    # 6/2 typed as one number and 6 ÷ 2 are equal in value and as trees; only the flag differs.
+    assert parse("6/2").typed_fraction and not parse("6 ÷ 2").typed_fraction
+    assert parse("6/2") == parse("6 ÷ 2")

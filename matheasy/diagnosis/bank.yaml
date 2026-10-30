@@ -69,6 +69,34 @@ misconceptions:
     text: Expects multiplication to make a number bigger, so adds instead, e.g. 0.5 × 4 = 4.5.
     eedi: []
 
+  rule:negative_numbers.larger_absolute_value_always_wins:
+    text: Gives the answer the sign of the number with the larger size, e.g. 3 × -2 = 6 and 5 - 8 = 3.
+    eedi: []
+
+  rule:negative_numbers.negative_times_negative_negative:
+    text: Thinks a negative times a negative is negative, e.g. (-2) × (-3) = -6.
+    eedi: []
+
+  rule:order_of_operations.strict_left_to_right:
+    text: Works strictly from left to right, ignoring precedence, e.g. 2 + 3 × 4 = 20.
+    eedi: []
+
+  rule:order_of_operations.ignore_parentheses:
+    text: Ignores brackets and works from left to right, e.g. 2 × (3 + 4) = 10.
+    eedi: []
+
+  rule:order_of_operations.addition_before_subtraction_always:
+    text: Always adds before subtracting, e.g. 10 - 3 + 2 = 5.
+    eedi: []
+
+  rule:order_of_operations.multiplication_before_division_always:
+    text: Always multiplies before dividing, e.g. 6 ÷ 2 × 3 = 1.
+    eedi: []
+
+  rule:order_of_operations.pemdas_strictly_sequential:
+    text: Treats PEMDAS as separate steps (× then ÷ then + then −), e.g. 12 ÷ 2 × 3 = 2.
+    eedi: []
+
   slip:
     text: A careless mistake with no underlying misconception.
     eedi: []

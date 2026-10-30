@@ -63,24 +63,84 @@ def value_of(node: Node) -> Optional[Fraction]:
     return None
 
 
-def evaluate(node: Node, number: Callable[[Node], Optional[Fraction]] = value_of) -> Optional[Fraction]:
-    """The value of a tree of numbers, reading each number with `number`; None if a letter, π,
-    a division by zero or a power that is not a whole number is met."""
+Combine = Callable[[str, Fraction, Fraction], Optional[Fraction]]
+
+
+def combine(op: str, a: Fraction, b: Fraction) -> Optional[Fraction]:
+    """a op b done correctly; None for a division by zero or a power that is not a small whole number."""
+    if op == "^":
+        if b.denominator != 1 or abs(b) > 50 or (a == 0 and b < 0):
+            return None
+        return a ** int(b)
+    if op == "/":
+        return None if b == 0 else a / b
+    return {"+": a + b, "-": a - b, "*": a * b}[op]
+
+
+def evaluate(node: Node, number: Callable[[Node], Optional[Fraction]] = value_of,
+             apply: Combine = combine) -> Optional[Fraction]:
+    """The value of a tree of numbers, reading each number with `number` and doing each
+    operation with `apply`; None if a letter or π is met, or `apply` gives up."""
     if isinstance(node, BinOp) and not as_fraction(node):
-        a, b = evaluate(node.left, number), evaluate(node.right, number)
-        if a is None or b is None:
-            return None
-        if node.op == "^":
-            if b.denominator != 1 or abs(b) > 50 or (a == 0 and b < 0):
-                return None
-            return a ** int(b)
-        if node.op == "/" and b == 0:
-            return None
-        return {"+": a + b, "-": a - b, "*": a * b, "/": a / b if b else None}[node.op]
+        a, b = evaluate(node.left, number, apply), evaluate(node.right, number, apply)
+        return None if a is None or b is None else apply(node.op, a, b)
     if isinstance(node, Neg):
-        inner = evaluate(node.operand, number)
+        inner = evaluate(node.operand, number, apply)
         return None if inner is None else -inner
     return number(node)
+
+
+_LEVEL = {"+": 1, "-": 1, "*": 2, "/": 2}
+
+
+def written_order(node: Node) -> Optional[tuple[list[Fraction], list[str], bool]]:
+    """2 × (3 + 4) -> ([2, 3, 4], ['*', '+'], True): the numbers and operations as written,
+    and whether the student used brackets. None unless the line is numbers joined by + - × ÷."""
+    values: list[Fraction] = []
+    ops: list[str] = []
+    bracketed = False
+
+    def walk(n: Node, parent: Optional[str], right: bool) -> bool:
+        nonlocal bracketed
+        if isinstance(n, BinOp) and not n.typed_fraction:  # 6 ÷ 2 is an operation, a typed 6/2 a number
+            if n.op not in _LEVEL:
+                return False
+            if parent and (_LEVEL[n.op] < _LEVEL[parent] or (right and _LEVEL[n.op] == _LEVEL[parent])):
+                bracketed = True  # it groups differently from left to right, so it was in brackets
+            if not walk(n.left, n.op, False):
+                return False
+            ops.append(n.op)
+            return walk(n.right, n.op, True)
+        value = value_of(n)
+        if value is None:
+            return False
+        values.append(value)
+        return True
+
+    return (values, ops, bracketed) if walk(node, None, False) and ops else None
+
+
+def left_to_right(values: list[Fraction], ops: list[str], first: str = "") -> Optional[Fraction]:
+    """Does every operation in `first` (in order of appearance, joining its neighbours), then the
+    rest from left to right: first='+' does all additions before any subtraction."""
+    values, ops = list(values), list(ops)
+    for wanted in first:
+        i = 0
+        while i < len(ops):
+            if ops[i] == wanted:
+                result = combine(ops[i], values[i], values[i + 1])
+                if result is None:
+                    return None
+                values[i:i + 2] = [result]
+                del ops[i]
+            else:
+                i += 1
+    result = values[0]
+    for op, value in zip(ops, values[1:]):
+        result = combine(op, result, value)
+        if result is None:
+            return None
+    return result
 
 
 def whole(node: Node) -> Optional[int]:
