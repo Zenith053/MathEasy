@@ -51,8 +51,12 @@ def run_session(
     log = tutor.log
     state = TutorState(session_id=session_id, condition=condition, student_id=student.student_id,
                        memory=tutor.store.load(student.student_id), llm=llm_session)
+    # D's student needs this before every session: from the second one on, a fixed
+    # misconception may come back (relapse_rate).
+    relapsed = student.begin_session(session_index)
     log.log(state, "session_start", session_index=session_index, student_group=student.group,
-            planted=[student.misconception_id] if student.misconception_id else [], attack=None)
+            planted=[student.misconception_id] if student.misconception_id else [], attack=None,
+            relapsed=relapsed)
 
     pre_correct = _test(log, state, student, "pre", pre_items)
 

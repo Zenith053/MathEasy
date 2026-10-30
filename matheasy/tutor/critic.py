@@ -54,16 +54,23 @@ SCHEMA = {
 }
 
 
+# An equation's answer, e.g. "x = 4": the value alone ("4") gives it away too.
+_SOLUTION = re.compile(r"\s*[A-Za-z]\s*=\s*(.+)")
+
+
 def leaks_answer(text: str, answer: str) -> Optional[str]:
     """The part of `text` that gives away `answer`, or None."""
     if _normalise(answer) and _normalise(answer) in _normalise(text) and not _MATHS.fullmatch(answer.strip()):
-        return answer  # an expression answer, e.g. "2x + 6", written out in full
+        return answer  # an expression or equation answer, e.g. "2x + 6" or "x = 4", written out in full
+    solution = _SOLUTION.fullmatch(answer)
+    targets = [answer] + ([solution.group(1).strip()] if solution else [])
     for token in _MATHS.findall(text):
-        try:
-            if equivalent(token.strip(), answer):
-                return token.strip()
-        except ParseError:
-            continue
+        for target in targets:
+            try:
+                if equivalent(token.strip(), target):
+                    return token.strip()
+            except ParseError:
+                continue
     return None
 
 

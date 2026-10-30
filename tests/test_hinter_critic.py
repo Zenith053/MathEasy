@@ -135,6 +135,9 @@ def test_hinter_without_retriever_has_no_citation_field(llm):
     ("Write it as 50%.", "1/2", "50%"),
     ("It simplifies to 2x+6.", "2x + 6", "2x + 6"),
     ("Look at 1/2 + 1/3 again.", "5/6", None),
+    ("So x must be 3.", "x = 3", "3"),  # an equation's value on its own gives it away
+    ("Then x = 3.", "x = 3", "x = 3"),
+    ("Take 4 from both sides of 2x + 4 = 10.", "x = 3", None),
 ])
 def test_leak_check(text, answer, leaked):
     assert leaks_answer(text, answer) == leaked

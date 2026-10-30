@@ -210,6 +210,28 @@ def test_basic_critic_blocks_a_leaked_answer():
 @pytest.mark.parametrize("text, answer", [
     ("I got 2/5.", "2/5"), ("2/5", "2/5"), ("0.25", "0.25"), ("2x + 6", "2x + 6"),
     ("maybe 3 or 4", "4"), ("no idea", None),
+    ("I got x = 4.", "x = 4"),  # Rahul's report: this used to read only "4"
+    ("I got 2x + 6.", "2x + 6"), ("I got 1/3 > 1/4.", "1/3 > 1/4"), ("I got 3 1/2.", "3 1/2"),
+    ("I got 25%.", "25%"), ("It's 5/6 I think", "5/6"), ("a 3/4", "3/4"), ("x = 4 I think", "x = 4"),
 ])
 def test_extract_answer(text, answer):
     assert extract_answer(text) == answer
+
+
+def test_equation_answer_is_marked_correct(tmp_path):
+    tutor = make_tutor(tmp_path)
+    result = session(tutor, SimStudent("s1", None), [make_problem("e1", "2x + 4 = 10")])
+    assert result.state.transcript[1].text == "I got x = 3."
+    assert [u.kind for u in result.state.transcript if u.speaker == "tutor"] == ["question", "feedback"]
+    assert records(tutor, "diagnosis") == []
+
+
+def test_runner_starts_each_session_for_the_student(tmp_path):
+    tutor = make_tutor(tmp_path)
+    student = SimStudent("s1", RULE, judge=keyword_judge, relapse_rate=1.0)
+    for i in range(2):
+        session(tutor, student, index=i)
+    starts = records(tutor, "session_start")
+    assert [(r["session_index"], r["relapsed"]) for r in starts] == [(0, False), (1, True)]
+    assert student.session_index == 1
+    assert check_files([tutor.log.path]) == []
