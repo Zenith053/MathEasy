@@ -64,6 +64,32 @@ PREDICTS = [
     ("order_of_operations.multiplication_before_division_always", "6 ÷ 2 × 3", "1"),
     ("order_of_operations.pemdas_strictly_sequential", "12 ÷ 2 × 3", "2"),
     ("order_of_operations.pemdas_strictly_sequential", "8 - 2 × 3 + 1", "1"),
+    # ---- algebra
+    ("algebra.cancel_across_equals", "5x = 2x + 12", "x = 12/5"),
+    ("algebra.cancel_across_equals", "5x + 3 = 2x + 12", "x = 9/5"),
+    ("algebra.divide_one_term_only", "2x + 4 = 10", "x = 1"),
+    ("algebra.divide_one_term_only", "3x - 6 = 9", "x = 9"),
+    ("algebra.divide_one_term_only", "10 = 2x + 4", "x = 1"),
+    ("algebra.variable_letter_has_value", "x + 5 = 12", "x = 10"),
+    ("algebra.variable_letter_has_value", "2b + 1 = 9", "b = 2"),
+    ("algebra.distribute_over_non_distributive", "(x + 3)^2", "x^2 + 9"),
+    ("algebra.distribute_over_non_distributive", "(x - 3)^2", "x^2 + 9"),    # MalruleLib drops the sign too
+    # ---- exponents
+    ("exponents.multiply_base_by_exponent", "2^3", "6"),
+    ("exponents.multiply_base_by_exponent", "2^3 + 1", "7"),
+    ("exponents.zero_exponent_equals_zero", "5^0", "0"),
+    ("exponents.zero_exponent_equals_zero", "5x^0", "0"),
+    ("exponents.zero_exponent_equals_zero", "x^3/x^3", "0"),
+    ("exponents.negative_exponent_makes_negative", "2^-2", "-4"),
+    ("exponents.multiply_exponents_when_multiplying_powers", "x^3 × x^5", "x^15"),
+    ("exponents.multiply_exponents_when_multiplying_powers", "2^3 × 2^4", "2^12"),
+    ("exponents.add_exponents_for_power_of_power", "(x^2)^3", "x^5"),
+    ("exponents.add_exponents_for_power_of_power", "(2x^2)^3", "2x^5"),
+    ("exponents.add_exponents_for_power_of_power", "(x^2)^3 × x", "x^6"),
+    ("exponents.forget_exponent_on_coefficient", "(2x^3)^2", "2x^6"),
+    ("exponents.forget_exponent_on_coefficient", "(3x^2y)^2", "3x^4y^2"),
+    ("exponents.distribute_exponent_over_addition", "(2 + 3)^2", "13"),
+    ("exponents.distribute_exponent_over_addition", "(x + 1 + 2)^2", "x^2 + 5"),
 ]
 
 # (rule, a problem its misconception says nothing about)
@@ -89,6 +115,14 @@ SILENT = [
     ("order_of_operations.ignore_parentheses", "2 + 3 × 4"),             # no brackets
     ("order_of_operations.addition_before_subtraction_always", "10 + 3 - 2"),
     ("order_of_operations.multiplication_before_division_always", "6/2 × 3"),  # typed fraction: no division
+    ("algebra.cancel_across_equals", "5x = 12"),                         # the letter on one side only
+    ("algebra.divide_one_term_only", "x + 4 = 10"),                      # nothing to divide by
+    ("algebra.variable_letter_has_value", "x + 5 = 15"),                 # 10 happens to be right
+    ("algebra.distribute_over_non_distributive", "(2 + 3)^2"),           # no letter
+    ("exponents.multiply_base_by_exponent", "x^3"),                      # MalruleLib: number bases only
+    ("exponents.multiply_exponents_when_multiplying_powers", "x^2 × y^3"),  # different bases
+    ("exponents.forget_exponent_on_coefficient", "(x^3)^2"),             # no number in front
+    ("exponents.distribute_exponent_over_addition", "(x - 3)^2"),        # MalruleLib: sums only
 ]
 
 # (step before, the student's step, a rule that must be among the suspects)
@@ -107,6 +141,12 @@ DIAGNOSED = [
     ("2 + 3 × 4", "20", "order_of_operations.strict_left_to_right"),
     ("2 × (3 + 4)", "10", "order_of_operations.ignore_parentheses"),
     ("6 ÷ 2 × 3", "1", "order_of_operations.multiplication_before_division_always"),
+    ("2x + 4 = 10", "x = 1", "algebra.divide_one_term_only"),
+    ("2x + 4 = 10", "x + 4 = 5", "algebra.divide_one_term_only"),       # the intermediate step itself
+    ("x + 5 = 12", "x = 10", "algebra.variable_letter_has_value"),
+    ("(x^2)^3", "x^5", "exponents.add_exponents_for_power_of_power"),
+    ("2^-2", "-4", "exponents.negative_exponent_makes_negative"),
+    ("(x - 3)^2", "x^2 + 9", "algebra.distribute_over_non_distributive"),
 ]
 
 

@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 import sympy
 
-from ..maths import BinOp, Mixed, Neg, Node, Num, Rel, Sym, as_fraction
+from ..maths import BinOp, Mixed, Neg, Node, Num, ParseError, Rel, Sym, _sstr, as_fraction, equivalent, parse
 
 
 def fraction_node(value: Fraction) -> Node:
@@ -151,3 +151,44 @@ def whole(node: Node) -> Optional[int]:
 def solved(letter: Sym, value: Node) -> Rel:
     """x = value."""
     return Rel("=", letter, value)
+
+
+def rewrite(node: Node, change: Callable[[Node], Optional[Node]]) -> Node:
+    """The tree with `change` applied bottom-up wherever it gives a replacement."""
+    if isinstance(node, BinOp) and not node.typed_fraction:
+        node = BinOp(node.op, rewrite(node.left, change), rewrite(node.right, change))
+    elif isinstance(node, Rel):
+        node = Rel(node.op, rewrite(node.left, change), rewrite(node.right, change))
+    elif isinstance(node, Neg):
+        node = Neg(rewrite(node.operand, change))
+    return change(node) or node
+
+
+def simplified(node: Node) -> Node:
+    """The value of a rewritten tree, written the way a student would (x^6, x^2 + 9, 13)."""
+    try:
+        value = sympy.simplify(node.to_sympy())
+        if value.free_symbols:
+            value = sympy.expand(value)
+        return parse(_sstr(value))
+    except (ParseError, TypeError, ValueError, ZeroDivisionError):
+        return node
+
+
+def changed_answer(node: Node, change: Callable[[Node], Optional[Node]]) -> Optional[Node]:
+    """The student's answer if they apply `change` wherever it fits; None if it fits nowhere
+    or does not change the value."""
+    wrong = rewrite(node, change)
+    if wrong == node:
+        return None
+    try:
+        if equivalent(wrong, node):
+            return None
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+    return simplified(wrong)
+
+
+def power(node: Node) -> Optional[tuple[Node, Node]]:
+    """(base, exponent) if node is base^exponent."""
+    return (node.left, node.right) if isinstance(node, BinOp) and node.op == "^" else None

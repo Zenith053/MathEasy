@@ -97,6 +97,50 @@ misconceptions:
     text: Treats PEMDAS as separate steps (× then ÷ then + then −), e.g. 12 ÷ 2 × 3 = 2.
     eedi: []
 
+  rule:algebra.cancel_across_equals:
+    text: Cancels letter terms across the equals sign as if they were factors, e.g. 5x = 2x + 12 gives x = 12/5.
+    eedi: []
+
+  rule:algebra.divide_one_term_only:
+    text: Divides only the letter term, not the whole side, e.g. 2x + 4 = 10 becomes x + 4 = 5.
+    eedi: []
+
+  rule:algebra.variable_letter_has_value:
+    text: Thinks a letter stands for a fixed number, such as its place in the alphabet, e.g. x + 5 = 12 gives x = 10.
+    eedi: []
+
+  rule:algebra.distribute_over_non_distributive:
+    text: Squares a bracket term by term, e.g. (x + 3)^2 = x^2 + 9.
+    eedi: []
+
+  rule:exponents.multiply_base_by_exponent:
+    text: Multiplies the base by the exponent, e.g. 2^3 = 6.
+    eedi: []
+
+  rule:exponents.zero_exponent_equals_zero:
+    text: Thinks anything to the power 0 is 0, e.g. 5^0 = 0.
+    eedi: []
+
+  rule:exponents.negative_exponent_makes_negative:
+    text: Thinks a negative exponent makes the answer negative, e.g. 2^-2 = -4.
+    eedi: []
+
+  rule:exponents.multiply_exponents_when_multiplying_powers:
+    text: Multiplies the exponents when multiplying powers, e.g. x^3 × x^5 = x^15.
+    eedi: []
+
+  rule:exponents.add_exponents_for_power_of_power:
+    text: Adds the exponents for a power of a power, e.g. (x^2)^3 = x^5.
+    eedi: []
+
+  rule:exponents.forget_exponent_on_coefficient:
+    text: Raises the letters but not the number in front, e.g. (2x^3)^2 = 2x^6.
+    eedi: []
+
+  rule:exponents.distribute_exponent_over_addition:
+    text: Raises each term of a sum separately, e.g. (2 + 3)^2 = 13.
+    eedi: []
+
   slip:
     text: A careless mistake with no underlying misconception.
     eedi: []
