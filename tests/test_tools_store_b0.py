@@ -110,7 +110,7 @@ def test_json_store_survives_a_restart(tmp_path):
 
     again = JsonStudentStore(path)
     assert again.load("s1").times_diagnosed == {f"rule:{RULE}": 2}
-    assert again.misconception_prior("s1", f"rule:{RULE}") == 0.8
+    assert again.misconception_prior("s1", f"rule:{RULE}") == 0.9
     assert again.misconception_prior("s2", f"rule:{RULE}") is None
 
 

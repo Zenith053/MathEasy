@@ -118,7 +118,7 @@ def test_memory_carries_over_between_sessions(tmp_path):
     for i in range(2):
         session(tutor, SimStudent("s1", RULE, judge=lambda m, d: False), index=i, max_turns_per_problem=1)
     assert tutor.store.load("s1").times_diagnosed[f"rule:{RULE}"] >= 2
-    assert tutor.store.misconception_prior("s1", f"rule:{RULE}") == 0.8
+    assert tutor.store.misconception_prior("s1", f"rule:{RULE}") > 0.9  # still giving its answer
 
 
 # --- orchestrator rules ------------------------------------------------------------

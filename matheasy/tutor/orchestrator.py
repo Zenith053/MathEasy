@@ -112,6 +112,7 @@ class Orchestrator:
                 correct = check_step(state.problem.question, answer)
             except ParseError:
                 return self._send(state, "question", RETYPE)
+            self.store.observe(state.memory, state.problem, answer, correct)
             if correct:
                 state.solved = True
                 return self._send(state, "feedback", CORRECT_FEEDBACK)
@@ -128,7 +129,7 @@ class Orchestrator:
             self.log.log(state, "diagnosis", turn=answered_turn, follow_ups=len(state.follow_ups),
                          **diagnosis.to_log())
 
-        # remember (the planner will schedule re-checks from this)
+        # remember: the planner updates the student model and schedules re-checks from it
         if diagnosis is not None and diagnosis.misconception:
             self.store.record(state.memory, diagnosis.misconception)
 

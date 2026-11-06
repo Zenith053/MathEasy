@@ -48,10 +48,19 @@ class Verdict:
 
 @dataclass
 class StudentMemory:
-    """What the tutor remembers about one student across sessions."""
+    """What the tutor remembers about one student across sessions. The planner updates it."""
 
     student_id: str
     times_diagnosed: dict[str, int] = field(default_factory=dict)  # misconception ID -> count
+    p_holds: dict[str, float] = field(default_factory=dict)  # misconception ID -> P(still holds it)
+    p_knows: dict[str, float] = field(default_factory=dict)  # topic -> P(knows the skill)
+    next_check: dict[str, int] = field(default_factory=dict)  # misconception ID -> session to re-check it in
+    check_gap: dict[str, int] = field(default_factory=dict)  # misconception ID -> sessions between re-checks
+    session_index: int = -1  # the session in progress; -1 before the first
+    history: list[dict] = field(default_factory=list)  # what was seen, one record per observation
+
+    def to_dict(self) -> dict:
+        return {name: getattr(self, name) for name in self.__dataclass_fields__ if name != "student_id"}
 
 
 @dataclass(frozen=True)
