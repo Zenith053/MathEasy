@@ -48,27 +48,21 @@ Kind = Literal["misconception", "slip", "unclear"]
 # Topic labels, so the student store can count mistakes per topic. The rule groups, with
 # the column-arithmetic groups as one; "other" when none fits. To be agreed with the team.
 TOPICS = {
-    "fractions": "a fraction was added, subtracted, multiplied, divided, simplified or compared wrongly "
-                 "(adding tops and bottoms, ignoring a denominator)",
-    "decimals": "a decimal point was misplaced or dropped, or decimals were compared by length",
-    "percentages": "a percentage was treated as a whole number or converted wrongly",
-    "ratios_proportions": "a ratio or proportion was scaled by adding instead of multiplying, or the parts swapped",
-    "negative_numbers": "a sign was lost or wrong when adding, subtracting, multiplying or dividing negatives",
-    "order_of_operations": "operations were done in the wrong order (left to right, adding before multiplying, "
-                           "ignoring brackets)",
-    "multiplication_division": "a belief about what multiplying or dividing does (multiplying always makes "
-                               "bigger, dividing always makes smaller, the larger number is always divided)",
-    "whole_number_arithmetic": "a whole-number fact or column method was wrong (7 × 8 = 54, a carry or borrow "
-                               "missed)",
-    "algebraic_notation": "what a letter or term means was misread (2x read as 2 + x, a letter given a fixed value)",
-    "expanding_brackets": "a bracket was multiplied out wrongly (only the first term multiplied, (a + b)² as "
-                          "a² + b², a minus before a bracket not applied to every term)",
-    "collecting_like_terms": "terms with letters were added or subtracted wrongly (x + x = x², unlike terms combined)",
-    "solving_equations": "an equation was rearranged wrongly (a term moved without changing its sign, the wrong "
-                         "inverse operation, only one term divided)",
-    "exponents": "a power or index law was used wrongly (adding powers when multiplying bases, 2³ as 2 × 3)",
-    "scientific_notation": "a number was written in or converted from standard form wrongly",
-    "other": "the mistake fits none of the topics above",
+    "fractions": "fraction operation or comparison wrong (tops and bottoms added)",
+    "decimals": "decimal point misplaced or dropped",
+    "percentages": "percentage misread or converted wrongly",
+    "ratios_proportions": "ratio scaled by adding, or parts swapped",
+    "negative_numbers": "sign wrong with negatives",
+    "order_of_operations": "operations in the wrong order",
+    "multiplication_division": "multiplying always makes bigger, dividing smaller",
+    "whole_number_arithmetic": "number fact or column method wrong (7 × 8 = 54)",
+    "algebraic_notation": "letter or term misread (2x as 2 + x)",
+    "expanding_brackets": "bracket multiplied out wrongly ((a + b)² as a² + b²)",
+    "collecting_like_terms": "letter terms combined wrongly (x + x = x²)",
+    "solving_equations": "equation rearranged wrongly (sign kept when moving a term)",
+    "exponents": "power or index law wrong (2³ as 2 × 3)",
+    "scientific_notation": "standard form wrong",
+    "other": "none of the above",
 }
 
 # Rules whose topic is not their group's name. Every other rule's group is its topic.
