@@ -13,7 +13,7 @@ the two conditions differ; they are not evidence for the hypotheses.
           candidate: B2's "take the top choice, no follow-ups" (runner.b2_diagnose).
 
 Each student gets one session: up to 2 problems on which its rule gives a wrong
-answer, with up to 4 such items as pre- and post-test. Slip-only students get
+answer, and D's pre- and post-test (the same ideas with new numbers). Slip-only students get
 fixed items (runner.materials()). For several sessions, shards and the other
 conditions, use the experiment runner: python -m matheasy.tutor.runner.
 """
@@ -43,9 +43,9 @@ def plan():
     """(student, problems, test items) for every roster student with an item to work."""
     plans, skipped = [], []
     for student in roster(keyword_judge, slip_only=SLIP_ONLY):
-        pool, tests = materials(student)
+        pool, forms = materials(student)
         if pool:
-            plans.append((student, pool[:PROBLEMS_PER_SESSION], tests))
+            plans.append((student, pool[:PROBLEMS_PER_SESSION], forms[0]))
         else:
             skipped.append(student.student_id)
     return plans, skipped
@@ -60,16 +60,16 @@ def run(condition: str, config_hash: str) -> dict:
     settled = dict(first)  # the last diagnosis on the first problem, after any follow-up questions
     probes = 0
     students = fixed = post = tests = 0
-    for student, problems, test_items in plans:
+    for student, problems, form in plans:
         result = run_session(tutor, student, [make_problem(f"p{i}", q) for i, q in enumerate(problems)],
                              session_id=f"{condition}-{student.student_id}", condition=condition,
-                             session_index=0, pre_items=test_items, post_items=test_items)
+                             session_index=0, pre_items=form.pre, post_items=form.post)
         if student.group != "has_rule":
             continue
         students += 1
         fixed += not student.holds_misconception
         post += result.post_correct
-        tests += len(test_items)
+        tests += len(form.post)
         step = _first_problem(log.path, f"{condition}-{student.student_id}")
         _count(first, step[0] if step else None, student)
         _count(settled, step[-1] if step else None, student)

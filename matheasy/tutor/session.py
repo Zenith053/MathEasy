@@ -57,7 +57,8 @@ def run_session(
     relapsed = student.begin_session(session_index)
     tutor.store.begin_session(state.memory, session_index)
     log.log(state, "session_start", session_index=session_index, student_group=student.group,
-            planted=[student.misconception_id] if student.misconception_id else [], attack=None,
+            planted=[student.misconception_id] if student.misconception_id else [],
+            attack=getattr(student, "attack", None),  # D's adversarial students carry their technique
             relapsed=relapsed, rechecks=list(rechecks))
 
     pre_correct = _test(log, state, student, "pre", pre_items)

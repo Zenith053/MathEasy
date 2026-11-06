@@ -6,8 +6,10 @@
     python -m matheasy.evaluation.metrics runs/final/turns                              # D's metrics
 
 Students are split by student, never by condition (team plan, section 7): shard
-i/n takes every n-th student of D's roster, and runs it under every condition
-given. Each condition has its own copy of each student and its own memory.
+i/n takes every n-th student of D's roster and every n-th of D's adversarial
+students, and runs them under every condition given. Each condition has its own
+copy of each student and its own memory. Students relapse between sessions
+(--relapse, D's suggested 0.3), so retention is measured, not given.
 
     full  the tutor: B's diagnose(), the hinter and critic, memory and the planner
     b2    the same, with one-shot diagnosis: B's mode="b2", no probes (see b2_diagnose)
@@ -23,9 +25,10 @@ students/ and memory/ (state between sessions). Each is saved when a session
 finishes, so a stopped run carries on where it stopped: run the same command
 again. Records of a session that never finished are dropped from its log first.
 
-Until D's pre/post tests land, each student works the sample items on which its
-rule gives a wrong answer, and up to TEST_ITEMS of them that are not in B's probe
-bank are the pre- and post-test (slip-only students get fixed items); see materials().
+Each student works D's sample items on which its rule gives a wrong answer (the
+pool; slip-only students get fixed items), and its pre- and post-tests are D's
+prepost_forms(): the same ideas with new numbers, never a pool item or a probe.
+Session k's pre-test is also the retention check for session k - 1. See materials().
 """
 
 from __future__ import annotations
@@ -37,8 +40,10 @@ from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 from ..diagnosis import diagnose
-from ..diagnosis.probes import probe_items
-from ..evaluation import LLMFeedbackJudge, SimStudent, check_files, overlapping, roster
+from ..evaluation import (
+    SAMPLE_ITEMS, SLIP_ITEMS, LLMAttackLine, LLMFeedbackJudge, SimStudent, TestForm, adversarial_roster,
+    check_files, prepost_forms, roster,
+)
 from ..llm import LLMClient, load_config
 from . import planner
 from .__main__ import keyword_judge, textbook_retrieve
@@ -58,24 +63,11 @@ NEEDS_LLM = ("b0", "b1")
 WITH_MEMORY = ("full", "b2")  # B0 and B1 have no memory, so no planner
 
 PROBLEMS_PER_SESSION = 2
-TEST_ITEMS = 4
 SLIP_ONLY = 3
 
-# D's sample items (tests/test_students_week2.py): each rule's own example.
-ITEMS = [
-    "1/2 + 1/3", "2/5 × 3/5", "2/3 ÷ 4/5", "1/4 + 1/6", "3/4 - 1/2", "12/34", "3/4 > 5/8",
-    "0.25 + 0.3", "0.3 × 0.2", "0.45 > 0.8", "25% of 80", "3.5 + 2.75",
-    "2(x + 3)", "(a + b)^2", "2x + 4 = 10", "x + 3 = 7", "10 - 2 + 3", "12 ÷ 2 × 3", "2 + 3 × 4",
-    "-3 + (-5)", "(-2)(-3)", "-5 - 6",
-    "5x = 2x + 12", "(x + 3)^2", "2 × (3 + 4)", "2/3 = 6/x",
-    "23 + 45", "37 + 25", "328 + 917", "8 + 12", "87 + 93", "47 + 38",
-    "321 - 89", "403 - 168", "140 - 21", "403 - 208", "85 - 127", "302 - 7", "304 - 75",
-    "85 - 23", "52 - 17", "62 - 37", "402 - 6",
-    "68 × 46", "23 × 14", "23 × 4",
-    "(x^2)^3", "(2x^3)^2", "2^3", "x^3 × x^5", "2^-2", "5^0",
-    "(3 × 10^4) × (2 × 10^5)", "45000", "0.0032",
-]
-SLIP_ITEMS = ["1/2 + 1/3", "0.25 + 0.3", "x + 3 = 7", "2(x + 3)", "3/4 - 1/2"]
+ITEMS = SAMPLE_ITEMS  # D's sample items: each rule's own example
+RELAPSE_RATE = 0.3  # D's suggestion for multi-session runs
+PER_ATTACK = 6  # adversarial students per attack technique
 
 
 def wrong_items(rule: str) -> list[str]:
@@ -92,14 +84,21 @@ def wrong_items(rule: str) -> list[str]:
     return found
 
 
-def materials(student: SimStudent) -> tuple[list[str], list[str]]:
-    """(problem pool, test items) for a student; an empty pool means nothing shows its rule.
-    Tests never reuse a probe question (team plan, section 7)."""
+def materials(student: SimStudent, sessions: int = 1) -> tuple[list[str], list[TestForm]]:
+    """(problem pool, one test form per session) for a student; an empty pool means
+    nothing shows its rule. D's forms never match a pool item, a probe or each other."""
     if student.misconception_id is None:
-        return SLIP_ITEMS[:3], SLIP_ITEMS[3:]
-    found = wrong_items(student.misconception_id.split(":", 1)[1])
-    probes = {test for test, _ in overlapping(found, probe_items())}
-    return found, [item for item in found if item not in probes][:TEST_ITEMS]
+        pool = list(SLIP_ITEMS[:3])
+    else:
+        pool = wrong_items(student.misconception_id.split(":", 1)[1])
+    if not pool:
+        return [], []
+    try:
+        forms = prepost_forms(student.misconception_id, sessions=sessions, student_id=student.student_id,
+                              avoid=pool)
+    except ValueError:  # no sample item shows the misconception
+        return [], []
+    return pool, forms
 
 
 def b2_diagnose(*args, **kwargs):
@@ -144,11 +143,11 @@ def run_condition(condition: str, students: Sequence[SimStudent], out: Path, *, 
     state_dir = out / "students" / condition
     ran = skipped = 0
     for fresh in students:
-        pool, tests = materials(fresh)
+        pool, forms = materials(fresh, sessions)
         if not pool:
             continue
         saved = (state_dir / f"{fresh.student_id}.json").exists()
-        student = SimStudent.load(state_dir, fresh.student_id, judge=keyword_judge) if saved else fresh
+        student = type(fresh).load(state_dir, fresh.student_id, judge=keyword_judge) if saved else fresh
         for index in range(sessions):
             session_id = f"{condition}-{student.student_id}-s{index}"
             if session_id in done:
@@ -162,9 +161,12 @@ def run_condition(condition: str, students: Sequence[SimStudent], out: Path, *, 
             tutor_llm = client.session(session_id, condition) if client else None
             student.judge = LLMFeedbackJudge(client.session(session_id, condition, budget_tokens=None)) \
                 if client else keyword_judge
+            if client and hasattr(student, "attack_line"):  # an adversarial student: the LLM writes its attacks
+                student.attack_line = LLMAttackLine(client.session(session_id, condition, budget_tokens=None))
             run_session(tutor, student, [make_problem(f"p{i}", q) for i, q in enumerate(problems)],
                         session_id=session_id, condition=condition, session_index=index,
-                        pre_items=tests, post_items=tests, llm_session=tutor_llm, rechecks=rechecks)
+                        pre_items=forms[index].pre, post_items=forms[index].post, llm_session=tutor_llm,
+                        rechecks=rechecks)
             student.save(state_dir)
             if isinstance(store, JsonStudentStore):
                 store.save()
@@ -186,6 +188,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--shard", type=parse_shard, default=(0, 1), help="i/n: every n-th student from the i-th")
     parser.add_argument("--sessions", type=int, default=2, help="sessions per student")
     parser.add_argument("--students", type=int, default=None, help="only the first N students of the shard")
+    parser.add_argument("--per-attack", type=int, default=PER_ATTACK,
+                        help="adversarial students per attack technique (0 for none)")
+    parser.add_argument("--relapse", type=float, default=RELAPSE_RATE,
+                        help="chance a fixed misconception comes back at a later session")
     parser.add_argument("--llm", action="store_true", help="LLM hinter, critic and judge (needs GEMINI_API_KEY)")
     args = parser.parse_args(argv)
 
@@ -202,11 +208,14 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     config = dataclasses.replace(load_config(), log_dir=out / "llm")
     client = LLMClient(config, run_id=f"shard{shard}") if args.llm else None
     retrieve = textbook_retrieve() if args.llm else None
-    students = roster(keyword_judge, slip_only=SLIP_ONLY)[i::n][:args.students]  # judge replaced per session
+    # The judge is replaced per session. --students keeps runs small: the first N of each kind.
+    students = roster(keyword_judge, slip_only=SLIP_ONLY, relapse_rate=args.relapse)[i::n][:args.students]
+    if args.per_attack:
+        students += adversarial_roster(keyword_judge, per_attack=args.per_attack)[i::n][:args.students]
 
     for condition in conditions:
         # A fresh copy of each student per condition: no condition sees another's effect on it.
-        copies = [SimStudent.from_state(s.to_state(), judge=keyword_judge) for s in students]
+        copies = [type(s).from_state(s.to_state(), judge=keyword_judge) for s in students]
         result = run_condition(condition, copies, out, sessions=args.sessions, shard=shard, client=client,
                                config_hash=config.hash, retrieve=retrieve)
         problems = check_files([result["log"]])

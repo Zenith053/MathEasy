@@ -129,12 +129,13 @@ Practise next: 6/12 + 3/6 + 3/7; 7/9 + 4/5 + 4/6.
 
 The four parts come from B's diagnosis in code (`analysis.py`). Each is left out if it would give away the answer to any item still open in the session. Whether the baselines and the runner stay is not settled yet; they are kept until the team decides.
 
-Experiments go through the runner: any conditions, on one shard of students, over several sessions. Shards split students, never conditions, and a stopped run carries on when the same command is run again.
+Experiments go through the runner: any conditions, on one shard of students, over several sessions. Shards split students, never conditions, and a stopped run carries on when the same command is run again. Each shard includes D's adversarial students (`--per-attack`, 6 per technique by default), students relapse between sessions (`--relapse`, default 0.3), and pre/post tests are D's `prepost_forms()`: the same ideas with new numbers, never a tutored item or a probe.
 
 ```bash
-.venv/bin/python -m matheasy.tutor.runner trial --conditions full,b2 --sessions 3                # offline, ~30 s
+.venv/bin/python -m matheasy.tutor.runner trial --conditions full,b2 --sessions 2                # offline, ~90 s
 .venv/bin/python -m matheasy.tutor.runner final --llm --shard 0/4 --conditions full,b0,b1,b2      # one member's shard
 .venv/bin/python -m matheasy.evaluation runs/final && .venv/bin/python -m matheasy.evaluation.metrics runs/final/turns
+.venv/bin/python -m matheasy.evaluation.stats runs/final/turns                                      # D's intervals and comparisons
 ```
 
 ```python

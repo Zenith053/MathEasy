@@ -257,9 +257,11 @@ def test_a_tie_is_settled_by_one_of_bs_probes_and_stays_settled(tmp_path):
     assert len(diagnoses) > 2 and check_files([tutor.log.path]) == []
 
 
-def test_runner_tests_never_reuse_a_probe():
+def test_runner_tests_never_reuse_a_probe_or_a_tutored_item():
     from matheasy.diagnosis.probes import probe_items
     from matheasy.evaluation import overlapping, roster
     from matheasy.tutor.runner import SLIP_ONLY, materials
     for student in roster(keyword_judge, slip_only=SLIP_ONLY):
-        assert overlapping(materials(student)[1], probe_items()) == []
+        pool, forms = materials(student, sessions=2)
+        tests = [item for form in forms for item in form.pre + form.post]
+        assert overlapping(tests, probe_items()) == [] and overlapping(tests, pool) == []
