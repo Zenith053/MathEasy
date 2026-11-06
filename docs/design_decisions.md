@@ -2,6 +2,41 @@
 
 Owner: B. Covers how the diagnosis engine reads what a student writes: the parser, the notation standard and the LLM transcriber (`matheasy/diagnosis/maths.py`, `transcribe.py`, `docs/input_notation.md`), and how a located mistake is handed to A's shortlister (`matheasy/diagnosis/interfaces.py`, `matheasy/shortlister/`). Each entry gives the decision, the alternatives considered, and why. Open questions are listed at the end.
 
+## What we are trying to build
+
+**A LeetCode-style maths tutor.** The student submits an answer, and the tutor analyses the submission the way LeetCode analyses code. Decided on 30 October 2026; this replaces the hypothesis plan in the team plan and proposal.
+
+For each wrong answer, the tutor shows the student:
+
+1. **Where it went wrong:** the step or operation that broke.
+2. **What the mistake is:** a named mistake and a short explanation.
+3. **Which topics it involves:** one or more, such as fractions or solving equations. A student's mistakes build up per topic, so the tutor can see what they have and have not mastered.
+4. **What to practise:** similar problems on those topics.
+
+**How diagnosis produces this.** Code decides what it can, and the LLM handles the rest:
+
+| Stage | Who | What it does |
+|---|---|---|
+| Rules | Code | A rule reproduces the student's exact answer and names the mistake |
+| Solve back | Code | For a line of numbers, finds the one operation that went wrong, then runs the rules on it |
+| Probe | Code | When rules tie, asks a follow-up question that tells them apart |
+| LLM fallback | LLM, checked by code | When no rule fits, explains what the student did and names the topics |
+
+See `docs/diagnosis_fallback.md` for the fallback and its results, and `docs/diagnosis_rules.md` for the rules and the probe bank.
+
+**What changed from the old plan.**
+
+- The H1–H3 hypotheses and the hypothesis tester are dropped. The aim is a useful analysis for the student, not a comparison that proves one design better.
+- The LLM is no longer kept away from diagnosis. Rules alone cannot cover real answers, where students combine steps or make several mistakes at once.
+- The topic matters more than the exact working. The topic is usually right even when the LLM's reconstruction of the working is not, and it is what the student's memory is built on.
+
+**Not settled yet.**
+
+- Whether the baselines (B0, B1, B2) and the experiment runner stay.
+- Whether the Eedi shortlister stays. No rule is mapped to Eedi yet.
+
+Sections below written before this decision still mention the hypotheses and baselines.
+
 ## 1. Parsing
 
 ### 1.1 Our own parser, with SymPy only for the maths
