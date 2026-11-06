@@ -101,3 +101,12 @@ def test_hybrid_retrieve_finds_distributive_property_for_brackets():
 def test_hybrid_beats_or_matches_bm25_on_right_section_set():
     from matheasy.retrieval.retrieve import right_section_rate
     assert right_section_rate(3, "hybrid")[0] >= right_section_rate(3, "bm25")[0]
+
+
+def test_is_weak_flags_only_an_unrelated_best_passage():
+    from matheasy.retrieval.retrieve import is_weak
+
+    assert is_weak([{"similarity": 0.2}, {"similarity": 0.3}])
+    assert not is_weak([{"similarity": 0.2}, {"similarity": 0.8}])
+    assert not is_weak([{"similarity": None}])  # BM25 mode: unknown, not weak
+    assert not is_weak([])

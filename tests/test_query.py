@@ -144,3 +144,42 @@ def test_live_query_skips_rows_with_no_step_to_locate():
     assert live_query("Which of these is a prime number?", r"\( 9 \)") is None  # no maths part
     assert live_query(r"Work out \( \frac{1}{2}+\frac{1}{3} \)", "Only Tom") is None  # answer is words
     assert live_query(r"Work out \( \sqrt{4} \)", r"\( 3 \)") is None  # maths part we cannot read
+
+
+def test_cache_covers_a_rule_answer_on_a_tutor_item():
+    from matheasy.diagnosis import locate
+    from matheasy.diagnosis.interfaces import query
+    from matheasy.shortlister.cache import cache_queries
+
+    queries = cache_queries()
+    assert query(locate("1/2 + 1/3", "2/5")) in queries  # add_numerators_denominators on a sample item
+    assert queries == sorted(set(queries))
+
+
+def test_cached_shortlist_plugs_into_eedi_shortlister(tmp_path):
+    import json
+    from matheasy.diagnosis import Candidate, EediShortlister, locate
+    from matheasy.diagnosis.interfaces import query
+    from matheasy.shortlister.cache import CachedShortlist, build
+
+    error = locate("1/2 + 1/3", "2/5")
+    rank = lambda queries, k: [[(217, "name", 0.91234), (1980, "name", 0.5)] for _ in queries]
+    path = tmp_path / "cache.json"
+    path.write_text(json.dumps(build(rank, [query(error)], "adapter-x")), encoding="utf-8")
+
+    ranker = CachedShortlist(path)
+    assert EediShortlister(ranker)(error, k=1) == [Candidate("eedi:217", 0.9123)]
+    assert ranker.misses == 0
+    assert "name" not in path.read_text(encoding="utf-8")  # IDs and scores only, no Eedi text
+
+
+def test_cached_shortlist_sends_a_miss_to_the_fallback(tmp_path):
+    import json
+    from matheasy.shortlister.cache import CachedShortlist
+
+    path = tmp_path / "cache.json"
+    path.write_text(json.dumps({"queries": {}}), encoding="utf-8")
+    assert CachedShortlist(path)("unknown") == []
+    ranker = CachedShortlist(path, fallback=lambda q, k: [(5, "live", 0.7)])
+    assert ranker("unknown") == [(5, "live", 0.7)]
+    assert ranker.misses == 1

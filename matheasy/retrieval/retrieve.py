@@ -7,9 +7,12 @@ Property), merged by reciprocal-rank fusion. Embeddings are model2vec static
 embeddings: small, CPU-only, no torch. Without model2vec installed, BM25 alone.
 
   retrieve(query, k=3, mode="hybrid") -> [{"ref", "book", "section", "section_title",
-                                           "subsection", "text", "score"}, ...]  best first
+                                           "subsection", "text", "score", "similarity"}, ...]  best first
 
-mode is "hybrid", "bm25" or "embed" (the last two for comparison).
+mode is "hybrid", "bm25" or "embed" (the last two for comparison). "score" only
+orders the results: in hybrid mode it reflects rank, so it cannot show a weak match.
+"similarity" is the passage's cosine similarity to the query, comparable between
+queries; it is None in BM25 mode.
 
 `query` is free text, e.g. the diagnosed misconception plus the topic. "ref" is
 what the hinter cites, e.g. "Prealgebra 2e, 4.2 Multiply and Divide Fractions >
@@ -33,6 +36,9 @@ PASSAGES = Path(__file__).resolve().parents[2] / "data" / "openstax" / "passages
 EVAL = Path(__file__).resolve().parent / "eval_sections.json"
 EMBED_MODEL = "minishlab/potion-base-8M"
 RRF_K = 60  # standard reciprocal-rank-fusion constant
+# Best similarity on the 30 eval queries with a right-section result: at least 0.56.
+# On 10 off-topic queries: at most 0.39. An on-topic wrong section can still score high.
+WEAK_BELOW = 0.45
 
 # Eedi and the tutor use UK maths words; OpenStax is American. The US words are
 # added to the query (not replacing the UK ones).
@@ -95,17 +101,25 @@ def retrieve(query, k=3, mode="hybrid"):
     query = americanise(query)
     if mode != "bm25" and _embedder() is None:
         mode = "bm25"
+    cosine = None if mode == "bm25" else _vectors() @ _embed([query])[0]
     if mode == "bm25":
         scores = bm25.get_scores(tokens(query))
     elif mode == "embed":
-        scores = _vectors() @ _embed([query])[0]
+        scores = cosine
     else:
         # Reciprocal-rank fusion: no score scales to match, no weight to tune.
         scores = np.zeros(len(rows))
-        for s in (bm25.get_scores(tokens(query)), _vectors() @ _embed([query])[0]):
+        for s in (bm25.get_scores(tokens(query)), cosine):
             scores[np.argsort(-s)] += 1 / (RRF_K + np.arange(1, len(rows) + 1))
     top = sorted(range(len(rows)), key=lambda i: -scores[i])[:k]
-    return [{**rows[i], "score": float(scores[i])} for i in top]
+    return [{**rows[i], "score": float(scores[i]), "similarity": None if cosine is None else float(cosine[i])}
+            for i in top]
+
+
+def is_weak(passages):
+    """True if even the best passage is unrelated to the query. False when similarity is unknown."""
+    known = [p["similarity"] for p in passages if p.get("similarity") is not None]
+    return bool(known) and max(known) < WEAK_BELOW
 
 
 def right_section_rate(k=3, mode="hybrid"):

@@ -15,48 +15,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn.functional as F
-from peft import PeftModel, prepare_model_for_kbit_training
-from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 
+from .model import DATA, ModelShortlister
 from .shortlist import map_at_k, recall_at_k
 
-DATA = Path(__file__).resolve().parents[2] / "data" / "eedi"
-INSTRUCT = "Instruct: Given a student's wrong step, retrieve the misconception that explains it\nQuery: "
-MAX_Q, MAX_M = 512, 96
 KEY = ["QuestionId", "WrongAnswer"]
 N_BOOT = 2000
 SEED = 20261016
-
-
-def load(adapter):
-    """The base model and adapter, set up as in train_shortlister.ipynb when it evaluated."""
-    base = json.loads((Path(adapter) / "results.json").read_text())["model"]
-    tok = AutoTokenizer.from_pretrained(adapter)
-    tok.padding_side = "right"
-    model = AutoModel.from_pretrained(
-        base,
-        quantization_config=BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
-                                               bnb_4bit_compute_dtype=torch.float16,
-                                               bnb_4bit_use_double_quant=True),
-        dtype=torch.float16, device_map={"": 0})
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
-    return tok, PeftModel.from_pretrained(model, adapter).eval()
-
-
-@torch.no_grad()
-def embedder(tok, model):
-    def embed(texts, max_len, size):
-        out = []
-        for i in range(0, len(texts), size):
-            chunk = [t + tok.eos_token for t in texts[i:i + size]]
-            batch = tok(chunk, max_length=max_len, truncation=True, padding=True, return_tensors="pt").to(model.device)
-            hidden = model(**batch).last_hidden_state
-            last = batch["attention_mask"].sum(1) - 1
-            out.append(F.normalize(hidden[torch.arange(len(chunk)), last].float(), dim=-1))
-        return torch.cat(out)
-    return embed
 
 
 def scores(ranked, true):
@@ -77,18 +42,9 @@ def main(adapter, out):
     queries = queries[queries.Split.isin(["val", "test"])]
     live = pd.read_csv(DATA / "live_queries.csv")
     live = live[live.Split.isin(["val", "test"])]
-    names = pd.read_csv(DATA / "raw" / "misconception_mapping.csv")
-    names["MisconceptionName"] = names.MisconceptionName.str.strip()
 
-    tok, model = load(adapter)
-    embed = embedder(tok, model)
-    ids = names.MisconceptionId.tolist()
-    m = embed(names.MisconceptionName.tolist(), MAX_M, 64)
-
-    def rank(texts):
-        q = embed([INSTRUCT + t for t in texts], MAX_Q, 16)
-        return [[ids[j] for j in row] for row in (q @ m.T).topk(25, dim=1).indices.cpu().tolist()]
-
+    ranker = ModelShortlister(adapter)
+    rank = lambda texts: [[mid for mid, _name, _score in row] for row in ranker.rank(texts)]
     queries["Ranked"] = rank(queries.Query.tolist())
     live["Ranked"] = rank(live.Query.tolist())
     both = live.merge(queries[KEY + ["Query", "Ranked"]], on=KEY, suffixes=("_live", "_train"))
