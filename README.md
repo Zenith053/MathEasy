@@ -144,6 +144,8 @@ result.ended_by, result.pre_correct, result.post_correct
 ```
 
 - **One session** = pre-test, tutoring on each problem, post-test, with one token budget (`llm_session`). It writes D's `session_start`, `turn`, `test` and `session_end` records; the tutor writes `diagnosis` and `hint`.
+- **Every condition reads input the same way** (`read_answer()`): code finds the maths in the message, then B's `transcribe()` reads what the student meant (a model call only for a line not in standard notation). An ambiguous line is asked about once. Offline there is no transcriber, so the parser's literal reading is used.
+- **B's LLM fallback:** the orchestrator passes `question` and the session to `diagnose()`. When no rule explains a step, the hinter aims at the fallback's reading, but only if code verified it, it is a misconception, and its words don't give the answer away.
 - **Every full-tutor message passes `TutorCritic`**: code checks first (leak check with B's `equivalent()`), then an LLM review of hints. After 2 rejected rewrites, or when the budget runs out, a safe template is sent.
 - **The hinter never sees a correct answer**: `HintRequest` has no field for one. It cites one of the textbook sections A's `retrieve()` returns.
 - **Tool wrappers** (`ToolBox(standard_tools(retrieve), log)`) check arguments against a schema, retry an unexpected error once, and log D's `tool_call` record.

@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
 
-from ..diagnosis import Diagnosis, FollowUp, Probe
+from ..diagnosis import Diagnosis, FollowUp, Probe, Transcription
 
 MessageKind = Literal["question", "probe", "hint", "feedback", "safe_template"]
 
@@ -68,6 +68,7 @@ class Utterance:
     speaker: Literal["student", "tutor"]
     text: str
     kind: Optional[MessageKind] = None  # tutor messages only
+    reading: Optional[Transcription] = None  # student messages: how the Read stage read it
 
 
 @dataclass
@@ -92,6 +93,7 @@ class TutorState:
     hints_given: int = 0
     diagnosis: Optional[Diagnosis] = None
     solved: bool = False
+    clarifying: Optional[Transcription] = None  # an unsure reading the student was asked about
     problem_start: int = 0  # index in transcript where the current problem began
 
     @property

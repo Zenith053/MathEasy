@@ -19,6 +19,10 @@ any plain LLM tutor, it must work the maths out itself.
 B0's diagnosis is free text, so its `diagnosis` records have status "unknown"
 and the text in `stated_misconception`; scoring them for H1 needs a mapping
 from text to misconception IDs (to agree with D).
+
+Both read the student's input like the full tutor (read_answer(), B's
+transcriber): where it reads a line differently from how it was typed, the
+prompt shows the reading next to the student's words.
 """
 
 from __future__ import annotations
@@ -29,7 +33,7 @@ from typing import Any, Optional
 from ..diagnosis import rule_id
 from ..diagnosis.rules import get_rule
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
-from .orchestrator import SAFE_TEMPLATE, with_citation
+from .orchestrator import SAFE_TEMPLATE, read_answer, with_citation
 from .state import Hint, MessageKind, Problem, TutorReply, TutorState, Utterance
 from .store import NoMemoryStore
 from .tools import ToolBox
@@ -81,7 +85,9 @@ class B0Tutor:
         if state.problem is None or state.solved:
             raise RuntimeError("no open problem: call start() first")
         answered_turn = state.turn
-        state.transcript.append(Utterance("student", student_text))
+        failed = self._read(state, student_text)
+        if failed:
+            return failed
         try:
             result = state.llm.call(self.role, [{"role": "user", "content": self._prompt(state)}],
                                     system=SYSTEM, json_schema=SCHEMA)
@@ -104,9 +110,20 @@ class B0Tutor:
     def _prompt(self, state: TutorState) -> str:
         lines = [f"Question: {state.problem.question}", "", "Conversation so far:"]
         for u in state.transcript[state.problem_start:]:
-            lines.append(f"{'Tutor' if u.speaker == 'tutor' else 'Student'}: {u.text}")
+            lines.append(f"{'Tutor' if u.speaker == 'tutor' else 'Student'}: {u.text}{_reading(u)}")
         lines.append("\nWrite the tutor's next message.")
         return "\n".join(lines)
+
+    def _read(self, state: TutorState, student_text: str) -> Optional[TutorReply]:
+        """Add the student's message to the transcript with its reading; on an LLM error,
+        the safe template."""
+        try:
+            reading = read_answer(student_text, state.problem.question, state.llm)
+        except LLM_ERRORS as e:
+            state.transcript.append(Utterance("student", student_text))
+            return self._fallback(state, e)
+        state.transcript.append(Utterance("student", student_text, reading=reading))
+        return None
 
     def _fallback(self, state: TutorState, error: Exception) -> TutorReply:
         state.budget_exhausted |= isinstance(error, BudgetExceeded)
@@ -193,7 +210,9 @@ class B1Agent(B0Tutor):
         if state.problem is None or state.solved:
             raise RuntimeError("no open problem: call start() first")
         answered_turn = state.turn
-        state.transcript.append(Utterance("student", student_text))
+        failed = self._read(state, student_text)
+        if failed:
+            return failed
         messages = [{"role": "user", "content": self._prompt(state)}]
         refs: set[str] = set()  # sections the agent retrieved for this message
         failed: Optional[str] = None  # the tool whose last call failed
@@ -238,6 +257,18 @@ class B1Agent(B0Tutor):
         if not correct:
             self._log_hint(state, text, safe_template=False, citations=hint.citations)
         return reply
+
+
+def _reading(u: Utterance) -> str:
+    """The transcriber's reading, when the model was needed to read the line."""
+    r = u.reading
+    if r is None or not r.used_llm:
+        return ""
+    if r.status == "ok":
+        return f" (read as: {r.line})"
+    if r.status == "unsure" and r.choices:
+        return f" (could mean: {' or '.join(r.choices)})"
+    return ""
 
 
 def _arguments(args: Any) -> Any:
