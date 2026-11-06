@@ -1,6 +1,6 @@
 """The tutor (Role C): shared state, orchestrator, run log and session runner."""
 
-from .baselines import B0Tutor
+from .baselines import B0Tutor, B1Agent
 from .critic import TutorCritic
 from .hinter import LLMHinter
 from .orchestrator import MAX_FOLLOWUPS, MAX_REWRITES, SAFE_TEMPLATE, Orchestrator, extract_answer
@@ -11,7 +11,7 @@ from .state import Hint, HintRequest, Problem, StudentMemory, TutorReply, TutorS
 from .turnlog import TurnLogger
 
 __all__ = [
-    "B0Tutor", "InMemoryStore", "JsonStudentStore", "LLMHinter", "NoMemoryStore", "Tool", "ToolBox",
+    "B0Tutor", "B1Agent", "InMemoryStore", "JsonStudentStore", "LLMHinter", "NoMemoryStore", "Tool", "ToolBox",
     "ToolResult", "TutorCritic", "standard_tools",
     "Hint", "HintRequest", "MAX_FOLLOWUPS", "MAX_REWRITES", "Orchestrator", "Problem", "SAFE_TEMPLATE",
     "SessionResult", "StudentMemory", "TurnLogger", "TutorReply", "TutorState", "Utterance", "Verdict",

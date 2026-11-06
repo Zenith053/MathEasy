@@ -117,6 +117,14 @@ student.save("runs/students"); SimStudent.load("runs/students", "student-001", j
 
 Everything in `matheasy/tutor` (owner: C). Run a session end to end with `.venv/bin/python -m matheasy.tutor` (offline) or `--llm` (Gemini).
 
+Experiments go through the runner: any conditions, on one shard of students, over several sessions. Shards split students, never conditions, and a stopped run carries on when the same command is run again.
+
+```bash
+.venv/bin/python -m matheasy.tutor.runner trial --conditions full,b2 --sessions 3                # offline, ~30 s
+.venv/bin/python -m matheasy.tutor.runner final --llm --shard 0/4 --conditions full,b0,b1,b2      # one member's shard
+.venv/bin/python -m matheasy.evaluation runs/final && .venv/bin/python -m matheasy.evaluation.metrics runs/final/turns
+```
+
 ```python
 from matheasy.llm import LLMClient
 from matheasy.retrieval import retrieve
@@ -137,7 +145,11 @@ result.ended_by, result.pre_correct, result.post_correct
 ```
 
 - **One session** = pre-test, tutoring on each problem, post-test, with one token budget (`llm_session`). It writes D's `session_start`, `turn`, `test` and `session_end` records; the tutor writes `diagnosis` and `hint`.
+- **Every condition reads input the same way** (`read_answer()`): code finds the maths in the message, then B's `transcribe()` reads what the student meant (a model call only for a line not in standard notation). An ambiguous line is asked about once. Offline there is no transcriber, so the parser's literal reading is used.
+- **B's LLM fallback:** the orchestrator passes `question` and the session to `diagnose()`. When no rule explains a step, the hinter aims at the fallback's reading, but only if code verified it, it is a misconception, and its words don't give the answer away.
 - **Every full-tutor message passes `TutorCritic`**: code checks first (leak check with B's `equivalent()`), then an LLM review of hints. After 2 rejected rewrites, or when the budget runs out, a safe template is sent.
 - **The hinter never sees a correct answer**: `HintRequest` has no field for one. It cites one of the textbook sections A's `retrieve()` returns.
-- **Tool wrappers** (`ToolBox(standard_tools(retrieve), log)`) check arguments against a schema, retry an unexpected error once, and log D's `tool_call` record. B1 will use them in week 3.
+- **Tool wrappers** (`ToolBox(standard_tools(retrieve), log)`) check arguments against a schema, retry an unexpected error once, and log D's `tool_call` record.
+- **The planner** (`planner.py`, behind the student store) keeps P(knows skill) per topic and P(holds misconception) per misconception, and re-checks a fixed misconception in the next session, then after 2, 4, ... sessions. `misconception_prior()` gives B's diagnoser P(holds). `planner.plan()` picks each session's problems, re-check items first.
 - **B0** has no tools, retrieval, memory or critic; its diagnosis is free text in `stated_misconception`.
+- **B1** (`B1Agent(log, ToolBox(standard_tools(retrieve), log))`) is one LLM agent calling the same tools itself (at most 4 per message), with no hypothesis testing, memory or critic. It names a misconception by B's rule name (`list_rules` tool); a name that is not one of B's rules is logged as unknown.

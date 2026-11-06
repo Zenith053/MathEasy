@@ -4,22 +4,30 @@ For each student message it runs, in order:
 
     read -> check the step -> diagnose -> remember -> probe or hint (or praise) -> critic -> send
 
+Read is the same in every condition (read_answer(), also used by B0 and B1):
+code finds the maths in the message, then B's transcribe() reads what the
+student meant. A line in standard notation needs no model call; an ambiguous
+one is asked about once ("Did you mean 1) ... or 2) ...?").
+
 Every routing decision and limit is code, so runs are reproducible and every
 step is logged. The limits come from the proposal: at most 2 follow-up
 questions per problem and at most 2 critic rewrites per hint, after which a
 safe template is sent. Nothing reaches the student without passing the critic.
 
 The diagnosis is B's: check_step() first, then diagnose() on a wrong step,
-called again with each probe answer as a FollowUp.
+called again with each probe answer as a FollowUp. With an LLM session,
+diagnose() reads a step no rule explains with its LLM fallback; a verified
+reading of a misconception is what the hinter aims at (explained()).
 """
 
 from __future__ import annotations
 
 from typing import Callable, Optional
 
-from ..diagnosis import FollowUp, ParseError, check_step, diagnose, parse
+from ..diagnosis import FollowUp, ParseError, Transcription, check_step, diagnose, parse, resolve, transcribe
 from ..diagnosis import Diagnosis
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
+from .critic import leaks_answer
 from .describe import misconception_text
 from .mathtext import EDGE_WORDS, maths_runs
 from .parts import Critic, Hinter, StudentStore
@@ -58,6 +66,39 @@ def extract_answer(text: str) -> Optional[str]:
     return None
 
 
+def read_answer(text: str, question: str, session=None) -> Transcription:
+    """The Read stage, the same for every condition. Code finds the maths in the message
+    and B's transcribe() reads what the student meant (an LLM only for lines not in
+    standard notation). Without an LLM session: the parser's literal reading."""
+    answer = extract_answer(text)
+    if session is None:
+        if answer is None:
+            return Transcription("unreadable", None, text, used_llm=False, reason="no maths found")
+        return Transcription("ok", answer, text, used_llm=False)
+    return transcribe(answer if answer is not None else text, question=question, session=session)
+
+
+def clarify(choices: tuple[str, ...]) -> str:
+    if len(choices) == 1:
+        return f"Did you mean {choices[0]}? Reply yes, or type your answer again."
+    listed = " or ".join(f"{i}) {c}" for i, c in enumerate(choices, 1))
+    return f"Did you mean {listed}? Reply with the number."
+
+
+def explained(diagnosis: Optional[Diagnosis], problem: Problem) -> Optional[str]:
+    """For a step no rule explains: the words of B's LLM fallback, if code verified its
+    reading and it is a misconception (not a slip). One rule reproducing the wrong step
+    names it exactly. The explainer saw the correct line, so words that give the answer
+    away are dropped: the hinter never gets the answer."""
+    e = diagnosis.explanation if diagnosis is not None else None
+    if e is None or e.status != "verified" or e.kind != "misconception":
+        return None
+    rules = {w.rule for w in e.wrong_steps if w.rule}
+    words = [misconception_text(next(iter(rules))) if len(rules) == 1 else None,
+             f"{e.mistake}: {e.explanation}" if e.explanation else None, e.mistake]
+    return next((w for w in words if w and not leaks_answer(w, problem.correct_answer, problem.question)), None)
+
+
 def with_citation(hint: Hint) -> str:
     """The hint as the student sees it. The citation is added after the critic's leak
     check, so a section number such as 4.5 can't be mistaken for an answer."""
@@ -92,6 +133,7 @@ class Orchestrator:
         state.hints_given = 0
         state.diagnosis = None
         state.solved = False
+        state.clarifying = None
         return self._send(state, "question", f"Work out {problem.question}")
 
     def respond(self, state: TutorState, student_text: str) -> TutorReply:
@@ -101,10 +143,21 @@ class Orchestrator:
         answered_turn = state.turn
 
         # read
-        state.transcript.append(Utterance("student", student_text))
-        answer = extract_answer(student_text)
-        if answer is None:
+        try:
+            if state.clarifying is not None:  # asked once; resolve() reads the reply in code
+                reading, state.clarifying = resolve(state.clarifying, student_text), None
+            else:
+                reading = read_answer(student_text, state.item, state.llm)
+        except LLM_ERRORS as e:
+            state.transcript.append(Utterance("student", student_text))
+            return self._fallback(state, e)
+        state.transcript.append(Utterance("student", student_text, reading=reading))
+        if reading.status == "unsure" and reading.choices:
+            state.clarifying = reading
+            return self._send(state, "question", clarify(reading.choices))
+        if reading.status != "ok":
             return self._send(state, "question", RETYPE)
+        answer = reading.line
 
         # check the step, or record the probe answer
         if state.probe is None:
@@ -112,6 +165,7 @@ class Orchestrator:
                 correct = check_step(state.problem.question, answer)
             except ParseError:
                 return self._send(state, "question", RETYPE)
+            self.store.observe(state.memory, state.problem, answer, correct)
             if correct:
                 state.solved = True
                 return self._send(state, "feedback", CORRECT_FEEDBACK)
@@ -126,9 +180,9 @@ class Orchestrator:
         state.diagnosis = diagnosis
         if diagnosis is not None:
             self.log.log(state, "diagnosis", turn=answered_turn, follow_ups=len(state.follow_ups),
-                         **diagnosis.to_log())
+                         read=reading.to_log() if reading.used_llm else None, **diagnosis.to_log())
 
-        # remember (the planner will schedule re-checks from this)
+        # remember: the planner updates the student model and schedules re-checks from it
         if diagnosis is not None and diagnosis.misconception:
             self.store.record(state.memory, diagnosis.misconception)
 
@@ -150,6 +204,7 @@ class Orchestrator:
             return self.diagnose_fn(
                 state.problem.question, state.wrong_answer, student_id=state.student_id,
                 follow_ups=state.follow_ups, store=self.store, mode=self.mode,
+                question=state.problem.question, session=state.llm,
             )
         except LLM_ERRORS as e:
             state.budget_exhausted |= isinstance(e, BudgetExceeded)
@@ -158,15 +213,15 @@ class Orchestrator:
             return None
 
     def _hint(self, state: TutorState, diagnosis: Optional[Diagnosis]) -> TutorReply:
-        # Only a clear diagnosis gets a targeted hint. Ambiguous after the
-        # follow-up limit, unknown, or no diagnosis at all gets a general one.
+        # A clear diagnosis, or a verified LLM reading of an unknown step, gets a targeted
+        # hint. Ambiguous after the follow-up limit, unexplained, or no diagnosis gets a general one.
         clear = diagnosis is not None and diagnosis.status == "clear"
         located = diagnosis.located if diagnosis is not None else None
         request = HintRequest(
             topic=state.problem.topic,
             question=state.problem.question,
             student_answer=state.wrong_answer,
-            misconception=misconception_text(diagnosis.misconception) if clear else None,
+            misconception=misconception_text(diagnosis.misconception) if clear else explained(diagnosis, state.problem),
             wrong_part=f"{located.source} became {located.wrong}" if located else None,
         )
         state.probe = None

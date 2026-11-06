@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
 
-from ..diagnosis import Diagnosis, FollowUp, Probe
+from ..diagnosis import Diagnosis, FollowUp, Probe, Transcription
 
 MessageKind = Literal["question", "probe", "hint", "feedback", "safe_template"]
 
@@ -48,10 +48,19 @@ class Verdict:
 
 @dataclass
 class StudentMemory:
-    """What the tutor remembers about one student across sessions."""
+    """What the tutor remembers about one student across sessions. The planner updates it."""
 
     student_id: str
     times_diagnosed: dict[str, int] = field(default_factory=dict)  # misconception ID -> count
+    p_holds: dict[str, float] = field(default_factory=dict)  # misconception ID -> P(still holds it)
+    p_knows: dict[str, float] = field(default_factory=dict)  # topic -> P(knows the skill)
+    next_check: dict[str, int] = field(default_factory=dict)  # misconception ID -> session to re-check it in
+    check_gap: dict[str, int] = field(default_factory=dict)  # misconception ID -> sessions between re-checks
+    session_index: int = -1  # the session in progress; -1 before the first
+    history: list[dict] = field(default_factory=list)  # what was seen, one record per observation
+
+    def to_dict(self) -> dict:
+        return {name: getattr(self, name) for name in self.__dataclass_fields__ if name != "student_id"}
 
 
 @dataclass(frozen=True)
@@ -59,6 +68,7 @@ class Utterance:
     speaker: Literal["student", "tutor"]
     text: str
     kind: Optional[MessageKind] = None  # tutor messages only
+    reading: Optional[Transcription] = None  # student messages: how the Read stage read it
 
 
 @dataclass
@@ -83,6 +93,7 @@ class TutorState:
     hints_given: int = 0
     diagnosis: Optional[Diagnosis] = None
     solved: bool = False
+    clarifying: Optional[Transcription] = None  # an unsure reading the student was asked about
     problem_start: int = 0  # index in transcript where the current problem began
 
     @property

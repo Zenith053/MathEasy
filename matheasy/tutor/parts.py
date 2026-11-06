@@ -2,8 +2,10 @@
 
     Hinter        hint(request, feedback, *, llm) -> Hint             hinter.py
     Critic        review(text, kind, problem, *, request, llm) -> Verdict   critic.py
-    StudentStore  load(student_id), record(memory, misconception_id),
+    StudentStore  load(student_id), begin_session(memory, index), record(memory, misconception_id),
+                  observe(memory, problem, answer, correct), end_session(memory),
                   misconception_prior(student_id, misconception_id)  <- read by B's diagnose()
+                  store.py; the updates are the planner's (planner.py)
 
     Tutor         start(state, problem), respond(state, text) -> TutorReply;
                   .log and .store. The Orchestrator (full, b2) and B0Tutor (b0).
@@ -33,7 +35,13 @@ class Critic(Protocol):
 class StudentStore(Protocol):
     def load(self, student_id: str) -> StudentMemory: ...
 
+    def begin_session(self, memory: StudentMemory, session_index: int) -> None: ...
+
     def record(self, memory: StudentMemory, misconception_id: str) -> None: ...
+
+    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool) -> None: ...
+
+    def end_session(self, memory: StudentMemory) -> None: ...
 
     def misconception_prior(self, student_id: str, misconception_id: str) -> Optional[float]: ...
 

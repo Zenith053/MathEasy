@@ -89,7 +89,7 @@ def test_retrieve_tool_and_declarations(log, state):
     [p] = tools.call(state, "retrieve", {"query": "adding fractions"}).value
     assert p == {"ref": "Prealgebra 2e, 4.5", "text": "x" * 700}
     names = [d["name"] for d in tools.declarations()]
-    assert names == ["check_step", "equivalent", "locate", "run_rule", "retrieve"]
+    assert names == ["check_step", "equivalent", "locate", "run_rule", "list_rules", "retrieve"]
 
 
 def test_tool_call_records_pass_ds_checker(log, state):
@@ -110,7 +110,7 @@ def test_json_store_survives_a_restart(tmp_path):
 
     again = JsonStudentStore(path)
     assert again.load("s1").times_diagnosed == {f"rule:{RULE}": 2}
-    assert again.misconception_prior("s1", f"rule:{RULE}") == 0.8
+    assert again.misconception_prior("s1", f"rule:{RULE}") == 0.9
     assert again.misconception_prior("s2", f"rule:{RULE}") is None
 
 

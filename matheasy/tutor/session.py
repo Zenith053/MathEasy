@@ -47,6 +47,7 @@ def run_session(
     post_items: Sequence[str] = (),
     llm_session=None,  # the tutor's matheasy.llm Session, for tokens_used
     max_turns_per_problem: int = MAX_TURNS_PER_PROBLEM,
+    rechecks: Sequence[str] = (),  # misconceptions the planner chose these problems to re-check
 ) -> SessionResult:
     log = tutor.log
     state = TutorState(session_id=session_id, condition=condition, student_id=student.student_id,
@@ -54,9 +55,10 @@ def run_session(
     # D's student needs this before every session: from the second one on, a fixed
     # misconception may come back (relapse_rate).
     relapsed = student.begin_session(session_index)
+    tutor.store.begin_session(state.memory, session_index)
     log.log(state, "session_start", session_index=session_index, student_group=student.group,
             planted=[student.misconception_id] if student.misconception_id else [], attack=None,
-            relapsed=relapsed)
+            relapsed=relapsed, rechecks=list(rechecks))
 
     pre_correct = _test(log, state, student, "pre", pre_items)
 
@@ -83,6 +85,7 @@ def run_session(
             break
 
     post_correct = _test(log, state, student, "post", post_items)
+    tutor.store.end_session(state.memory)
     log.log(state, "session_end", turns=state.turn, ended_by=ended_by,
             tokens_used=llm_session.used_tokens if llm_session is not None else 0,
             holds=[student.misconception_id] if student.holds_misconception else [])
