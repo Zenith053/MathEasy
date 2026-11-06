@@ -11,7 +11,7 @@ from matheasy.diagnosis.explain import TOPICS, rule_topic
 from matheasy.diagnosis.probes import BANK
 from matheasy.evaluation.items import item_key, overlapping
 
-ENTRIES = yaml.safe_load(BANK.read_text())
+ENTRIES = yaml.safe_load(BANK.read_text(encoding="utf-8"))
 TIE = ("2/3 ÷ 4/5", "8/15")  # two rules predict 8/15 here
 COMPARISON_RULES = {"rule:decimals.longer_is_larger", "rule:fractions.natural_number_bias_numerator_only"}
 

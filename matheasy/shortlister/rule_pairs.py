@@ -7,12 +7,12 @@ as the live tutor does (B's locate(), then the query() in
 matheasy/diagnosis/interfaces.py). So these pairs look like live queries, unlike
 the Eedi ones whose "Before" is a whole question.
 
-Expressions use the probe number ranges in docs/diagnosis_rules.md (fractions:
-denominators 2-12, numerators below the denominator). D's tests never match a
-probe item, so training on this range cannot leak test items.
+Expressions use the probe number ranges in docs/diagnosis_rules.md and the shapes
+of B's probe bank (eval/build_probes.py).
 
-A rule with no Eedi mapping yet (bank.yaml `eedi: []`) gives no pairs: the
-shortlister ranks Eedi misconceptions, so a pair needs an Eedi label.
+A rule with no Eedi mapping (bank.yaml `eedi: []`) gives no pairs: the shortlister
+ranks Eedi misconceptions, so a pair needs an Eedi label. A rule's pairs are labelled
+with its first listed ID only, since the others may fit only some of its inputs.
 
 Usage: python -m matheasy.shortlister.rule_pairs
   -> data/eedi/rule_pairs.csv  (MisconceptionId, RuleId, Before, Query)
@@ -24,12 +24,14 @@ from pathlib import Path
 
 import pandas as pd
 
+from eval.build_probes import SHAPES
 from matheasy.diagnosis import equivalent, load_bank, locate, run_rule
 from matheasy.diagnosis.interfaces import query
 
 DATA = Path(__file__).resolve().parents[2] / "data" / "eedi"
 SEED = 20261016
 PER_RULE = 30  # wrong steps per rule
+PER_SHAPE = 200  # inputs drawn from each of B's probe shapes
 
 
 def fraction_inputs():
@@ -38,10 +40,15 @@ def fraction_inputs():
     return [f"{x} {op} {y}" for x, y in itertools.product(fracs, repeat=2) for op in ["+", "-", "×", "÷"]]
 
 
+def probe_shape_inputs():
+    """Decimals, negatives, order of operations, algebra, exponents, column arithmetic, standard form."""
+    rng = random.Random(SEED)
+    return list(dict.fromkeys(shape(rng) for shape in SHAPES for _ in range(PER_SHAPE)))
+
+
 # Input generators. Every rule is tried on all of them: a rule returns None where its
-# misconception does not apply, so each rule picks its own inputs. Add decimals and
-# expressions generators here to cover those rules.
-INPUTS = [fraction_inputs]
+# misconception does not apply, so each rule picks its own inputs.
+INPUTS = [fraction_inputs, probe_shape_inputs]
 
 
 def pairs_for_rule(rule_id, inputs, n=PER_RULE, seed=SEED):
@@ -71,8 +78,7 @@ def build(bank=None):
         if not pairs:
             skipped.append(rule_id)
             continue
-        for before, q in pairs:
-            rows += [{"MisconceptionId": e, "RuleId": rule_id, "Before": before, "Query": q} for e in m.eedi]
+        rows += [{"MisconceptionId": m.eedi[0], "RuleId": rule_id, "Before": before, "Query": q} for before, q in pairs]
     return pd.DataFrame(rows, columns=["MisconceptionId", "RuleId", "Before", "Query"]), skipped
 
 

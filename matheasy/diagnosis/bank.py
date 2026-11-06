@@ -66,7 +66,7 @@ def load_bank(path: Optional[Path] = None) -> Bank:
 
 @lru_cache(maxsize=None)
 def _load(path: Path) -> Bank:
-    raw = yaml.safe_load(path.read_text())["misconceptions"]
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))["misconceptions"]
     held = held_back_rules()
     items = []
     for mid, entry in raw.items():

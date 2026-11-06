@@ -36,7 +36,7 @@ class Probe:
 
 @lru_cache(maxsize=1)
 def _bank() -> tuple[dict, ...]:
-    return tuple(yaml.safe_load(BANK.read_text()))
+    return tuple(yaml.safe_load(BANK.read_text(encoding="utf-8")))
 
 
 def probe_items() -> list[str]:

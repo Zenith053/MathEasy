@@ -172,7 +172,7 @@ def build():
     report(rules, pairs, separable, table, chosen, need)
     bank = [{"question": item, "topics": sorted({rule_topic(r) for r in table[item]}), "predictions": table[item]}
             for item in sorted(chosen)]
-    OUT.write_text(yaml.safe_dump(bank, allow_unicode=True, sort_keys=False, width=120))
+    OUT.write_text(yaml.safe_dump(bank, allow_unicode=True, sort_keys=False, width=120), encoding="utf-8")
     print(f"-> {OUT}")
 
 

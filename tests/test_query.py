@@ -108,13 +108,13 @@ def test_rule_pairs_use_live_query_format_and_need_an_eedi_mapping():
     from matheasy.diagnosis import load_bank
     from matheasy.diagnosis.bank import Bank
     from matheasy.shortlister.rule_pairs import build
-    bank = load_bank()
+    bank = Bank([replace(m, eedi=()) for m in load_bank()])
     rid = "rule:fractions.add_numerators_denominators"
     pairs, skipped = build(bank)
-    assert pairs.empty and rid in skipped          # bank.yaml has no eedi: mapping yet
-    mapped = Bank([replace(m, eedi=(1287,)) if m.id == rid else m for m in bank])
+    assert pairs.empty and rid in skipped          # no eedi: mapping, no pairs
+    mapped = Bank([replace(m, eedi=(1287, 99)) if m.id == rid else m for m in bank])
     pairs, _ = build(mapped)
-    assert set(pairs.RuleId) == {rid} and set(pairs.MisconceptionId) == {1287}
+    assert set(pairs.RuleId) == {rid} and set(pairs.MisconceptionId) == {1287}  # first ID only
     assert len(pairs) == 30 and pairs.Before.is_unique
     assert all(q.startswith("Topic: fractions | Before: ") and "Changed part: " in q for q in pairs.Query)
 
