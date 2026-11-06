@@ -133,7 +133,7 @@ def test_hinter_without_retriever_has_no_citation_field(llm):
     ("That makes 10/12 in total.", "5/6", "10/12"),
     ("Half is 0.5 here.", "1/2", "0.5"),
     ("Write it as 50%.", "1/2", "50%"),
-    ("It simplifies to 2x+6.", "2x + 6", "2x + 6"),
+    ("It simplifies to 2x+6.", "2x + 6", "2x+6"),
     ("Look at 1/2 + 1/3 again.", "5/6", None),
     ("So x must be 3.", "x = 3", "3"),  # an equation's value on its own gives it away
     ("Then x = 3.", "x = 3", "x = 3"),
@@ -141,6 +141,29 @@ def test_hinter_without_retriever_has_no_citation_field(llm):
 ])
 def test_leak_check(text, answer, leaked):
     assert leaks_answer(text, answer) == leaked
+
+
+@pytest.mark.parametrize("text, question, answer, leaked", [
+    # Repeating the question is not a leak, even when the answer is equal to it.
+    ("Look again at (x + 3)^2. What does squaring a bracket mean?", "(x + 3)^2", "(x + 3)^2", None),
+    ("Write 45000 in standard form.", "45000", "45000", None),
+    ("Can 12/34 be simplified further?", "12/34", "6/17", None),
+    # Working it out still is.
+    ("(x + 3)^2 is x^2 + 6x + 9.", "(x + 3)^2", "(x + 3)^2", "x^2 + 6x + 9"),
+    ("That is 45000.0 again.", "45000", "45000", "45000.0"),
+    ("It comes to 6/17.", "12/34", "6/17", "6/17"),
+    ("So 1/2 + 1/3 = 5/6.", "1/2 + 1/3", "5/6", "5/6"),
+    ("Then x = 4.", "x + 3 = 7", "x = 4", "x = 4"),
+    ("Look at x + 3 = 7 again.", "x + 3 = 7", "x = 4", None),
+])
+def test_leak_check_ignores_the_question(text, question, answer, leaked):
+    assert leaks_answer(text, answer, question) == leaked
+
+
+def test_critic_passes_a_hint_that_repeats_the_question():
+    problem = make_problem("p", "(x + 3)^2")
+    assert TutorCritic().review("Look again at (x + 3)^2: what does squaring a bracket mean?",
+                                "hint", problem).passed
 
 
 def test_code_checks_block_before_any_llm_call(llm):

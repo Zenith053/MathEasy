@@ -119,7 +119,7 @@ def records_for_one_session(student, condition="full"):
     d = diagnose(reply.item, reply.answer, student_id=student.student_id)
     return [
         {**base, "event": "session_start", "session_index": 0, "student_group": student.group,
-         "planted": [student.misconception_id], "attack": None},
+         "planted": [student.misconception_id], "attack": None, "relapsed": False},
         {**base, "event": "turn", "turn": 0, "tutor_text": "Work out 1/2 + 1/3", "critic_passed": True,
          "item": reply.item, "correct_answer": reply.correct_answer, "student_text": reply.text,
          "student_answer": reply.answer, "student_correct": reply.correct,

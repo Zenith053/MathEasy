@@ -33,20 +33,12 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Optional, Sequence, Union
 
 from ..diagnosis import SLIP, ParseError, eedi_id, equivalent, load_bank, rule_id, split_id
-from ..diagnosis.rules import HELD_BACK_FILE
+from ..diagnosis.rules import HELD_BACK_FILE, twin_names
 from .held_back import held_back_rule
 from .log_fields import read_jsonl
-
-# Rules that give the same wrong answer on every item, so no probe can tell them apart
-# (B, docs/diagnosis_rules.md "Known twins"). A diagnosis of either counts as correct.
-TWINS = [
-    {"fractions.add_numerators_denominators", "fractions.common_denominator_numerator"},
-    {"order_of_operations.pemdas_strictly_sequential", "order_of_operations.addition_before_subtraction_always",
-     "order_of_operations.multiplication_before_division_always"},
-]
 
 TextJudge = Callable[[str, str], bool]
 
@@ -87,10 +79,16 @@ def _eedi_status() -> dict:
 
 
 def accepted(planted: str, group: str) -> set[str]:
-    """Diagnoses that count as correct for a student holding `planted` (a rule: ID)."""
+    """Diagnoses that count as correct for a student holding `planted` (a rule: ID).
+
+    Twins (B's rule registry, docs/diagnosis_rules.md) give the same wrong answer on every
+    problem, so no probe can tell them apart; the diagnoser names the rule that stands for
+    the twin, and a diagnosis of either counts as correct."""
     name = split_id(planted)[1]
     if group == "has_rule":
-        return {rule_id(n) for twins in TWINS if name in twins for n in twins} | {planted}
+        twins = twin_names()
+        stands_for = twins.get(name, name)
+        return {rule_id(stands_for)} | {rule_id(t) for t, r in twins.items() if r == stands_for} | {planted}
     if group == "known_as_text":
         return {eedi_id(int(_eedi_status()[name]))}
     return set()  # never_seen, unchecked: no diagnosis can be right
@@ -187,46 +185,72 @@ def diagnosis_metrics(group_sessions: list[Session], judge: Optional[TextJudge] 
 _NUMBER = re.compile(r"(?<![\w.])-?\d+(?:\s+\d+/\d+|\s*/\s*\d+|\.\d+)?%?(?!\w|\.\d|\s*/\s*\d)")
 
 
+# A run of maths in free text: numbers, single letters (not words) and operators.
+_LETTER = r"(?<![A-Za-z'’])[A-Za-z](?![A-Za-z'’])"
+_ATOM = rf"(?:\d+(?:\.\d+)?|{_LETTER}|[-+*/×÷^=<>≤≥()%−·])"
+_MATHS_RUN = re.compile(rf"{_ATOM}(?:\s*{_ATOM})*")
+_SOLVED = re.compile(r"\s*([A-Za-z])\s*=\s*([^A-Za-z=<>]+?)\s*|\s*([^A-Za-z=<>]+?)\s*=\s*([A-Za-z])\s*")
+
+
 def _numbers(text: str) -> list[str]:
     return [m.group() for m in _NUMBER.finditer(text)]
+
+
+def _maths_runs(text: str) -> list[str]:
+    runs = (re.sub(r"^[AaI]\s+|\s+[AaI]$", "", r.strip()) for r in _MATHS_RUN.findall(text))
+    return [r for r in runs if re.search(r"\d", r)]
 
 
 def _norm(text: str) -> str:
     return re.sub(r"[\s*]", "", text).lower()
 
 
-def states_answer(text: str, answer: str, item: Optional[str] = None) -> bool:
-    """Does `text` state `answer`? An expression, equation or comparison counts when written
-    out in full; a number counts when any number in the text equals it. Numbers that also
-    appear in the item don't count: restating the question is not giving the answer."""
-    if re.search(r"[A-Za-z<>=]", answer) and _norm(answer) in _norm(text):
-        return True
-    value = answer.split("=")[-1].strip()  # x = 4 -> 4
+def _equal(a: str, b: str) -> bool:
+    try:
+        return equivalent(a, b)
+    except (ParseError, ValueError, TypeError):
+        return False
+
+
+def states_answer(text: str, answer: str, asked: Union[str, Sequence[str]] = ()) -> bool:
+    """Does `text` state `answer`? Restating a question in `asked` is not giving the answer,
+    so neither those items nor the numbers in them count.
+
+    A number counts when any number in the text equals it; an equation's answer (x = 4)
+    when the text has x = 4 or the value 4; an expression or comparison when a piece of
+    maths in the text equals it. B's equivalent() calls x + 3 = 7 equal to x = 4, so an
+    equation only counts in solved form."""
+    asked = [asked] if isinstance(asked, str) else list(asked)
+    questions = {_norm(a) for a in asked}
+    given = {n for a in asked for n in _numbers(a)}
+    solved = _SOLVED.fullmatch(answer)
+    for run in _maths_runs(text):
+        if _norm(run) in questions:
+            continue
+        if solved:
+            if _SOLVED.fullmatch(run) and _equal(run, answer):
+                return True
+        elif re.search(r"[A-Za-z<>]", answer) and _equal(run, answer):
+            return True
+    value = next(g for g in solved.groups() if g and not g.isalpha()) if solved else answer
     if re.search(r"[A-Za-z<>]", value):
         return False
-    given = set(_numbers(item or ""))
-    for token in _numbers(text):
-        if token in given:
-            continue
-        try:
-            if equivalent(token, value):
-                return True
-        except (ParseError, ValueError, TypeError):
-            continue
-    return False
+    return any(token not in given and _equal(token, value) for token in _numbers(text))
 
 
 def leaking_turns(s: Session) -> list[dict]:
     """Turns whose tutor message states the answer to an item the student has not yet got
     right. Once the student has given the right answer, repeating it is not a leak, even if
-    the tutor did not accept it."""
+    the tutor did not accept it. Numbers in the item being asked in that turn don't count
+    either: posing 10 - x = 4 does not give away an open x + 3 = 7."""
     open_items: dict[str, str] = {}
     reached: set[str] = set()
     leaks = []
     for t in sorted(s.turns, key=lambda t: t["turn"]):
         current = {t["item"]: t["correct_answer"]} if t.get("item") and t.get("correct_answer") else {}
         unreached = {item: answer for item, answer in {**open_items, **current}.items() if item not in reached}
-        if any(states_answer(t["tutor_text"], answer, item) for item, answer in unreached.items()):
+        asked = [t["item"]] if t.get("item") else []
+        if any(states_answer(t["tutor_text"], answer, [item] + asked) for item, answer in unreached.items()):
             leaks.append(t)
         if t.get("item"):
             if t.get("student_correct"):

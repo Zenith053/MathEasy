@@ -5,7 +5,7 @@ Two layers, cheapest first:
 1. Code checks, on every message the tutor writes:
    - leak: any number, fraction, decimal or percentage in the text that is
      equivalent (B's equivalent()) to the problem's answer, or the answer itself
-     written out, for hints and probes;
+     written out, for hints and probes (repeating the question is not a leak);
    - an empty or overlong hint.
 2. An LLM review, for hints only (questions, probes and praise are fixed
    wording): are its maths statements correct, does it avoid doing the step for
@@ -22,6 +22,7 @@ from typing import Optional
 
 from ..diagnosis import ParseError, equivalent
 from ..llm import Session
+from .mathtext import maths_runs
 from .state import HintRequest, MessageKind, Problem, Verdict
 
 MAX_HINT_CHARS = 600
@@ -58,20 +59,39 @@ SCHEMA = {
 _SOLUTION = re.compile(r"\s*[A-Za-z]\s*=\s*(.+)")
 
 
-def leaks_answer(text: str, answer: str) -> Optional[str]:
-    """The part of `text` that gives away `answer`, or None."""
-    if _normalise(answer) and _normalise(answer) in _normalise(text) and not _MATHS.fullmatch(answer.strip()):
-        return answer  # an expression or equation answer, e.g. "2x + 6" or "x = 4", written out in full
+def leaks_answer(text: str, answer: str, question: Optional[str] = None) -> Optional[str]:
+    """The part of `text` that gives away `answer`, or None.
+
+    Repeating the question as written, or a number in it, is not a leak, even when the
+    answer is equal to it: "Look at (x + 3)^2 again" doesn't give away (x + 3)^2, and
+    "simplify 12/34" doesn't give away 6/17. This follows D's leak metric."""
+    asked = _normalise(question) if question else None
+    given = {_normalise(n) for n in _MATHS.findall(question)} if question else set()
     solution = _SOLUTION.fullmatch(answer)
-    targets = [answer] + ([solution.group(1).strip()] if solution else [])
+    if solution or re.search(r"[A-Za-z<>]", answer):
+        # An expression, equation or comparison: a piece of maths in the text equal to it.
+        for run in maths_runs(text):
+            sides = [run] if solution or "=" not in run else [run] + [s.strip() for s in run.split("=")]
+            for piece in sides:
+                if _normalise(piece) == asked or (solution and not _SOLUTION.fullmatch(piece)):
+                    continue  # an equation counts only in solved form: x + 3 = 7 equals x = 4 too
+                if _equal(piece, answer):
+                    return piece
+    value = solution.group(1).strip() if solution else answer
+    if re.search(r"[A-Za-z<>=]", value):
+        return None
     for token in _MATHS.findall(text):
-        for target in targets:
-            try:
-                if equivalent(token.strip(), target):
-                    return token.strip()
-            except ParseError:
-                continue
+        token = token.strip()
+        if _normalise(token) not in given and _equal(token, value):
+            return token
     return None
+
+
+def _equal(a: str, b: str) -> bool:
+    try:
+        return equivalent(a, b)
+    except (ParseError, ValueError, TypeError):
+        return False
 
 
 def _normalise(text: str) -> str:
@@ -91,7 +111,7 @@ class TutorCritic:
     def code_checks(self, text: str, kind: MessageKind, problem: Problem) -> list[str]:
         reasons = []
         if kind in ("hint", "probe"):
-            leaked = leaks_answer(text, problem.correct_answer)
+            leaked = leaks_answer(text, problem.correct_answer, problem.question)
             if leaked:
                 reasons.append(f"It gives away the answer ({leaked}). Do not state or work out the answer.")
         if kind == "hint":

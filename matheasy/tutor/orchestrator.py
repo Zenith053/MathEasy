@@ -15,13 +15,13 @@ called again with each probe answer as a FollowUp.
 
 from __future__ import annotations
 
-import re
 from typing import Callable, Optional
 
 from ..diagnosis import FollowUp, ParseError, check_step, diagnose, parse
 from ..diagnosis import Diagnosis
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
 from .describe import misconception_text
+from .mathtext import EDGE_WORDS, maths_runs
 from .parts import Critic, Hinter, StudentStore
 from .state import Hint, HintRequest, MessageKind, Problem, TutorReply, TutorState, Utterance
 from .turnlog import TurnLogger
@@ -40,28 +40,16 @@ RETYPE = "I couldn't find an answer in that. Please type just your answer, for e
 # Errors from LLM-backed parts that end in the safe template, not a crash.
 LLM_ERRORS = (BudgetExceeded, LLMCallError, LLMOutputError)
 
-# A run of maths in free text: numbers, single-letter variables (not words, not the s in
-# "it's") and operators, e.g. the "x = 4" in "I got x = 4." or "1/3 > 1/4" in "I think 1/3 > 1/4".
-_LETTER = r"(?<![A-Za-z'’])[A-Za-z](?![A-Za-z'’])"
-_ATOM = rf"(?:\d+(?:\.\d+)?|{_LETTER}|[-+*/×÷^=<>≤≥()%−·])"
-_MATHS_RUN = re.compile(rf"{_ATOM}(?:\s*{_ATOM})*")
-# "I" and "a" next to a number are words, not variables: "a 3/4", "5/6 I think".
-_EDGE_WORDS = re.compile(r"^[AaI]\s+(?=[\d(-])|\s+[AaI]$")
-
-
 def extract_answer(text: str) -> Optional[str]:
     """The maths in a student's message: the whole message if it parses, else the last
     piece of maths in it that parses ("I got x = 4." -> "x = 4")."""
-    stripped = _EDGE_WORDS.sub("", text.strip().rstrip(".!?"))
+    stripped = EDGE_WORDS.sub("", text.strip().rstrip(".!?"))
     try:
         parse(stripped)
         return stripped
     except ParseError:
         pass
-    for run in reversed(_MATHS_RUN.findall(text)):
-        candidate = _EDGE_WORDS.sub("", run.strip())
-        if not re.search(r"\d", candidate):
-            continue
+    for candidate in reversed(maths_runs(text)):
         try:
             parse(candidate)
             return candidate
