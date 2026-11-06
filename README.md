@@ -70,7 +70,8 @@ run_rule("fractions.add_numerators_denominators", "1/2 + 1/3")   # '2/5'; None i
 
 d = diagnose("1/2 + 1/3", "2/5", student_id="student-017")
 d.status, d.misconception           # 'clear', 'rule:fractions.add_numerators_denominators'
-d.probe                             # follow-up question to ask, or None (always None until week 3)
+d.probe                             # follow-up question to ask when rules tie, or None
+d.topics                            # every topic involved, whether rules or the LLM found the mistake
 d.to_log()                          # JSON-safe record for the run logs
 ```
 

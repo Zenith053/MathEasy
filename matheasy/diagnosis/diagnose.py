@@ -13,10 +13,11 @@ The diagnoser keeps no state between calls. When it returns a probe, the
 orchestrator asks it, then calls diagnose() again with the same step and the
 answers so far in `follow_ups`. At most MAX_FOLLOW_UPS probes are ever returned.
 
-Week-1 placeholder: returns the shortlister's top choice and never probes. Top
-choices that tie are 'ambiguous'. The hypothesis tester replaces this in week 3,
-with the same signature and return type. mode="b2" (baseline B2) will stay as it
-is now: the shortlister's top choice, no hypothesis testing.
+Rules run first, on the located change and then on solve back's pieces (solve_back.py).
+Rules that tie are 'ambiguous', and a probe from the bank (probes.py) tells them apart.
+A step no rule reproduces goes to the LLM fallback (explain.py) if a session is given;
+see docs/diagnosis_fallback.md. d.topics names the topics whichever found the mistake.
+mode="b2" is the same without probes.
 """
 
 from __future__ import annotations
@@ -26,20 +27,14 @@ from typing import Literal, Optional, Sequence, Union
 
 from .explain import Explanation, explain, rule_topic
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
-from .maths import LocatedError, Node, locate
+from .maths import LocatedError, Node, equivalent, locate
+from .probes import Probe, choose_probe
 from .solve_back import rules_for, solve_back
 
 MAX_FOLLOW_UPS = 2
 
 Status = Literal["clear", "ambiguous", "unknown"]
 Mode = Literal["full", "b2"]
-
-
-@dataclass(frozen=True)
-class Probe:
-    """A follow-up question chosen to tell the remaining suspects apart."""
-    question: str                 # e.g. "1/3 + 1/3"
-    predictions: dict[str, str]   # misconception ID -> the answer it predicts
 
 
 @dataclass(frozen=True)
@@ -105,7 +100,7 @@ def diagnose(
     if located is None:
         raise StepIsCorrect(f"{before!r} -> {after!r} is correct")
     shortlister = shortlister or RuleShortlister()
-    store = store or NoMemory()  # read by the hypothesis tester in week 3
+    store = store or NoMemory()  # not read yet
 
     candidates = sorted(shortlister(located, k), key=lambda c: -c.score)
     trace = [
@@ -136,10 +131,41 @@ def diagnose(
                 located = next(iter(hits.values()))  # the wrong piece, not the whole line
             trace.append({"stage": "decide", "status": status, "misconception": top})
 
+    probe = None
+    suspects = list(beliefs)
+    if status == "ambiguous" and mode == "full" and all(m.startswith("rule:") for m in suspects):
+        # the rules tie: ask a probe, or read the answers so far
+        for follow_up in follow_ups:
+            suspects = _still_suspected(suspects, follow_up)
+        beliefs = {m: 1 / len(suspects) for m in suspects}
+        if not suspects:
+            status = "unknown"  # the student's answers fit none of the rules
+        elif len(suspects) == 1:
+            status, top = "clear", suspects[0]
+        elif len(follow_ups) < MAX_FOLLOW_UPS:
+            probe = choose_probe(suspects, [f.probe.question for f in follow_ups])
+        trace.append({"stage": "probe", "suspects": suspects, "status": status,
+                      "probe": None if probe is None else probe.question})
+
     explanation = None
     if status == "unknown" and session is not None:
         explanation = explain(located, question=question, session=session, pieces=[p for p, _ in pieces])
         trace.append({"stage": "explain", **explanation.to_log()})
     topics = (explanation.topics if explanation is not None
               else tuple(sorted({rule_topic(m) for m in beliefs if m.startswith("rule:")})))
-    return Diagnosis(status, top, beliefs, None, located, mode, tuple(trace), explanation, topics)
+    return Diagnosis(status, top, beliefs, probe, located, mode, tuple(trace), explanation, topics)
+
+
+def _still_suspected(suspects: list[str], follow_up: FollowUp) -> list[str]:
+    """The suspects that fit the student's answer.
+
+    Those predicting it, if any. A right answer rules out those predicting a wrong one. An
+    answer no suspect predicts says nothing, so all stay: no rule wins by elimination alone.
+    """
+    predicted = follow_up.probe.predictions
+    matching = [s for s in suspects if s in predicted and equivalent(predicted[s], follow_up.answer)]
+    if matching:
+        return matching
+    if equivalent(follow_up.probe.question, follow_up.answer):
+        return [s for s in suspects if s not in predicted]
+    return suspects

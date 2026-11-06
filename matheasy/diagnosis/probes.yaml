@@ -1,0 +1,590 @@
+- question: (4x^4)^2
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.add_exponents_for_power_of_power: 4x^6
+    rule:exponents.forget_exponent_on_coefficient: 4x^8
+- question: (4x^4)^3
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.add_exponents_for_power_of_power: 4x^7
+    rule:exponents.forget_exponent_on_coefficient: 4x^12
+- question: (5x^4)^2
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.add_exponents_for_power_of_power: 5x^6
+    rule:exponents.forget_exponent_on_coefficient: 5x^8
+- question: (6 × 10^9) ÷ (2 × 10^2)
+  topics:
+  - exponents
+  - scientific_notation
+  predictions:
+    rule:exponents.multiply_base_by_exponent: 27/2
+    rule:scientific_notation.add_coefficients_when_multiplying: 8 × 10^7
+- question: (8 × 10^9) ÷ (2 × 10^3)
+  topics:
+  - exponents
+  - scientific_notation
+  predictions:
+    rule:exponents.multiply_base_by_exponent: '12'
+    rule:scientific_notation.add_coefficients_when_multiplying: 1 × 10^7
+- question: (8 × 10^9) ÷ (2 × 10^4)
+  topics:
+  - exponents
+  - scientific_notation
+  predictions:
+    rule:exponents.multiply_base_by_exponent: '9'
+    rule:scientific_notation.add_coefficients_when_multiplying: 1 × 10^6
+- question: (x + 3)^2
+  topics:
+  - expanding_brackets
+  - exponents
+  predictions:
+    rule:algebra.distribute_over_non_distributive: x^2 + 9
+    rule:exponents.distribute_exponent_over_addition: x^2 + 9
+- question: (x + 6)^2
+  topics:
+  - expanding_brackets
+  - exponents
+  predictions:
+    rule:algebra.distribute_over_non_distributive: x^2 + 36
+    rule:exponents.distribute_exponent_over_addition: x^2 + 36
+- question: (x + 7)^2
+  topics:
+  - expanding_brackets
+  - exponents
+  predictions:
+    rule:algebra.distribute_over_non_distributive: x^2 + 49
+    rule:exponents.distribute_exponent_over_addition: x^2 + 49
+- question: (x - 6)^2
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:algebra.distribute_over_non_distributive: x^2 + 36
+- question: (x - 7)^2
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:algebra.distribute_over_non_distributive: x^2 + 49
+- question: (x - 8)^2
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:algebra.distribute_over_non_distributive: x^2 + 64
+- question: -8 ÷ -11
+  topics:
+  - negative_numbers
+  predictions:
+    rule:negative_numbers.larger_absolute_value_always_wins: -8/11
+    rule:negative_numbers.negative_times_negative_negative: -8/11
+- question: -8 ÷ -2
+  topics:
+  - negative_numbers
+  predictions:
+    rule:negative_numbers.larger_absolute_value_always_wins: '-4'
+    rule:negative_numbers.negative_times_negative_negative: '-4'
+- question: -9 ÷ -3
+  topics:
+  - negative_numbers
+  predictions:
+    rule:negative_numbers.larger_absolute_value_always_wins: '-3'
+    rule:negative_numbers.negative_times_negative_negative: '-3'
+- question: 19 - 10 × 3 + 9
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.pemdas_strictly_sequential: '-20'
+    rule:order_of_operations.strict_left_to_right: '36'
+- question: 19 - 11 × 3 + 6
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.pemdas_strictly_sequential: '-20'
+    rule:order_of_operations.strict_left_to_right: '30'
+- question: 19 - 6 × 3 + 2
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.pemdas_strictly_sequential: '-1'
+    rule:order_of_operations.strict_left_to_right: '41'
+- question: 19 - 7 + 8
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.addition_before_subtraction_always: '4'
+    rule:order_of_operations.pemdas_strictly_sequential: '4'
+- question: 2 + 59
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_addition.add_all_digits: '16'
+    rule:buggy_addition.carry_adds_to_same_column: '52'
+    rule:buggy_addition.carry_not_reset: '161'
+    rule:buggy_addition.left_justify: '79'
+    rule:buggy_addition.single_digit_linked: '592'
+    rule:buggy_addition.write_carry_forget_units: '51'
+    rule:subtraction.no_column_limit: '511'
+- question: 20 - 5 + 4
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.addition_before_subtraction_always: '11'
+    rule:order_of_operations.pemdas_strictly_sequential: '11'
+- question: 20 - 9 + 7
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.addition_before_subtraction_always: '4'
+    rule:order_of_operations.pemdas_strictly_sequential: '4'
+- question: 24 ÷ 2 × 9
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.multiplication_before_division_always: 4/3
+    rule:order_of_operations.pemdas_strictly_sequential: 4/3
+- question: 24 ÷ 3 × 2
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.multiplication_before_division_always: '4'
+    rule:order_of_operations.pemdas_strictly_sequential: '4'
+- question: 24 ÷ 3 × 7
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.multiplication_before_division_always: 8/7
+    rule:order_of_operations.pemdas_strictly_sequential: 8/7
+- question: 3 + 58
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_addition.add_all_digits: '16'
+    rule:buggy_addition.carry_adds_to_same_column: '52'
+    rule:buggy_addition.carry_not_reset: '161'
+    rule:buggy_addition.left_justify: '88'
+    rule:buggy_addition.single_digit_linked: '583'
+    rule:buggy_addition.write_carry_forget_units: '51'
+    rule:subtraction.no_column_limit: '511'
+- question: 4 - 11
+  topics:
+  - negative_numbers
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.forget_borrow_over_blanks: '13'
+    rule:negative_numbers.larger_absolute_value_always_wins: '7'
+- question: 4 - 12
+  topics:
+  - negative_numbers
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.forget_borrow_over_blanks: '12'
+    rule:negative_numbers.larger_absolute_value_always_wins: '8'
+- question: 4/8 ÷ 3/4
+  topics:
+  - fractions
+  - multiplication_division
+  predictions:
+    rule:fractions.ignore_denominators: '1'
+    rule:fractions.multiply_across_for_division: 3/8
+    rule:multiplication_division.divide_larger_by_smaller_always: '1.5'
+    rule:multiplication_division.division_makes_smaller: '0.375'
+- question: 4^-2
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.multiply_base_by_exponent: '-8'
+    rule:exponents.negative_exponent_makes_negative: '-16'
+- question: 4^-3
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.multiply_base_by_exponent: '-12'
+    rule:exponents.negative_exponent_makes_negative: '-64'
+- question: 5 - 11
+  topics:
+  - negative_numbers
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.forget_borrow_over_blanks: '14'
+    rule:negative_numbers.larger_absolute_value_always_wins: '6'
+- question: 5/9 ÷ 7/8
+  topics:
+  - fractions
+  - multiplication_division
+  predictions:
+    rule:fractions.ignore_denominators: '0'
+    rule:fractions.multiply_across_for_division: 35/72
+    rule:multiplication_division.divide_larger_by_smaller_always: '1.575'
+    rule:multiplication_division.division_makes_smaller: 35/72
+- question: 50% of 40
+  topics:
+  - multiplication_division
+  - percentages
+  predictions:
+    rule:multiplication_division.multiplication_makes_bigger: '40.5'
+    rule:percentages.percent_equals_decimal: '2000'
+- question: 50% of 80
+  topics:
+  - multiplication_division
+  - percentages
+  predictions:
+    rule:multiplication_division.multiplication_makes_bigger: '80.5'
+    rule:percentages.percent_equals_decimal: '4000'
+- question: 504 - 88
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.borrow_writes_10: '426'
+    rule:buggy_subtraction.diff_0_n_equals_0: '406'
+    rule:buggy_subtraction.diff_n_0_equals_0: '16'
+    rule:buggy_subtraction.left_ten_ok: '516'
+    rule:buggy_subtraction.move_over_zero_borrow: '326'
+    rule:subtraction.borrow_from_bottom: '576'
+    rule:subtraction.borrow_no_decrement: '526'
+    rule:subtraction.diff_0_n_equals_n: '486'
+    rule:subtraction.smaller_from_larger: '584'
+    rule:subtraction.stops_borrow_at_zero: '424'
+- question: 54 × 88
+  topics:
+  - multiplication_division
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_multiplication.column_mimics_addition: '43'
+    rule:multiplication_division.alignment_error_in_multi_digit: '864'
+    rule:multiplication_division.forget_to_add_carried_number: '4722'
+- question: 5^-3
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.multiply_base_by_exponent: '-15'
+    rule:exponents.negative_exponent_makes_negative: '-125'
+- question: 6.8 - 8.7
+  topics:
+  - decimals
+  - negative_numbers
+  predictions:
+    rule:decimals.ignore_decimal_point: '-19'
+    rule:decimals.whole_number_thinking: '-19'
+    rule:negative_numbers.larger_absolute_value_always_wins: '1.9'
+- question: 6/12 + 3/6 + 3/7
+  topics:
+  - fractions
+  predictions:
+    rule:fractions.add_numerators_denominators: 12/25
+- question: 6/12 ÷ 8/9
+  topics:
+  - fractions
+  - multiplication_division
+  predictions:
+    rule:fractions.ignore_denominators: '0'
+    rule:fractions.multiply_across_for_division: 4/9
+    rule:multiplication_division.divide_larger_by_smaller_always: 16/9
+    rule:multiplication_division.division_makes_smaller: 4/9
+- question: 69 × 18
+  topics:
+  - multiplication_division
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_multiplication.column_mimics_addition: '67'
+    rule:multiplication_division.alignment_error_in_multi_digit: '621'
+    rule:multiplication_division.forget_to_add_carried_number: '1172'
+- question: 6x + 6 = 12
+  topics:
+  - algebraic_notation
+  - solving_equations
+  predictions:
+    rule:algebra.divide_one_term_only: x = -4
+    rule:algebra.variable_letter_has_value: x = 10
+- question: 6x + 9 = 10
+  topics:
+  - algebraic_notation
+  - solving_equations
+  predictions:
+    rule:algebra.divide_one_term_only: x = -22/3
+    rule:algebra.variable_letter_has_value: x = 10
+- question: 6x - 6 = 9
+  topics:
+  - algebraic_notation
+  - solving_equations
+  predictions:
+    rule:algebra.divide_one_term_only: x = 7.5
+    rule:algebra.variable_letter_has_value: x = 10
+- question: 7 + 56
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_addition.add_all_digits: '18'
+    rule:buggy_addition.carry_adds_to_same_column: '54'
+    rule:buggy_addition.carry_not_reset: '163'
+    rule:buggy_addition.left_justify: '126'
+    rule:buggy_addition.single_digit_linked: '567'
+    rule:buggy_addition.write_carry_forget_units: '51'
+    rule:subtraction.no_column_limit: '513'
+- question: 7 ÷ 0.2
+  topics:
+  - decimals
+  - multiplication_division
+  predictions:
+    rule:decimals.ignore_decimal_point: '3'
+    rule:multiplication_division.division_makes_smaller: '1.4'
+- question: 7/8 × 5/8
+  topics:
+  - fractions
+  - multiplication_division
+  predictions:
+    rule:fractions.ignore_denominators: '35'
+    rule:fractions.keep_common_denominator_for_multiplication: 35/8
+    rule:multiplication_division.multiplication_makes_bigger: '1.5'
+- question: 7/9 + 4/5 + 4/6
+  topics:
+  - fractions
+  predictions:
+    rule:fractions.add_numerators_denominators: 3/4
+- question: 701 - 9
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.borrow_into_1_equals_10: '691'
+    rule:buggy_subtraction.borrow_writes_10: '702'
+    rule:buggy_subtraction.diff_n_0_equals_0: '2'
+    rule:buggy_subtraction.left_ten_ok: '792'
+    rule:buggy_subtraction.move_over_zero_borrow: '602'
+    rule:subtraction.borrow_from_bottom: '708'
+    rule:subtraction.borrow_no_decrement: '702'
+    rule:subtraction.smaller_from_larger: '708'
+    rule:subtraction.stops_borrow_at_zero: '708'
+- question: 704 - 28
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.borrow_writes_10: '686'
+    rule:buggy_subtraction.diff_0_n_equals_0: '606'
+    rule:buggy_subtraction.diff_n_0_equals_0: '76'
+    rule:buggy_subtraction.left_ten_ok: '776'
+    rule:buggy_subtraction.move_over_zero_borrow: '586'
+    rule:subtraction.borrow_from_bottom: '716'
+    rule:subtraction.borrow_no_decrement: '786'
+    rule:subtraction.diff_0_n_equals_n: '626'
+    rule:subtraction.smaller_from_larger: '724'
+    rule:subtraction.stops_borrow_at_zero: '684'
+- question: 716 - 185
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.borrow_into_1_equals_10: '521'
+    rule:subtraction.always_borrow_left: '521'
+    rule:subtraction.borrow_from_bottom: '731'
+    rule:subtraction.borrow_no_decrement: '631'
+    rule:subtraction.smaller_from_larger: '671'
+- question: '72000'
+  topics:
+  - scientific_notation
+  predictions:
+    rule:scientific_notation.count_all_zeros_for_exponent: 7.2 × 10^3
+    rule:scientific_notation.wrong_exponent_sign: 7.2 × 10^(-4)
+- question: 75%
+  topics:
+  - percentages
+  predictions:
+    rule:percentages.percent_equals_decimal: '75'
+- question: 76 × 13
+  topics:
+  - multiplication_division
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_multiplication.column_mimics_addition: '71'
+    rule:multiplication_division.alignment_error_in_multi_digit: '304'
+    rule:multiplication_division.forget_to_add_carried_number: '978'
+- question: '79000'
+  topics:
+  - scientific_notation
+  predictions:
+    rule:scientific_notation.count_all_zeros_for_exponent: 7.9 × 10^3
+    rule:scientific_notation.wrong_exponent_sign: 7.9 × 10^(-4)
+- question: 8 × (10 + 12)
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.ignore_parentheses: '92'
+- question: 8 × (3 + 10)
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.ignore_parentheses: '34'
+- question: 8 ÷ 0.4
+  topics:
+  - decimals
+  - multiplication_division
+  predictions:
+    rule:decimals.ignore_decimal_point: '2'
+    rule:multiplication_division.division_makes_smaller: '3.2'
+- question: 8.9 × 0.7
+  topics:
+  - decimals
+  - multiplication_division
+  predictions:
+    rule:decimals.ignore_decimal_point: '623'
+    rule:decimals.whole_number_thinking: '623'
+    rule:multiplication_division.multiplication_makes_bigger: '9.6'
+- question: 8/10 × 2/10
+  topics:
+  - fractions
+  - multiplication_division
+  predictions:
+    rule:fractions.ignore_denominators: '16'
+    rule:fractions.keep_common_denominator_for_multiplication: 8/5
+    rule:multiplication_division.multiplication_makes_bigger: '1'
+- question: '85000'
+  topics:
+  - scientific_notation
+  predictions:
+    rule:scientific_notation.count_all_zeros_for_exponent: 8.5 × 10^3
+    rule:scientific_notation.wrong_exponent_sign: 8.5 × 10^(-4)
+- question: 8x = 2x + 10
+  topics:
+  - algebraic_notation
+  - solving_equations
+  predictions:
+    rule:algebra.cancel_across_equals: x = 1.25
+    rule:algebra.variable_letter_has_value: x = 10
+- question: 9 × (5 + 8)
+  topics:
+  - order_of_operations
+  predictions:
+    rule:order_of_operations.ignore_parentheses: '53'
+- question: 9 ÷ 0.1
+  topics:
+  - decimals
+  - multiplication_division
+  predictions:
+    rule:decimals.ignore_decimal_point: '9'
+    rule:multiplication_division.division_makes_smaller: '0.9'
+- question: 9.8 + 0.57
+  topics:
+  - decimals
+  predictions:
+    rule:decimals.ignore_decimal_point: '155'
+    rule:decimals.whole_number_thinking: '155'
+- question: 9/11 + 5/6 + 3/6
+  topics:
+  - fractions
+  predictions:
+    rule:fractions.add_numerators_denominators: 17/23
+- question: 9/12 × 5/12
+  topics:
+  - fractions
+  - multiplication_division
+  predictions:
+    rule:fractions.ignore_denominators: '45'
+    rule:fractions.keep_common_denominator_for_multiplication: 15/4
+    rule:multiplication_division.multiplication_makes_bigger: 7/6
+- question: 905 - 86
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.borrow_writes_10: '829'
+    rule:buggy_subtraction.diff_0_n_equals_0: '809'
+    rule:buggy_subtraction.diff_n_0_equals_0: '19'
+    rule:buggy_subtraction.left_ten_ok: '919'
+    rule:buggy_subtraction.move_over_zero_borrow: '729'
+    rule:subtraction.borrow_from_bottom: '979'
+    rule:subtraction.borrow_no_decrement: '929'
+    rule:subtraction.diff_0_n_equals_n: '889'
+    rule:subtraction.smaller_from_larger: '981'
+    rule:subtraction.stops_borrow_at_zero: '821'
+- question: 94 - 20
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.diff_n_0_equals_0: '70'
+    rule:subtraction.always_borrow_left: '64'
+- question: 940 - 35
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.diff_0_n_equals_0: '910'
+    rule:buggy_subtraction.diff_n_0_equals_0: '5'
+    rule:subtraction.always_borrow_left: '805'
+    rule:subtraction.borrow_from_bottom: '925'
+    rule:subtraction.borrow_no_decrement: '915'
+    rule:subtraction.diff_0_n_equals_n: '915'
+    rule:subtraction.smaller_from_larger: '915'
+- question: 941 - 154
+  topics:
+  - whole_number_arithmetic
+  predictions:
+    rule:buggy_subtraction.borrow_into_1_equals_10: '786'
+    rule:subtraction.borrow_from_bottom: '807'
+    rule:subtraction.borrow_no_decrement: '897'
+    rule:subtraction.smaller_from_larger: '813'
+- question: 9^0
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.multiply_base_by_exponent: '0'
+    rule:exponents.zero_exponent_equals_zero: '0'
+- question: 9x + 8 = 4x + 11
+  topics:
+  - algebraic_notation
+  - solving_equations
+  predictions:
+    rule:algebra.cancel_across_equals: x = 1/3
+    rule:algebra.variable_letter_has_value: x = 10
+- question: 9x = 2x + 12
+  topics:
+  - algebraic_notation
+  - solving_equations
+  predictions:
+    rule:algebra.cancel_across_equals: x = 4/3
+    rule:algebra.variable_letter_has_value: x = 10
+- question: 9x^0
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.zero_exponent_equals_zero: '0'
+- question: x/4 = 4/5
+  topics:
+  - algebraic_notation
+  - ratios_proportions
+  predictions:
+    rule:algebra.variable_letter_has_value: x = 10
+    rule:ratios_proportions.additive_instead_of_multiplicative: x = 3
+    rule:ratios_proportions.swap_ratios_or_units: x = 5
+- question: x/4 = 7/11
+  topics:
+  - algebraic_notation
+  - ratios_proportions
+  predictions:
+    rule:algebra.variable_letter_has_value: x = 10
+    rule:ratios_proportions.additive_instead_of_multiplicative: x = 0
+    rule:ratios_proportions.swap_ratios_or_units: x = 44/7
+- question: x/5 = 2/3
+  topics:
+  - algebraic_notation
+  - ratios_proportions
+  predictions:
+    rule:algebra.variable_letter_has_value: x = 10
+    rule:ratios_proportions.additive_instead_of_multiplicative: x = 4
+    rule:ratios_proportions.swap_ratios_or_units: x = 15/2
+- question: x^5 × x^4
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.multiply_exponents_when_multiplying_powers: x^20
+- question: x^5/x^5
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.zero_exponent_equals_zero: '0'
+- question: x^6 × x^4
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.multiply_exponents_when_multiplying_powers: x^24
+- question: x^6 × x^6
+  topics:
+  - exponents
+  predictions:
+    rule:exponents.multiply_exponents_when_multiplying_powers: x^36

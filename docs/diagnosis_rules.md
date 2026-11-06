@@ -83,3 +83,21 @@ These give the same answer on some problems but not others. `diagnose()` reports
 3. **D's test generator rejects any item that matches a probe.** Two items match if they have the same operation on the same numbers, in any order. For example, 1/3 + 1/4 matches 1/4 + 1/3. D's checker runs this over the full test set.
 
 This keeps tests and probes apart without forcing the tests onto harder numbers than the probes, which would change what the pre/post tests measure.
+
+## The probe bank
+
+`matheasy/diagnosis/probes.yaml` holds 83 questions, each with what every rule predicts on it and its topics. `eval/build_probes.py` builds it from fixed shapes in the ranges above; run it again when the rules change. A test fails if the file no longer matches the rules.
+
+**Two jobs in the LeetCode-style tutor:**
+
+- **Settling a tie.** When rules tie, `diagnose()` returns the question that splits them best and, once the student answers, keeps the rules that predicted that answer. A right answer rules out the rules predicting a wrong one. An answer no rule predicts changes nothing, so no rule wins by elimination.
+- **Similar problems.** `similar_items(topics, seen)` gives practice questions on the student's topics, after any diagnosis.
+
+**Coverage:** every rule but the two comparison rules below has at least 3 items, and all 26 pairs of rules that can tie have at least 3 items that tell them apart. In a simulated run, students answering as their rule predicts settled all 20 ties with one probe each. Real students will not follow a rule that faithfully.
+
+**Gaps:**
+
+- The two comparison rules (`decimals.longer_is_larger`, `fractions.natural_number_bias_numerator_only`) have no items until the comparison format is agreed.
+- `collecting_like_terms` has no rule, so it has no items, and `similar_items()` returns nothing for it.
+- Conversions to standard form use numbers such as 0.0032, beyond the two-decimal range, because the mistake needs them.
+- `mode="b2"` never probes.
