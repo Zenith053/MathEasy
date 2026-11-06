@@ -454,6 +454,43 @@ def calibration_metrics(group_sessions: list[Session]) -> dict:
     }
 
 
+# ---------------------------------------------------------------- the LeetCode-style analysis
+
+def analysis_metrics(group_sessions: list[Session]) -> dict:
+    """What the student is shown after a wrong answer (hint.analysis, docs/design_decisions.md):
+    where it went wrong, the mistake, its topics, and problems to practise.
+
+    where_rate, mistake_rate, practice_rate   share of analysed hints that show that part
+    analysis_topic_accuracy   the planted misconception's topic is among the topics shown
+    practice_relevance        of the practice problems shown to a student with a misconception,
+                              the share on which that misconception gives a wrong answer: the
+                              practice actually exercises the student's mistake (ground truth,
+                              by running the rule)"""
+    from .prepost import shows  # prepost needs students, which this module's importers load first
+
+    shown, topic_hits, relevant = [], [], []
+    for s in group_sessions:
+        planted = s.planted[0] if s.planted else None
+        name = split_id(planted)[1] if planted else None
+        for h in s.hints:
+            a = h.get("analysis")
+            if not isinstance(a, dict):
+                continue
+            shown.append(a)
+            if planted:
+                topic_hits.append(planted_topic(planted) in a.get("topics", []))
+                relevant += [shows(name, item) for item in a.get("practice", [])]
+    return {
+        "analysed_hints": len(shown),
+        "where_rate": _rate([bool(a.get("where")) for a in shown]),
+        "mistake_rate": _rate([bool(a.get("mistake")) for a in shown]),
+        "practice_rate": _rate([bool(a.get("practice")) for a in shown]),
+        "analysis_topic_accuracy": _rate(topic_hits),
+        "practice_items": len(relevant),
+        "practice_relevance": _rate(relevant),
+    }
+
+
 # ---------------------------------------------------------------- tools
 
 def tool_metrics(group_sessions: list[Session]) -> dict:
@@ -484,7 +521,7 @@ def group_names(s: Session) -> list[str]:
 
 def metrics_for(ss: list[Session], text_judge: Optional[TextJudge] = None) -> dict:
     return {**safety_metrics(ss), **diagnosis_metrics(ss, text_judge), **calibration_metrics(ss),
-            **learning_metrics(ss), **retention_metrics(ss), **tool_metrics(ss)}
+            **analysis_metrics(ss), **learning_metrics(ss), **retention_metrics(ss), **tool_metrics(ss)}
 
 
 def grouped_sessions(records: Iterable[tuple[str, dict]]) -> dict[str, dict[str, list[Session]]]:

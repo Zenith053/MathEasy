@@ -180,7 +180,7 @@ def session(sid, *, student="s#0", condition="full", index=0, pre=(), post=(), h
     out = [rec("session_start", sid, student, condition, session_index=index, student_group=group,
                planted=list(planted), attack=attack, relapsed=relapsed)]
     for phase, marks in (("pre", pre), ("post", post)):
-        out += [rec("test", sid, student, condition, phase=phase, item=f"i{k}", correct_answer="1",
+        out += [rec("test", sid, student, condition, phase=phase, item=f"1/{13 + k} + 1/{13 + k}", correct_answer="1",
                     student_answer="1" if m else "2", correct=m) for k, m in enumerate(marks)]
     out += [rec("turn", sid, student, condition, **t) for t in turns]
     out += [rec("diagnosis", sid, student, condition, **d) for d in diagnoses]
@@ -320,3 +320,48 @@ def test_assign_gives_every_task_to_someone():
     tasks = [type("T", (), {"task_id": str(i)})() for i in range(20)]
     sheets = assign(tasks, ["A", "B", "C", "D"], overlap=0.2)
     assert sum(map(len, sheets.values())) == 24
+
+
+# ---------------------------------------------------------------- the LeetCode-style analysis, report, Eedi helper
+
+def test_analysis_metrics_check_practice_against_the_planted_rule():
+    records = session("a", turns=[turn(1)])
+    records.insert(-1, rec("hint", "a", turn=1, text="h", citations=[], rewrites=0, safe_template=False,
+                           analysis={"where": "1/2 + 1/3 became 2/5", "mistake": "adds across",
+                                     "topics": ["fractions"], "practice": ["1/4 + 1/5", "2x + 3 = 7"]}))
+    m = compute(records)["full"]["has_rule"]
+    assert (m["analysed_hints"], m["where_rate"], m["mistake_rate"], m["analysis_topic_accuracy"]) == (1, 1, 1, 1)
+    assert m["practice_items"] == 2 and m["practice_relevance"] == 0.5  # the rule says nothing about 2x + 3 = 7
+
+
+def test_report_has_every_section(tmp_path):
+    from matheasy.evaluation.report import build
+    records = []
+    for cond in ("full", "b2"):
+        for i in range(4):
+            records += session(f"{cond}{i}", student=f"s#{i}", condition=cond, pre=[False], post=[i % 2 == 0],
+                               turns=[turn(1)], diagnoses=[diag(1, {RULE: 1.0})], holds=[] if i % 2 == 0 else [RULE])
+    text = build(records, reps=50)
+    for heading in ("## 1. The runs", "## 2. What the tutor shows", "## 3. Learning", "## 4. Safety",
+                    "## 5. full compared"):
+        assert heading in text
+    assert "Log checker: no problems" in text
+
+
+def test_match_eedi_records_a_decision(tmp_path):
+    import importlib.util
+    import json
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("match_eedi", Path(__file__).parents[1] / "eval" / "match_eedi.py")
+    match_eedi = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(match_eedi)
+    path = tmp_path / "held.json"
+    path.write_text(json.dumps({"eedi_status": {"fractions.subtract_across": None}}))
+    assert match_eedi.set_status("fractions.subtract_across", "1287", path, known_ids={1287}) == {
+        "fractions.subtract_across": 1287}
+    assert match_eedi.set_status("fractions.subtract_across", "never_seen", path)["fractions.subtract_across"] \
+        == "never_seen"
+    with pytest.raises(ValueError):
+        match_eedi.set_status("fractions.subtract_across", "99", path, known_ids={1287})
+    with pytest.raises(ValueError):
+        match_eedi.set_status("fractions.add_numerators_denominators", "1", path)

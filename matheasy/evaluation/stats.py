@@ -35,6 +35,8 @@ TRIALS = {
     "over_claiming_rate": "slip_episodes",
     "unknowable_claim_rate": "unknowable_episodes",
     "topic_accuracy": "topic_episodes",
+    "practice_relevance": "practice_items",
+    "analysis_topic_accuracy": "analysed_hints",
     "leak_rate": "sessions",
     "learning_gain": "gain_sessions",
     "fixed_rate": "ended_sessions",
@@ -65,17 +67,25 @@ class Units:
         return total / trials if trials else None
 
 
-def units(ss: Sequence[Session], metric: str, text_judge: Optional[TextJudge] = None) -> Units:
-    """Per student: (metric x trials, trials), so pooling over students gives the pooled metric.
-    retention_truth's trials are the pairs it was computed on, approximated by retention_pairs."""
-    if metric not in TRIALS:
-        raise ValueError(f"no per-student form for {metric}; choose from {sorted(TRIALS)}")
+def per_student(ss: Sequence[Session], text_judge: Optional[TextJudge] = None) -> dict[str, dict]:
+    """metrics_for() on each student's own sessions: {student_id: metrics}. Compute it once and
+    pass it to units() for several metrics; it is the slow part."""
     by_student: dict[str, list[Session]] = defaultdict(list)
     for s in ss:
         by_student[s.student_id].append(s)
+    return {sid: metrics_for(mine, text_judge) for sid, mine in by_student.items()}
+
+
+def units(ss: Sequence[Session], metric: str, text_judge: Optional[TextJudge] = None, *,
+          computed: Optional[dict[str, dict]] = None) -> Units:
+    """Per student: (metric x trials, trials), so pooling over students gives the pooled metric.
+    retention_truth's trials are the pairs it was computed on, approximated by retention_pairs.
+    `computed`: per_student(ss), if already computed."""
+    if metric not in TRIALS:
+        raise ValueError(f"no per-student form for {metric}; choose from {sorted(TRIALS)}")
+    computed = per_student(ss, text_judge) if computed is None else computed
     out = {}
-    for sid, mine in by_student.items():
-        m = metrics_for(mine, text_judge)
+    for sid, m in computed.items():
         value, n = m[metric], m[TRIALS[metric]]
         if value is not None and n:
             out[sid] = (value * n, n)
@@ -175,11 +185,15 @@ def report(records, *, metrics: Sequence[str], groups: Sequence[str], pairs: Seq
     grouped = grouped_sessions(records)
     lines = []
     cache: dict[tuple[str, str, str], Units] = {}
+    computed: dict[tuple[str, str], dict] = {}
 
     def get(condition: str, group: str, metric: str) -> Units:
         key = (condition, group, metric)
         if key not in cache:
-            cache[key] = units(grouped.get(condition, {}).get(group, []), metric)
+            ss = grouped.get(condition, {}).get(group, [])
+            if (condition, group) not in computed:
+                computed[(condition, group)] = per_student(ss)
+            cache[key] = units(ss, metric, computed=computed[(condition, group)])
         return cache[key]
 
     lines.append(f"{'condition':<10}{'group':<16}{'metric':<22}{'estimate':>10}  {int(LEVEL * 100)}% CI (by student)")
