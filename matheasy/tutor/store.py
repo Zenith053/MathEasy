@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 from . import planner
 from .state import Problem, StudentMemory
@@ -34,8 +34,9 @@ class InMemoryStore:
     def record(self, memory: StudentMemory, misconception_id: str) -> None:
         planner.diagnosed(memory, misconception_id)
 
-    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool) -> None:
-        planner.answered(memory, problem, answer, correct)
+    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool,
+                topics: Sequence[str] = ()) -> None:
+        planner.answered(memory, problem, answer, correct, topics)
 
     def end_session(self, memory: StudentMemory) -> None:
         planner.end_session(memory)
@@ -66,8 +67,9 @@ class JsonStudentStore(InMemoryStore):
         super().record(memory, misconception_id)
         self._changed(memory)
 
-    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool) -> None:
-        super().observe(memory, problem, answer, correct)
+    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool,
+                topics: Sequence[str] = ()) -> None:
+        super().observe(memory, problem, answer, correct, topics)
         self._changed(memory)
 
     def end_session(self, memory: StudentMemory) -> None:
@@ -97,7 +99,8 @@ class NoMemoryStore:
     def record(self, memory: StudentMemory, misconception_id: str) -> None:
         pass
 
-    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool) -> None:
+    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool,
+                topics: Sequence[str] = ()) -> None:
         pass
 
     def end_session(self, memory: StudentMemory) -> None:

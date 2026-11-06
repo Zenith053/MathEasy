@@ -117,6 +117,18 @@ student.save("runs/students"); SimStudent.load("runs/students", "student-001", j
 
 Everything in `matheasy/tutor` (owner: C). Run a session end to end with `.venv/bin/python -m matheasy.tutor` (offline) or `--llm` (Gemini).
 
+The tutor answers a wrong answer LeetCode style (see "What we are trying to build" in [docs/design_decisions.md](docs/design_decisions.md)):
+
+```
+Where it went wrong: 1/2 + 1/3 became 2/5.
+The mistake: Adds the numerators and adds the denominators, e.g. 1/2 + 1/3 = 2/5.
+Topics: fractions.
+<the hinter's hint, citing a textbook section>
+Practise next: 6/12 + 3/6 + 3/7; 7/9 + 4/5 + 4/6.
+```
+
+The four parts come from B's diagnosis in code (`analysis.py`). Each is left out if it would give away the answer to any item still open in the session. Whether the baselines and the runner stay is not settled yet; they are kept until the team decides.
+
 Experiments go through the runner: any conditions, on one shard of students, over several sessions. Shards split students, never conditions, and a stopped run carries on when the same command is run again.
 
 ```bash
@@ -150,6 +162,6 @@ result.ended_by, result.pre_correct, result.post_correct
 - **Every full-tutor message passes `TutorCritic`**: code checks first (leak check with B's `equivalent()`), then an LLM review of hints. After 2 rejected rewrites, or when the budget runs out, a safe template is sent.
 - **The hinter never sees a correct answer**: `HintRequest` has no field for one. It cites one of the textbook sections A's `retrieve()` returns.
 - **Tool wrappers** (`ToolBox(standard_tools(retrieve), log)`) check arguments against a schema, retry an unexpected error once, and log D's `tool_call` record.
-- **The planner** (`planner.py`, behind the student store) keeps P(knows skill) per topic and P(holds misconception) per misconception, and re-checks a fixed misconception in the next session, then after 2, 4, ... sessions. `misconception_prior()` gives B's diagnoser P(holds). `planner.plan()` picks each session's problems, re-check items first.
+- **The planner** (`planner.py`, behind the student store) keeps, per topic (B's labels), P(knows skill) and a count of mistakes, so `weak_topics()` and `mastered()` say what the student has and has not mastered. It also keeps P(holds misconception) per misconception, and re-checks a fixed one in the next session, then after 2, 4, ... sessions. `misconception_prior()` gives B's diagnoser P(holds). `planner.plan()` picks each session's problems: re-check items first, then one practice problem from B's probe bank on the weakest topic, then the pool, weakest topic first.
 - **B0** has no tools, retrieval, memory or critic; its diagnosis is free text in `stated_misconception`.
 - **B1** (`B1Agent(log, ToolBox(standard_tools(retrieve), log))`) is one LLM agent calling the same tools itself (at most 4 per message), with no hypothesis testing, memory or critic. It names a misconception by B's rule name (`list_rules` tool); a name that is not one of B's rules is logged as unknown.

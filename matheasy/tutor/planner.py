@@ -3,8 +3,11 @@
 Hand-written rules, not an LLM (proposal, section 7). The store calls the
 update functions; the experiment runner calls plan() before each session.
 
-    P(knows skill)          per topic: Bayesian knowledge tracing on every answer
-                            the student gives to a problem.
+    P(knows skill)          per topic (B's topic labels, explain.TOPICS): Bayesian
+                            knowledge tracing on every answer the student gives to a
+                            problem, for the topics its rules cover and the topics
+                            the diagnosis names. A topic is mastered at MASTERED.
+    Mistakes per topic      a count of the wrong answers diagnosed in each topic.
     P(holds misconception)  per misconception ID: set high by a clear diagnosis,
                             then updated by Bayes' rule whenever the student answers
                             an item that the misconception gets wrong: down for the
@@ -16,16 +19,21 @@ update functions; the experiment runner calls plan() before each session.
                             session, then after 2, 4, ... sessions: each passed
                             re-check doubles the gap, a failed one resets it.
 
-plan() puts one re-check item first for each misconception that is due, then the
-rest of the pool, weakest topic first. Only rule misconceptions can be re-checked:
-an Eedi ID has no code to say which items it gets wrong.
+plan() puts one re-check item first for each misconception that is due, then one
+practice problem from B's probe bank on the weakest topic the student has made
+mistakes in ("what to practise"), then the rest of the pool, weakest topic first.
+Only rule misconceptions can be re-checked: an Eedi ID has no code to say which
+items it gets wrong.
 """
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Optional, Sequence
 
-from ..diagnosis import SLIP, ParseError, RuleError, equivalent, parse, run_rule, split_id, topic_of
+from ..diagnosis import SLIP, ParseError, RuleError, equivalent, rule_id, rule_names, run_rule, split_id
+from ..diagnosis.explain import rule_topic
+from ..diagnosis.probes import similar_items
 from ..evaluation import correct_answer
 from .state import Problem, StudentMemory
 
@@ -34,6 +42,7 @@ KNOWS_AT_START = 0.5
 LEARN = 0.2  # chance of learning the skill at each answer
 GUESS = 0.2  # right answer without the skill
 SLIP_RATE = 0.1  # wrong answer despite the skill
+MASTERED = 0.95  # the usual knowledge-tracing threshold
 
 HOLDS_WHEN_DIAGNOSED = 0.9
 FOLLOWS = 0.9  # a student holding a misconception gives its answer on an item it gets wrong
@@ -61,14 +70,21 @@ def diagnosed(memory: StudentMemory, misconception_id: str) -> None:
     _note(memory, "diagnosed", misconception=misconception_id)
 
 
-def answered(memory: StudentMemory, problem: Problem, answer: str, correct: bool) -> None:
-    """The student answered `problem` (not a probe or a test item)."""
-    p = memory.p_knows.get(problem.topic, KNOWS_AT_START)
-    if correct:
-        p = p * (1 - SLIP_RATE) / (p * (1 - SLIP_RATE) + (1 - p) * GUESS)
-    else:
-        p = p * SLIP_RATE / (p * SLIP_RATE + (1 - p) * (1 - GUESS))
-    memory.p_knows[problem.topic] = p + (1 - p) * LEARN
+def answered(memory: StudentMemory, problem: Problem, answer: str, correct: bool,
+             topics: Sequence[str] = ()) -> None:
+    """The student answered `problem` (not a probe or a test item). `topics` are the
+    diagnosis's, for a wrong answer."""
+    if problem.question not in memory.worked:
+        memory.worked.append(problem.question)
+    for topic in sorted(set(problem_topics(problem.question)) | set(topics)):
+        p = memory.p_knows.get(topic, KNOWS_AT_START)
+        if correct:
+            p = p * (1 - SLIP_RATE) / (p * (1 - SLIP_RATE) + (1 - p) * GUESS)
+        else:
+            p = p * SLIP_RATE / (p * SLIP_RATE + (1 - p) * (1 - GUESS))
+        memory.p_knows[topic] = p + (1 - p) * LEARN
+    for topic in set(topics):
+        memory.mistakes[topic] = memory.mistakes.get(topic, 0) + 1
 
     for mid, held in list(memory.p_holds.items()):
         predicted = exposes(mid, problem.question, problem.correct_answer)
@@ -107,17 +123,42 @@ def due(memory: StudentMemory, session_index: int) -> list[str]:
     return sorted(found, key=lambda mid: -memory.p_holds[mid])
 
 
+def mastered(memory: StudentMemory, topic: str) -> bool:
+    return memory.p_knows.get(topic, KNOWS_AT_START) >= MASTERED
+
+
+def weak_topics(memory: StudentMemory) -> list[str]:
+    """Topics the student has made mistakes in and not mastered, weakest first."""
+    found = [t for t in memory.mistakes if not mastered(memory, t)]
+    return sorted(found, key=lambda t: (memory.p_knows.get(t, KNOWS_AT_START), -memory.mistakes[t], t))
+
+
 def plan(memory: StudentMemory, session_index: int, pool: Sequence[str], n: int) -> tuple[list[str], list[str]]:
-    """The session's `n` problems from `pool`, and the misconceptions they re-check."""
+    """The session's `n` problems, and the misconceptions they re-check."""
     chosen, rechecks = [], []
     for mid in due(memory, session_index):
         item = next((q for q in pool if q not in chosen and exposes(mid, q) is not None), None)
         if item is not None and len(chosen) < n:
             chosen.append(item)
             rechecks.append(mid)
+    for topic in weak_topics(memory)[:1]:
+        practice = similar_items([topic], [*memory.worked, *pool, *chosen], n=1)
+        if practice and len(chosen) < n:
+            chosen.append(practice[0])
     rest = [q for q in pool if q not in chosen]
-    rest.sort(key=lambda q: memory.p_knows.get(_topic(q), KNOWS_AT_START))  # stable: pool order within a topic
+    rest.sort(key=lambda q: _weakness(memory, q))  # stable: pool order within a topic
     return chosen + rest[:n - len(chosen)], rechecks
+
+
+@lru_cache(maxsize=None)
+def problem_topics(question: str) -> tuple[str, ...]:
+    """The topics of the rules that get `question` wrong: what it tests."""
+    try:
+        right = correct_answer(question)
+    except Exception:  # D's answer key can't work it out
+        return ()
+    return tuple(sorted({rule_topic(rule_id(name)) for name in rule_names()
+                         if exposes(rule_id(name), question, right) is not None}))
 
 
 def exposes(misconception_id: str, item: str, right: Optional[str] = None) -> Optional[str]:
@@ -142,11 +183,8 @@ def _equal(a: str, b: str) -> bool:
         return False
 
 
-def _topic(item: str) -> Optional[str]:
-    try:
-        return topic_of(parse(item))
-    except ParseError:
-        return None
+def _weakness(memory: StudentMemory, question: str) -> float:
+    return min((memory.p_knows.get(t, KNOWS_AT_START) for t in problem_topics(question)), default=KNOWS_AT_START)
 
 
 def _note(memory: StudentMemory, event: str, **fields) -> None:

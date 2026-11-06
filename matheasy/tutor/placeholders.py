@@ -24,8 +24,8 @@ class TemplateHinter:
             text = (f"Look again at your answer {request.student_answer}. "
                     "Which step would you check first?")
         else:
-            text = (f"It looks like you used this method: {request.misconception} "
-                    "That method doesn't work here. Think about what each part of the question means, "
+            # The analysis above the hint already names the mistake.
+            text = ("That method doesn't work here. Think about what each part of the question means, "
                     "then try the question again.")
         citations: tuple[str, ...] = ()
         if self.retrieve:

@@ -5,7 +5,9 @@ Two layers, cheapest first:
 1. Code checks, on every message the tutor writes:
    - leak: any number, fraction, decimal or percentage in the text that is
      equivalent (B's equivalent()) to the problem's answer, or the answer itself
-     written out, for hints and probes (repeating the question is not a leak);
+     written out, for hints and probes (repeating the question is not a leak).
+     The same for every other item still open in the session (`unsolved`), as
+     D's leak metric counts those too;
    - an empty or overlong hint.
 2. An LLM review, for hints only (questions, probes and praise are fixed
    wording): are its maths statements correct, does it avoid doing the step for
@@ -18,7 +20,7 @@ Without an LLM session the critic runs the code checks only.
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import Mapping, Optional
 
 from ..diagnosis import ParseError, equivalent
 from ..llm import Session
@@ -102,18 +104,25 @@ class TutorCritic:
     role = "critic"
 
     def review(self, text: str, kind: MessageKind, problem: Problem, *,
-               request: Optional[HintRequest] = None, llm: Optional[Session] = None, **_) -> Verdict:
-        reasons = self.code_checks(text, kind, problem)
+               request: Optional[HintRequest] = None, llm: Optional[Session] = None,
+               unsolved: Mapping[str, str] = {}, **_) -> Verdict:
+        reasons = self.code_checks(text, kind, problem, unsolved)
         if reasons or kind != "hint" or llm is None:
             return Verdict(not reasons, tuple(reasons))
         return self.llm_review(text, problem, request, llm)
 
-    def code_checks(self, text: str, kind: MessageKind, problem: Problem) -> list[str]:
+    def code_checks(self, text: str, kind: MessageKind, problem: Problem,
+                    unsolved: Mapping[str, str] = {}) -> list[str]:
         reasons = []
         if kind in ("hint", "probe"):
             leaked = leaks_answer(text, problem.correct_answer, problem.question)
             if leaked:
                 reasons.append(f"It gives away the answer ({leaked}). Do not state or work out the answer.")
+            for question, answer in unsolved.items():
+                other = question != problem.question and leaks_answer(text, answer, question)
+                if other:
+                    reasons.append(f"It gives away the answer to {question} ({other}). Do not use that number.")
+                    break
         if kind == "hint":
             if not text.strip():
                 reasons.append("The hint is empty.")

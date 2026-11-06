@@ -3,7 +3,7 @@
     Hinter        hint(request, feedback, *, llm) -> Hint             hinter.py
     Critic        review(text, kind, problem, *, request, llm) -> Verdict   critic.py
     StudentStore  load(student_id), begin_session(memory, index), record(memory, misconception_id),
-                  observe(memory, problem, answer, correct), end_session(memory),
+                  observe(memory, problem, answer, correct, topics), end_session(memory),
                   misconception_prior(student_id, misconception_id)  <- read by B's diagnose()
                   store.py; the updates are the planner's (planner.py)
 
@@ -28,8 +28,9 @@ class Hinter(Protocol):
 
 class Critic(Protocol):
     def review(self, text: str, kind: MessageKind, problem: Problem, *,
-               request: Optional[HintRequest] = None, llm: Any = None) -> Verdict:
-        """Check one message before the student sees it. `request` is set for hints."""
+               request: Optional[HintRequest] = None, llm: Any = None, unsolved: Any = None) -> Verdict:
+        """Check one message before the student sees it. `request` is set for hints; `unsolved`
+        maps the session's other open items to their answers."""
 
 
 class StudentStore(Protocol):
@@ -39,7 +40,8 @@ class StudentStore(Protocol):
 
     def record(self, memory: StudentMemory, misconception_id: str) -> None: ...
 
-    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool) -> None: ...
+    def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool,
+                topics: Sequence[str] = ()) -> None: ...
 
     def end_session(self, memory: StudentMemory) -> None: ...
 

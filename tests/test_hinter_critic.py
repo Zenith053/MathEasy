@@ -206,7 +206,7 @@ def test_full_session_with_llm_hinter_and_critic(tmp_path, llm):
                          llm_session=client.session("sess-0", "full"))
 
     hint = next(u.text for u in result.state.transcript if u.kind == "hint")
-    assert hint.endswith(f"(See {PASSAGES[0]['ref']}.)")
+    assert f"(See {PASSAGES[0]['ref']}.)" in hint
     roles = [r["role"] for r in llm_records(client)]
     assert roles == ["hinter", "critic"]
     end = [json.loads(l) for l in tutor.log.path.read_text().splitlines() if '"session_end"' in l][0]
@@ -234,3 +234,11 @@ def test_tight_budget_ends_in_safe_template(tmp_path, llm):
     assert result.ended_by == "budget"
     assert result.state.transcript[-1].kind == "safe_template"
     assert check_files([tutor.log.path]) == []
+
+
+def test_critic_blocks_the_answer_to_another_open_item():
+    problem = make_problem("p2", "6x + 6 = 12")
+    unsolved = {"2x + 4 = 10": "x = 3", "6x + 6 = 12": "x = 1"}
+    verdict = TutorCritic().review("Look again at your answer x = 3.", "hint", problem, unsolved=unsolved)
+    assert not verdict.passed and "2x + 4 = 10" in verdict.reasons[0]
+    assert TutorCritic().review("Look again at your answer x = 3.", "hint", problem).passed

@@ -53,7 +53,9 @@ class StudentMemory:
     student_id: str
     times_diagnosed: dict[str, int] = field(default_factory=dict)  # misconception ID -> count
     p_holds: dict[str, float] = field(default_factory=dict)  # misconception ID -> P(still holds it)
-    p_knows: dict[str, float] = field(default_factory=dict)  # topic -> P(knows the skill)
+    p_knows: dict[str, float] = field(default_factory=dict)  # topic -> P(knows the skill), B's topic labels
+    mistakes: dict[str, int] = field(default_factory=dict)  # topic -> wrong answers diagnosed in it
+    worked: list[str] = field(default_factory=list)  # problems the student has answered
     next_check: dict[str, int] = field(default_factory=dict)  # misconception ID -> session to re-check it in
     check_gap: dict[str, int] = field(default_factory=dict)  # misconception ID -> sessions between re-checks
     session_index: int = -1  # the session in progress; -1 before the first
@@ -94,6 +96,8 @@ class TutorState:
     diagnosis: Optional[Diagnosis] = None
     solved: bool = False
     clarifying: Optional[Transcription] = None  # an unsure reading the student was asked about
+    unsolved: dict[str, str] = field(default_factory=dict)  # every item asked this session and not yet
+    # answered right (problems and probes) -> its answer: nothing the tutor says may give one away
     problem_start: int = 0  # index in transcript where the current problem began
 
     @property

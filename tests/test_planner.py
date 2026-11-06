@@ -4,6 +4,7 @@ import pytest
 
 from matheasy.evaluation import SimStudent, check_files
 from matheasy.tutor import JsonStudentStore, Orchestrator, StudentMemory, TurnLogger, make_problem, run_session
+from matheasy.diagnosis.probes import similar_items
 from matheasy.tutor import planner
 from matheasy.tutor.critic import TutorCritic
 from matheasy.tutor.placeholders import TemplateHinter
@@ -29,6 +30,7 @@ def test_knowledge_tracing_moves_with_answers():
     planner.answered(right, EXPOSING, "5/6", True)
     planner.answered(wrong, EXPOSING, "2/5", False)
     assert right.p_knows["fractions"] > planner.KNOWS_AT_START > wrong.p_knows["fractions"]
+    assert planner.problem_topics("1/2 + 1/3") == ("fractions",)  # what its rules say it tests
 
 
 def test_diagnosis_then_evidence_updates_p_holds():
@@ -89,14 +91,30 @@ def test_still_held_is_due_every_session():
     assert planner.due(memory, 0) == []
 
 
-def test_plan_puts_a_recheck_first_then_the_weakest_topic():
+def test_plan_puts_a_recheck_first_then_practice_then_the_weakest_topic():
     memory = memory_holding()
     planner.end_session(memory)
-    memory.p_knows = {"fractions": 0.9, "expressions": 0.2}
-    pool = ["2(x + 3)", "3/4 > 5/8", "1/2 + 1/3", "x + 3 = 7"]
+    memory.p_knows = {"fractions": 0.9, "whole_number_arithmetic": 0.6, "algebraic_notation": 0.2}
+    pool = ["403 - 168", "1/2 + 1/3", "x + 3 = 7", "1/4 + 1/6"]
     problems, rechecks = planner.plan(memory, 1, pool, 3)
-    assert problems == ["1/2 + 1/3", "2(x + 3)", "x + 3 = 7"] and rechecks == [MID]
+    assert problems == ["1/2 + 1/3", "x + 3 = 7", "403 - 168"] and rechecks == [MID]
+
+    memory.mistakes = {"algebraic_notation": 2}  # now a weak topic: one bank problem to practise it
+    problems, _ = planner.plan(memory, 1, pool, 3)
+    assert problems[0] == "1/2 + 1/3" and problems[1] not in pool
+    assert problems[1] in similar_items(["algebraic_notation"], n=100)
     assert planner.plan(StudentMemory("new"), 0, pool, 2) == (pool[:2], [])
+
+
+def test_topics_build_up_from_answers_and_diagnoses():
+    memory = StudentMemory("s1")
+    planner.answered(memory, EXPOSING, "2/5", False, topics=["fractions"])
+    planner.answered(memory, EXPOSING, "2/5", False, topics=["fractions"])
+    assert memory.mistakes == {"fractions": 2} and memory.worked == ["1/2 + 1/3"]
+    assert planner.weak_topics(memory) == ["fractions"]
+    for _ in range(12):
+        planner.answered(memory, EXPOSING, "5/6", True)
+    assert planner.mastered(memory, "fractions") and planner.weak_topics(memory) == []
 
 
 def test_json_store_keeps_the_whole_model(tmp_path):

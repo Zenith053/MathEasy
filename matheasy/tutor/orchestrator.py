@@ -2,7 +2,11 @@
 
 For each student message it runs, in order:
 
-    read -> check the step -> diagnose -> remember -> probe or hint (or praise) -> critic -> send
+    read -> check the step -> diagnose -> remember -> probe, or analysis and hint (or praise) -> critic -> send
+
+A wrong answer is answered LeetCode style (docs/design_decisions.md, "What we are
+trying to build"): where it went wrong, what the mistake is, its topics, the
+hinter's hint, then similar problems to practise (analysis.py).
 
 Read is the same in every condition (read_answer(), also used by B0 and B1):
 code finds the maths in the message, then B's transcribe() reads what the
@@ -17,7 +21,7 @@ safe template is sent. Nothing reaches the student without passing the critic.
 The diagnosis is B's: check_step() first, then diagnose() on a wrong step,
 called again with each probe answer as a FollowUp. With an LLM session,
 diagnose() reads a step no rule explains with its LLM fallback; a verified
-reading of a misconception is what the hinter aims at (explained()).
+reading of a misconception is the mistake shown and what the hinter aims at.
 """
 
 from __future__ import annotations
@@ -28,9 +32,9 @@ from ..diagnosis import (
     FollowUp, ParseError, Transcription, check_step, diagnose, equivalent, parse, resolve, transcribe,
 )
 from ..diagnosis import Diagnosis
+from ..evaluation import correct_answer
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
-from .critic import leaks_answer
-from .describe import misconception_text
+from .analysis import analyse, mistake
 from .mathtext import EDGE_WORDS, maths_runs
 from .parts import Critic, Hinter, StudentStore
 from .state import Hint, HintRequest, MessageKind, Problem, TutorReply, TutorState, Utterance
@@ -87,18 +91,16 @@ def clarify(choices: tuple[str, ...]) -> str:
     return f"Did you mean {listed}? Reply with the number."
 
 
-def explained(diagnosis: Optional[Diagnosis], problem: Problem) -> Optional[str]:
-    """For a step no rule explains: the words of B's LLM fallback, if code verified its
-    reading and it is a misconception (not a slip). One rule reproducing the wrong step
-    names it exactly. The explainer saw the correct line, so words that give the answer
-    away are dropped: the hinter never gets the answer."""
-    e = diagnosis.explanation if diagnosis is not None else None
-    if e is None or e.status != "verified" or e.kind != "misconception":
+def _open(state: TutorState) -> dict[str, str]:
+    """The session's other open items and their answers: no message may give these away either."""
+    return {q: a for q, a in state.unsolved.items() if a and q != state.problem.question}
+
+
+def _answer(item: str) -> Optional[str]:
+    try:
+        return correct_answer(item)
+    except Exception:  # D's answer key can't work it out
         return None
-    rules = {w.rule for w in e.wrong_steps if w.rule}
-    words = [misconception_text(next(iter(rules))) if len(rules) == 1 else None,
-             f"{e.mistake}: {e.explanation}" if e.explanation else None, e.mistake]
-    return next((w for w in words if w and not leaks_answer(w, problem.correct_answer, problem.question)), None)
 
 
 def _same(a: str, b: Optional[str]) -> bool:
@@ -143,6 +145,7 @@ class Orchestrator:
         state.diagnosis = None
         state.solved = False
         state.clarifying = None
+        state.unsolved[problem.question] = problem.correct_answer
         return self._send(state, "question", f"Work out {problem.question}")
 
     def respond(self, state: TutorState, student_text: str) -> TutorReply:
@@ -169,13 +172,15 @@ class Orchestrator:
         answer = reading.line
 
         # check the step, or record the probe answer
-        if state.probe is None:
+        fresh = state.probe is None  # an answer to the problem itself
+        if fresh:
             try:
                 correct = check_step(state.problem.question, answer)
             except ParseError:
                 return self._send(state, "question", RETYPE)
-            self.store.observe(state.memory, state.problem, answer, correct)
             if correct:
+                state.unsolved.pop(state.problem.question, None)
+                self.store.observe(state.memory, state.problem, answer, True)
                 state.solved = True
                 return self._send(state, "feedback", CORRECT_FEEDBACK)
             if not _same(answer, state.wrong_answer):
@@ -183,6 +188,8 @@ class Orchestrator:
             state.wrong_answer = answer
         else:
             state.follow_ups.append(FollowUp(state.probe, answer))
+            if _same(answer, state.unsolved.get(state.probe.question)):
+                state.unsolved.pop(state.probe.question)
             state.probe = None
 
         # diagnose
@@ -193,6 +200,9 @@ class Orchestrator:
                          read=reading.to_log() if reading.used_llm else None, **diagnosis.to_log())
 
         # remember: the planner updates the student model and schedules re-checks from it
+        if fresh:
+            self.store.observe(state.memory, state.problem, answer, False,
+                               topics=diagnosis.topics if diagnosis is not None else ())
         if diagnosis is not None and diagnosis.misconception:
             self.store.record(state.memory, diagnosis.misconception)
 
@@ -201,6 +211,7 @@ class Orchestrator:
                 and state.followups_asked < MAX_FOLLOWUPS):
             state.followups_asked += 1
             state.probe = diagnosis.probe
+            state.unsolved.setdefault(diagnosis.probe.question, _answer(diagnosis.probe.question))
             reply = self._send(state, "probe", f"Before we go on, what is {diagnosis.probe.question}?")
             if reply.kind == "safe_template":
                 state.probe = None  # the probe was never asked
@@ -225,13 +236,13 @@ class Orchestrator:
     def _hint(self, state: TutorState, diagnosis: Optional[Diagnosis]) -> TutorReply:
         # A clear diagnosis, or a verified LLM reading of an unknown step, gets a targeted
         # hint. Ambiguous after the follow-up limit, unexplained, or no diagnosis gets a general one.
-        clear = diagnosis is not None and diagnosis.status == "clear"
         located = diagnosis.located if diagnosis is not None else None
+        analysis = analyse(diagnosis, state.problem, state.memory.worked, _open(state))
         request = HintRequest(
             topic=state.problem.topic,
             question=state.problem.question,
             student_answer=state.wrong_answer,
-            misconception=misconception_text(diagnosis.misconception) if clear else explained(diagnosis, state.problem),
+            misconception=mistake(diagnosis, state.problem) if diagnosis is not None else None,
             wrong_part=f"{located.source} became {located.wrong}" if located else None,
         )
         state.probe = None
@@ -242,14 +253,18 @@ class Orchestrator:
         for attempt in range(MAX_REWRITES + 1):
             try:
                 hint = self.hinter.hint(request, feedback or None, llm=state.llm)
-                verdict = self.critic.review(hint.text, "hint", state.problem, request=request, llm=state.llm)
+                verdict = self.critic.review(hint.text, "hint", state.problem, request=request, llm=state.llm,
+                                             unsolved=_open(state))
             except LLM_ERRORS as e:
                 return self._fallback(state, e, rewrites=attempt, critic_reasons=reasons)
             if verdict.passed:
-                text = with_citation(hint)
+                # Every part of the analysis passed the leak check when it was built.
+                text = "\n".join(part for part in (analysis.text(), with_citation(hint), analysis.practice_text())
+                                  if part)
                 reply = self._deliver(state, "hint", text)
                 self.log.log(state, "hint", turn=state.turn, text=text, citations=list(hint.citations),
-                             rewrites=attempt, safe_template=False, critic_reasons=reasons)
+                             rewrites=attempt, safe_template=False, critic_reasons=reasons,
+                             analysis=analysis.to_log())
                 return reply
             feedback = list(verdict.reasons)
             reasons.append(feedback)
@@ -258,7 +273,7 @@ class Orchestrator:
     def _send(self, state: TutorState, kind: MessageKind, text: str) -> TutorReply:
         """Send a message that is not rewritten: question, probe or feedback."""
         try:
-            verdict = self.critic.review(text, kind, state.problem, llm=state.llm)
+            verdict = self.critic.review(text, kind, state.problem, llm=state.llm, unsolved=_open(state))
         except LLM_ERRORS as e:
             return self._fallback(state, e)
         if not verdict.passed:

@@ -8,7 +8,8 @@ from matheasy.llm import FakeBackend, LLMCallError, LLMClient, load_config
 from matheasy.tutor import B0Tutor, Orchestrator, TurnLogger, TutorState, make_problem
 from matheasy.tutor import orchestrator
 from matheasy.tutor.critic import TutorCritic
-from matheasy.tutor.orchestrator import RETYPE, SAFE_TEMPLATE, explained, read_answer
+from matheasy.tutor.analysis import mistake
+from matheasy.tutor.orchestrator import RETYPE, SAFE_TEMPLATE, read_answer
 from matheasy.tutor.store import InMemoryStore
 
 PROBLEM = make_problem("p1", "1/2 + 1/3")
@@ -150,12 +151,12 @@ def test_diagnose_gets_the_question_and_the_session(tmp_path, monkeypatch):
     (explanation(kind="slip"), None),
 ])
 def test_the_hinter_gets_a_verified_explanation_without_the_answer(e, words):
-    assert explained(unknown_with(e)("1/2 + 1/3", "2/5"), PROBLEM) == words
+    assert mistake(unknown_with(e)("1/2 + 1/3", "2/5"), PROBLEM) == words
 
 
 def test_a_rule_that_reproduces_the_wrong_step_names_it():
     e = explanation(rule="rule:fractions.add_numerators_denominators")
-    assert explained(unknown_with(e)("1/2 + 1/3", "2/5"), PROBLEM).startswith("Adds the numerators")
+    assert mistake(unknown_with(e)("1/2 + 1/3", "2/5"), PROBLEM).startswith("Adds the numerators")
 
 
 def test_explained_words_reach_the_hinter(tmp_path, monkeypatch):
