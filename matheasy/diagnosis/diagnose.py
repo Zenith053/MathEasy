@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Sequence, Union
 
-from .explain import Explanation, explain
+from .explain import Explanation, explain, rule_topic
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
 from .maths import LocatedError, Node, locate
 from .solve_back import rules_for, solve_back
@@ -58,9 +58,11 @@ class Diagnosis:
     mode: Mode
     trace: tuple[dict, ...] = field(default=())  # every reasoning step, for the logs
     explanation: Optional[Explanation] = None    # the LLM's reading of an 'unknown' step, if a session was given
+    topics: tuple[str, ...] = ()                 # every topic involved, whether rules or the LLM found the mistake
 
     def to_log(self) -> dict:
         return {
+            "topics": list(self.topics),
             "explanation": None if self.explanation is None else self.explanation.to_log(),
             "status": self.status,
             "misconception": self.misconception,
@@ -138,4 +140,6 @@ def diagnose(
     if status == "unknown" and session is not None:
         explanation = explain(located, question=question, session=session, pieces=[p for p, _ in pieces])
         trace.append({"stage": "explain", **explanation.to_log()})
-    return Diagnosis(status, top, beliefs, None, located, mode, tuple(trace), explanation)
+    topics = (explanation.topics if explanation is not None
+              else tuple(sorted({rule_topic(m) for m in beliefs if m.startswith("rule:")})))
+    return Diagnosis(status, top, beliefs, None, located, mode, tuple(trace), explanation, topics)

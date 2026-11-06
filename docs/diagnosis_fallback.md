@@ -55,7 +55,8 @@ description. The LLM chooses freely, one or more per step, in no order.
 
 Topics are kept even when the working is `unverified`, because the topic is usually right
 when the exact working is not. `rule_topic()` gives a rule's topic, so rule and LLM
-diagnoses use the same labels. That lets the student store count mastery per topic.
+diagnoses use the same labels, and `Diagnosis.topics` holds them whichever found the
+mistake. That lets the student store count mastery per topic.
 
 **Prompt rules learnt from test runs**:
 - The student's line is exactly what they meant (`transcribe()` ran first), so it is never
@@ -71,21 +72,21 @@ diagnoses use the same labels. That lets the student store count mastery per top
 - 17 written by hand for mistakes no rule covers, including slips inside algebra.
 
 A step counts as right when the true topic is among those named. The model is
-`gemini-3.1-flash-lite` at temperature 0, measured on 2026-10-30.
+`gemini-3.1-flash-lite` at temperature 0, measured on 2026-11-06.
 
 | Version | Right topic | Wrong | Nothing | Precision |
 |---|---|---|---|---|
 | Before (commit e5425cc): rules only | 48 (41%) | 1 | 68 | — |
 | Rules and solve back, no LLM | 90 (77%) | 1 | 26 | 96% |
-| Rules, solve back and LLM fallback | 112 (96%) | 5 | 0 | 84% |
+| Rules, solve back and LLM fallback | 111 (95%) | 6 | 0 | 87% |
 
 Precision is the share of all topics named that are the true topic.
 
 - **Rules and solve back** settle 91 of the 117 steps; the LLM gets the other 26.
-- **The LLM** names one topic in 14 of its 26 answers and two or more in 12.
-- **The topic descriptions** raised precision from 79% to 84% at about the same hit rate,
-  and fixed `3(x + 4) = 21 → x = 17/3`.
-- **Earlier code:** nothing it got right is now wrong.
+- **The LLM** names one topic in 19 of its 26 answers and two in 7.
+- **The topic descriptions** raised precision from 79% to 87%, for two fewer right steps
+  than the first version of the list (113).
+- **Cost:** each LLM call takes about 1,150 input tokens and 190 output tokens.
 
 **Read with care:**
 - **The rule cases favour the code.** They are generated from our own rules.
@@ -96,6 +97,7 @@ Precision is the share of all topics named that are the true topic.
   is still to do.
 
 **Misses**:
+- `3(x + 4) = 21 → x = 17/3`: expanding brackets, named solving equations.
 - `x - 15 = 27 → x = 32`: a subtraction slip, named after the question's topic.
 - `10 - 3 + 2 + 5 - 3 → 7` and `8 - 2 × 3 + 1 + 5 - 3 → 3`: order of operations, named
   `whole_number_arithmetic`.

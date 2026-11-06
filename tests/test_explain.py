@@ -55,6 +55,15 @@ def test_no_known_topic_is_other(model):
     assert explain(locate("2x + 3 = 11", "x = 7"), session=session).topics == ("other",)
 
 
+def test_diagnosis_has_topics_whoever_found_the_mistake(model):
+    session, _, say = model
+    assert diagnose("1/2 + 1/3", "2/5").topics == ("fractions",)  # a rule
+    assert diagnose("2x + 3 = 11", "x = 7").topics == ()          # no rule, no session
+    say(SIGN_KEPT)
+    d = diagnose("2x + 3 = 11", "x = 7", session=session)         # the LLM
+    assert d.topics == ("solving_equations",) and d.to_log()["topics"] == ["solving_equations"]
+
+
 def test_a_rule_on_a_verified_wrong_step_adds_its_topic(model):
     # The model names only the question's topic; the rule on 5/6 + 1/6 -> 6/12 is certain.
     session, _, say = model
