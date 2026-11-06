@@ -89,7 +89,7 @@ def test_retrieve_tool_and_declarations(log, state):
     [p] = tools.call(state, "retrieve", {"query": "adding fractions"}).value
     assert p == {"ref": "Prealgebra 2e, 4.5", "text": "x" * 700}
     names = [d["name"] for d in tools.declarations()]
-    assert names == ["check_step", "equivalent", "locate", "run_rule", "retrieve"]
+    assert names == ["check_step", "equivalent", "locate", "run_rule", "list_rules", "retrieve"]
 
 
 def test_tool_call_records_pass_ds_checker(log, state):

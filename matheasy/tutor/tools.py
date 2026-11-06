@@ -1,7 +1,7 @@
 """Tool wrappers (Role C): the tools an LLM agent may call, with checked arguments.
 
 Each tool has a JSON schema for its arguments, so an LLM can call it by name
-(B1 in week 3) and a bad call is caught before it runs. Every call is logged
+(the B1 agent) and a bad call is caught before it runs. Every call is logged
 as D's `tool_call` record, which feeds the tool-call validity and recovery
 metric:
 
@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Sequence
 
-from ..diagnosis import check_step, equivalent, locate, run_rule
+from ..diagnosis import check_step, equivalent, load_bank, locate, rule_id, rule_names, run_rule
 from .state import TutorState
 from .turnlog import TurnLogger
 
@@ -126,6 +126,10 @@ def standard_tools(retrieve: Optional[Callable[..., list[dict]]] = None) -> list
              _schema(rule=_string("a MalruleLib rule name, e.g. fractions.add_numerators_denominators"),
                      item=_string("the maths to work, e.g. 1/2 + 1/3")),
              lambda rule, item: run_rule(rule, item)),
+        Tool("list_rules", "The misconception rules in one area, each with what a student holding it does. "
+                           f"Areas: {', '.join(rule_areas())}.",
+             _schema(area=_string("one of the areas")),
+             list_rules),
     ]
     if retrieve is not None:
         tools.append(Tool(
@@ -136,3 +140,16 @@ def standard_tools(retrieve: Optional[Callable[..., list[dict]]] = None) -> list
             lambda query, k=3: [{"ref": p["ref"], "text": p["text"][:700]} for p in retrieve(query, k=k)],
         ))
     return tools
+
+
+def rule_areas() -> list[str]:
+    return sorted({name.split(".")[0] for name in rule_names()})
+
+
+def list_rules(area: str) -> list[dict]:
+    """B's rules in `area` (the part of a rule name before the dot), with the bank's description."""
+    if area not in rule_areas():
+        raise LookupError(f"no area {area!r}; choose one of: {', '.join(rule_areas())}")
+    bank = load_bank()
+    return [{"rule": name, "does": bank[rule_id(name)].text} for name in rule_names()
+            if name.split(".")[0] == area]
