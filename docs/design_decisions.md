@@ -119,6 +119,13 @@ A word decided by the model is written in braces (`{fuel}`), so the decision sur
 | C owns the transcriber (the plan gives the Read stage to C) | Considered |
 | **B owns `transcribe()`, C calls it** | **Chosen** |
 
+Every condition (the full tutor and baselines B0, B1, B2) reads the student's input through `transcribe()`. If only the full tutor had it, part of any difference in results could come from reading input better rather than from diagnosis, which would confound H1.
+
+| Considered | Outcome |
+|---|---|
+| Only the full tutor gets the transcriber | Rejected: confounds the comparison with the baselines |
+| **Every condition gets the transcriber** | **Chosen** |
+
 ## 7. From a located mistake to suspects: the shortlister query
 
 ### 7.1 How it works
