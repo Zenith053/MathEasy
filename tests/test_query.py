@@ -117,3 +117,30 @@ def test_rule_pairs_use_live_query_format_and_need_an_eedi_mapping():
     assert set(pairs.RuleId) == {rid} and set(pairs.MisconceptionId) == {1287}
     assert len(pairs) == 30 and pairs.Before.is_unique
     assert all(q.startswith("Topic: fractions | Before: ") and "Changed part: " in q for q in pairs.Query)
+
+
+def test_to_notation_turns_latex_into_our_notation():
+    from matheasy.shortlister.live_queries import to_notation
+
+    assert to_notation(r"\frac{1}{2}+\frac{1}{3}") == "1/2+1/3"
+    assert to_notation(r"3 \frac{1}{2} \times 4") == "3 1/2 × 4"
+    assert to_notation(r"\frac{x+1}{2} \div 3") == "(x+1)/(2) ÷ 3"
+    assert to_notation(r"x^{2} + 300,000") == "x^(2) + 300000"
+
+
+def test_live_query_matches_the_tutors_query():
+    from matheasy.diagnosis import locate
+    from matheasy.diagnosis.interfaces import query
+    from matheasy.shortlister.live_queries import live_query
+
+    q = live_query(r"Work out \( \frac{1}{2}+\frac{1}{3} \)", r"\( \frac{2}{5} \)")
+    assert q == query(locate("1/2+1/3", "2/5"))
+    assert q.startswith("Topic: fractions | Before: 1/2 + 1/3 | Student wrote: 2/5")
+
+
+def test_live_query_skips_rows_with_no_step_to_locate():
+    from matheasy.shortlister.live_queries import live_query
+
+    assert live_query("Which of these is a prime number?", r"\( 9 \)") is None  # no maths part
+    assert live_query(r"Work out \( \frac{1}{2}+\frac{1}{3} \)", "Only Tom") is None  # answer is words
+    assert live_query(r"Work out \( \sqrt{4} \)", r"\( 3 \)") is None  # maths part we cannot read
