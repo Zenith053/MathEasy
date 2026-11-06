@@ -30,6 +30,7 @@ from typing import Callable, Optional
 import sympy
 
 from ..diagnosis import ParseError, as_fraction, held_back_rules, parse
+from ..diagnosis.explain import rule_topic
 from ..diagnosis.maths import BinOp, Neg, Node, Num, Rel, Sym
 
 
@@ -38,19 +39,24 @@ class HeldBackRule:
     name: str
     description: str  # MalruleLib's, for the feedback judge
     predict: Callable[[str], Optional[str]]
+    topic: str        # one of B's topics (diagnosis/explain.py TOPICS): ground truth for topic accuracy
 
 
 _RULES: dict[str, HeldBackRule] = {}
 
 
-def _held_back(name: str, description: str):
+def _held_back(name: str, description: str, topic: Optional[str] = None):
+    """Registers a held-back rule. Its topic is B's rule_topic() unless given: B's table only
+    covers rules in the bank, so a held-back rule whose group is not a topic names its own."""
+    topic = topic or rule_topic(name)
+
     def register(fn: Callable[[Node], Optional[str]]):
         def predict(item: str) -> Optional[str]:
             try:
                 return fn(parse(item))
             except (ParseError, ZeroDivisionError):
                 return None
-        _RULES[name] = HeldBackRule(name, description, predict)
+        _RULES[name] = HeldBackRule(name, description, predict, topic)
         return fn
     return register
 
@@ -217,7 +223,7 @@ def _percentage_as_index(node: Node) -> Optional[str]:
 
 @_held_back("algebra.change_side_change_sign",
             "Moves a term across the equals sign without changing its sign, e.g. x + 3 = 7 becomes "
-            "x = 7 + 3, so x = 10.")
+            "x = 7 + 3, so x = 10.", topic="solving_equations")
 def _change_side_change_sign(node: Node) -> Optional[str]:
     if not (isinstance(node, Rel) and node.op == "=") or _int(node.right) is None:
         return None

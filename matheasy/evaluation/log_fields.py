@@ -170,6 +170,8 @@ def check_records(records: Iterable[tuple[str, dict]]) -> list[str]:
     """Problems across records: each a (where, record) pair, where is e.g. 'run-1.jsonl:12'."""
     held = held_back_rules()
     problems, started, hashes = [], set(), {}
+    tests: dict[str, str] = {}
+    asked: set[str] = set()
     for where, rec in records:
         problems += [f"{where}: {p}" for p in check_record(rec, held)]
         if isinstance(rec.get("config_hash"), str):
@@ -181,9 +183,38 @@ def check_records(records: Iterable[tuple[str, dict]]) -> list[str]:
             started.add(key)
         elif rec.get("event") in EVENTS and key not in started:
             problems.append(f"{where}: {rec['event']} before session_start of session {key[1]!r}")
+        if rec.get("event") == "test" and isinstance(rec.get("item"), str):
+            tests.setdefault(rec["item"], where)
+        if rec.get("event") == "diagnosis" and isinstance(rec.get("probe"), dict):
+            asked.add(rec["probe"].get("question", ""))
     if len(hashes) > 1:
         seen = ", ".join(f"{h} (first at {w})" for h, w in hashes.items())
         problems.append(f"more than one config_hash, so shards ran on different settings: {seen}")
+    problems += probe_overlap_problems(tests, asked)
+    return problems
+
+
+def probe_overlap_problems(tests: dict[str, str], asked: Iterable[str] = ()) -> list[str]:
+    """Pre/post-test items that match a probe (B's whole bank, and any probe asked in the logs).
+    Team Plan section 7: tests never reuse probe questions. `tests` maps item -> where logged."""
+    from ..diagnosis import probe_items
+    from .items import item_key
+
+    probes: dict[str, str] = {}
+    for probe in [*probe_items(), *asked]:
+        try:
+            probes.setdefault(item_key(probe), probe)
+        except (ValueError, TypeError):  # ParseError is a ValueError
+            continue
+    problems = []
+    for item, where in tests.items():
+        try:
+            key = item_key(item)
+        except (ValueError, TypeError):
+            problems.append(f"{where}: test item {item!r} does not parse")
+            continue
+        if key in probes:
+            problems.append(f"{where}: test item {item!r} matches probe {probes[key]!r}; tests must not reuse probes")
     return problems
 
 

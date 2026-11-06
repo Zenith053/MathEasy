@@ -89,6 +89,8 @@ class StudentReply:
     feedback_targeted: Optional[bool]  # did this tutor message target the misconception? None if not judged
     holds_misconception: bool       # after this turn
     slipped: bool = False           # a careless slip: wrong, but not by the rule
+    deliberate: bool = False        # wrong on purpose (adversarial intentional_wrong_answer), not a slip
+    attack: Optional[str] = None    # the adversarial technique used in this reply (adversarial.py)
 
     def to_log(self) -> dict:
         return asdict(self)
@@ -355,12 +357,16 @@ def roster(
     slip_rate: float = SLIP_ONLY_RATE,
     seed: int = 0,
     rules: Optional[Sequence[str]] = None,
+    relapse_rate: float = 0.0,
 ) -> list[SimStudent]:
     """`copies` students for each rule (by default every rule B has registered, and every
     held-back rule), then `slip_only` students with no misconception. IDs are stable
-    (fractions.subtract_across#0, slip_only#0), so shards can be split by student."""
+    (fractions.subtract_across#0, slip_only#0), so shards can be split by student.
+    relapse_rate > 0 lets fixed misconceptions come back in later sessions, so retention
+    measures something; with 0, retention_truth is 1 by construction."""
     names = sorted(set(rule_names()) | held_back_rules()) if rules is None else list(rules)
-    students = [SimStudent(f"{name}#{k}", name, judge=judge, seed=seed) for name in names for k in range(copies)]
+    students = [SimStudent(f"{name}#{k}", name, judge=judge, seed=seed, relapse_rate=relapse_rate)
+                for name in names for k in range(copies)]
     students += [SimStudent(f"slip_only#{k}", None, slip_rate=slip_rate, seed=seed) for k in range(slip_only)]
     return students
 
