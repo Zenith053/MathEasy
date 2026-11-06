@@ -1,4 +1,4 @@
-"""Offline development run (Role C): the full tutor and emulated B2 on every roster student.
+"""Offline development run (Role C): the full tutor and B2 on every roster student.
 
     python -m matheasy.tutor.devrun                   # logs in runs/dev/
     python -m matheasy.evaluation.metrics runs/dev    # D's metrics on them
@@ -7,11 +7,10 @@ No LLM: the template hinter, the critic's code checks and the keyword judge,
 as in python -m matheasy.tutor. The numbers show the pipeline works and how
 the two conditions differ; they are not evidence for the hypotheses.
 
-    full  B's diagnose() as it is today. When rules tie, the diagnosis is
-          "ambiguous" and the tutor gives a general hint (no probe bank yet).
-    b2    The same, but a tie commits to the shortlister's first candidate:
-          B2's "take the top choice, no follow-ups", emulated here until B's
-          mode="b2" lands in week 3.
+    full  B's diagnose(). When rules tie, the tutor asks B's probes (at most 2),
+          then gives a general hint if the tie is still not settled.
+    b2    B's mode="b2" (no probes), and a tie commits to the shortlister's first
+          candidate: B2's "take the top choice, no follow-ups" (runner.b2_diagnose).
 
 Each student gets one session: up to 2 problems on which its rule gives a wrong
 answer, with up to 4 such items as pre- and post-test. Slip-only students get
@@ -58,6 +57,8 @@ def run(condition: str, config_hash: str) -> dict:
                          diagnose_fn=diagnose if condition == "full" else b2_diagnose)
     plans, skipped = plan()
     first = {"right": 0, "wrong": 0, "ambiguous": 0, "unknown": 0, "none": 0}
+    settled = dict(first)  # the last diagnosis on the first problem, after any follow-up questions
+    probes = 0
     students = fixed = post = tests = 0
     for student, problems, test_items in plans:
         result = run_session(tutor, student, [make_problem(f"p{i}", q) for i, q in enumerate(problems)],
@@ -69,15 +70,28 @@ def run(condition: str, config_hash: str) -> dict:
         fixed += not student.holds_misconception
         post += result.post_correct
         tests += len(test_items)
-        d = next((r for r in _diagnoses(log.path, f"{condition}-{student.student_id}")), None)
-        if d is None:
-            first["none"] += 1
-        elif d["status"] == "clear":
-            first["right" if d["misconception"] in accepted(student.misconception_id, "has_rule") else "wrong"] += 1
-        else:
-            first[d["status"]] += 1
+        step = _first_problem(log.path, f"{condition}-{student.student_id}")
+        _count(first, step[0] if step else None, student)
+        _count(settled, step[-1] if step else None, student)
+        probes += sum(u.kind == "probe" for u in result.state.transcript)
     return {"log": log.path, "checker": check_files([log.path]), "students": students, "first": first,
-            "fixed": fixed, "post": post, "tests": tests, "skipped": skipped}
+            "settled": settled, "probes": probes, "fixed": fixed, "post": post, "tests": tests,
+            "skipped": skipped}
+
+
+def _count(counts: dict, d: dict | None, student) -> None:
+    if d is None:
+        counts["none"] += 1
+    elif d["status"] == "clear":
+        counts["right" if d["misconception"] in accepted(student.misconception_id, "has_rule") else "wrong"] += 1
+    else:
+        counts[d["status"]] += 1
+
+
+def _first_problem(path: Path, session_id: str) -> list[dict]:
+    """The diagnoses made on the first problem with one, in order."""
+    found = list(_diagnoses(path, session_id))
+    return [d for d in found if d["problem_id"] == found[0]["problem_id"]] if found else []
 
 
 def _diagnoses(path: Path, session_id: str):
@@ -97,6 +111,8 @@ def main() -> None:
     print(f"{'':34}{'full':>8}{'b2':>8}")
     rows = [("students", lambda r: r["students"])]
     rows += [(f"first diagnosis: {k}", lambda r, k=k: r["first"][k]) for k in results["full"]["first"]]
+    rows += [(f"end of that problem: {k}", lambda r, k=k: r["settled"][k]) for k in results["full"]["settled"]]
+    rows += [("probe questions asked", lambda r: r["probes"])]
     rows += [("misconception fixed by the end", lambda r: r["fixed"]),
              ("post-test correct", lambda r: f"{r['post']}/{r['tests']}")]
     for name, value in rows:

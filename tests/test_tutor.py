@@ -235,3 +235,31 @@ def test_runner_starts_each_session_for_the_student(tmp_path):
     assert [(r["session_index"], r["relapsed"]) for r in starts] == [(0, False), (1, True)]
     assert student.session_index == 1
     assert check_files([tutor.log.path]) == []
+
+
+# --- B's probe bank ------------------------------------------------------------------------
+
+def test_a_tie_is_settled_by_one_of_bs_probes_and_stays_settled(tmp_path):
+    from matheasy.evaluation.metrics import accepted
+    rule = "fractions.multiply_across_for_division"
+    tutor = make_tutor(tmp_path)
+    student = SimStudent("s1", rule, judge=lambda message, misconception: False)  # never fixed
+    session(tutor, student, [make_problem("p1", "2/3 ÷ 4/5")], max_turns_per_problem=4)
+
+    turns = records(tutor, "turn")
+    probes = [t for t in turns if t["tutor_kind"] == "probe"]
+    diagnoses = records(tutor, "diagnosis")
+    assert len(probes) == 1 and probes[0]["item"] == diagnoses[0]["probe"]["question"]
+    assert diagnoses[0]["status"] == "ambiguous"
+    # Settled by the probe answer, and still settled when the same wrong answer comes again.
+    assert all(d["status"] == "clear" and d["misconception"] in accepted(f"rule:{rule}", "has_rule")
+               for d in diagnoses[1:])
+    assert len(diagnoses) > 2 and check_files([tutor.log.path]) == []
+
+
+def test_runner_tests_never_reuse_a_probe():
+    from matheasy.diagnosis.probes import probe_items
+    from matheasy.evaluation import overlapping, roster
+    from matheasy.tutor.runner import SLIP_ONLY, materials
+    for student in roster(keyword_judge, slip_only=SLIP_ONLY):
+        assert overlapping(materials(student)[1], probe_items()) == []

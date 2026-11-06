@@ -24,7 +24,9 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from ..diagnosis import FollowUp, ParseError, Transcription, check_step, diagnose, parse, resolve, transcribe
+from ..diagnosis import (
+    FollowUp, ParseError, Transcription, check_step, diagnose, equivalent, parse, resolve, transcribe,
+)
 from ..diagnosis import Diagnosis
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
 from .critic import leaks_answer
@@ -99,6 +101,13 @@ def explained(diagnosis: Optional[Diagnosis], problem: Problem) -> Optional[str]
     return next((w for w in words if w and not leaks_answer(w, problem.correct_answer, problem.question)), None)
 
 
+def _same(a: str, b: Optional[str]) -> bool:
+    try:
+        return b is not None and equivalent(a, b)
+    except (ParseError, ValueError, TypeError):
+        return False
+
+
 def with_citation(hint: Hint) -> str:
     """The hint as the student sees it. The citation is added after the critic's leak
     check, so a section number such as 4.5 can't be mistaken for an answer."""
@@ -169,8 +178,9 @@ class Orchestrator:
             if correct:
                 state.solved = True
                 return self._send(state, "feedback", CORRECT_FEEDBACK)
+            if not _same(answer, state.wrong_answer):
+                state.follow_ups = []  # a new wrong step; the same one again keeps its probe answers
             state.wrong_answer = answer
-            state.follow_ups = []
         else:
             state.follow_ups.append(FollowUp(state.probe, answer))
             state.probe = None

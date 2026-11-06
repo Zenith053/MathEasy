@@ -10,7 +10,7 @@ i/n takes every n-th student of D's roster, and runs it under every condition
 given. Each condition has its own copy of each student and its own memory.
 
     full  the tutor: B's diagnose(), the hinter and critic, memory and the planner
-    b2    the same, with one-shot diagnosis (emulated until B's mode="b2" lands; see b2_diagnose)
+    b2    the same, with one-shot diagnosis: B's mode="b2", no probes (see b2_diagnose)
     b0    one prompted tutor (needs --llm)
     b1    one tool-using agent with the same tools, no memory (needs --llm)
 
@@ -24,8 +24,8 @@ finishes, so a stopped run carries on where it stopped: run the same command
 again. Records of a session that never finished are dropped from its log first.
 
 Until D's pre/post tests land, each student works the sample items on which its
-rule gives a wrong answer, and up to TEST_ITEMS of them are the pre- and
-post-test (slip-only students get fixed items); see materials().
+rule gives a wrong answer, and up to TEST_ITEMS of them that are not in B's probe
+bank are the pre- and post-test (slip-only students get fixed items); see materials().
 """
 
 from __future__ import annotations
@@ -37,7 +37,8 @@ from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 from ..diagnosis import diagnose
-from ..evaluation import LLMFeedbackJudge, SimStudent, check_files, roster
+from ..diagnosis.probes import probe_items
+from ..evaluation import LLMFeedbackJudge, SimStudent, check_files, overlapping, roster
 from ..llm import LLMClient, load_config
 from . import planner
 from .__main__ import keyword_judge, textbook_retrieve
@@ -92,16 +93,18 @@ def wrong_items(rule: str) -> list[str]:
 
 
 def materials(student: SimStudent) -> tuple[list[str], list[str]]:
-    """(problem pool, test items) for a student; an empty pool means nothing shows its rule."""
+    """(problem pool, test items) for a student; an empty pool means nothing shows its rule.
+    Tests never reuse a probe question (team plan, section 7)."""
     if student.misconception_id is None:
         return SLIP_ITEMS[:3], SLIP_ITEMS[3:]
     found = wrong_items(student.misconception_id.split(":", 1)[1])
-    return found, found[:TEST_ITEMS]
+    probes = {test for test, _ in overlapping(found, probe_items())}
+    return found, [item for item in found if item not in probes][:TEST_ITEMS]
 
 
 def b2_diagnose(*args, **kwargs):
-    """Emulated B2: never stay ambiguous; commit to the shortlister's first candidate.
-    A no-op once B's diagnose(mode="b2") returns clear diagnoses itself."""
+    """B2 takes the top choice with no follow-ups. B's mode="b2" skips the probes but
+    leaves tied rules ambiguous, so this commits to the shortlister's first candidate."""
     d = diagnose(*args, **kwargs)
     if d.status != "ambiguous":
         return d
