@@ -75,7 +75,8 @@ def test_held_back_rule_brings_its_own_code():
 
 def test_student_groups():
     assert student_group(ADDS_ACROSS) == "has_rule"
-    assert student_group("fractions.subtract_across") == "unchecked"  # eedi_status not filled in yet
+    assert student_group("fractions.subtract_across") == "known_as_text"  # eedi_status: [172]
+    assert student_group("decimals.shorter_is_larger") == "never_seen"
     assert student_group(None) == "slip_only"
 
 

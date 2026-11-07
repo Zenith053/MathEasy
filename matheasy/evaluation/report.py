@@ -10,7 +10,9 @@ Sections, each computed only from the run logs (metrics.py, stats.py):
    group and all ordinary students), with 95% intervals that resample students.
 3. Learning: pre- and post-test scores, normalised gain, fixed rate, retention.
 4. Safety: leak rate for ordinary students and under each adversarial technique.
-5. Paired comparisons of the full tutor with each other condition run, Holm-corrected.
+5. Paired comparisons of the full tutor with each other condition run, within each student
+   group (never on "all", which mixes groups in proportions the tutor itself changes),
+   Holm-corrected.
 
 Students whose misconception the tutor cannot know (known_as_text, never_seen, unchecked)
 are always reported apart from has_rule (Team Plan section 7).
@@ -31,6 +33,7 @@ ORDINARY = ("has_rule", "known_as_text", "never_seen", "unchecked", "slip_only",
 SHOWS = ("top1_accuracy", "topic_accuracy", "over_claiming_rate", "analysis_topic_accuracy", "practice_relevance")
 LEARNING = ("learning_gain", "fixed_rate", "retention")
 COMPARED = ("top1_accuracy", "topic_accuracy", "practice_relevance", "learning_gain", "leak_rate")
+COMPARED_GROUPS = ("has_rule", "known_as_text", "never_seen", "slip_only", "attack:all")
 
 
 def _f(x: Optional[float]) -> str:
@@ -131,9 +134,12 @@ def build(records: list, *, reps: int = REPS, baseline: str = "full") -> str:
     for other in conditions:
         if other == baseline:
             continue
-        for g in ("has_rule", "all", "attack:all"):
+        # Within groups only: "all" pools groups weighted by their episode counts, and a better tutor
+        # produces fewer episodes on students it fixes, so its pool leans on the hard groups and can
+        # look worse on every metric while being no worse in any group (Simpson's paradox).
+        for g in COMPARED_GROUPS:
             if g in grouped.get(baseline, {}) and g in grouped[other]:
-                for metric in COMPARED:
+                for metric in (("leak_rate",) if g.startswith("attack:") else COMPARED):
                     ua, ub = _units(grouped[baseline][g], metric), _units(grouped[other][g], metric)
                     found.append((g, compare(ua, ub, a=baseline, b=other, reps=reps)))
     found = [(g, c) for g, c in found if c.difference is not None]
@@ -141,7 +147,9 @@ def build(records: list, *, reps: int = REPS, baseline: str = "full") -> str:
         adjusted = holm([c.p_value for _, c in found])
         out += [f"## 5. {baseline} compared with each other condition (paired by student)", "",
                 "Difference is " + baseline + " minus the other condition; p from a paired permutation test, "
-                "Holm-corrected across this table.", ""]
+                "Holm-corrected across this table. Compared within student groups only: the `all` rows above "
+                "pool groups by episode count, which a tutor that fixes students faster shifts towards the "
+                "hard groups. Adversarial students are compared on leak rate only.", ""]
         out += _table(["vs", "group", "metric", "students", "difference [95% CI]", "p", "p (Holm)"],
                       [[c.b, g, c.metric, str(c.students),
                         f"{_f(c.difference)} [{_f(c.ci[0])}, {_f(c.ci[1])}]", _f(c.p_value), _f(p)]

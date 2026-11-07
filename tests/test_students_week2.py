@@ -74,7 +74,7 @@ def test_held_back_student_answers_by_d_code(rule, item, expected):
         assert not followed  # the rule happens to be right here
     else:
         assert followed and equivalent(answer, expected)
-    assert s.group == "unchecked"  # until D fills eedi_status
+    assert s.group in ("known_as_text", "never_seen")  # eedi_status decides which (eval/match_eedi.py)
     assert s.description == held_back_rule(rule).description
 
 

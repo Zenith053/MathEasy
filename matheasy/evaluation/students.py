@@ -66,7 +66,8 @@ def student_group(rule_name: Optional[str]) -> str:
         return "slip_only"
     if rule_name not in held_back_rules():
         return "has_rule"
-    # eedi_status: an Eedi MisconceptionId (known as text), "never_seen", or null (not checked yet).
+    # eedi_status: Eedi MisconceptionIds (known as text; a list, or one number), "never_seen",
+    # or null (not checked yet).
     status = json.loads(Path(HELD_BACK_FILE).read_text())["eedi_status"].get(rule_name)
     if status is None:
         return "unchecked"

@@ -67,4 +67,6 @@ The new plan drops H1–H3. The metrics above still measure what the tutor shows
 
 Calibration and the comparisons with B0, B1 and B2 matter only if the baselines stay. That is still open in `design_decisions.md`, and the team needs to decide.
 
-**Not done:** `eedi_status` in `eval/held_back_rules.json` is still empty. It needs the Eedi `misconception_mapping.csv` (Kaggle, under the competition terms) in `data/eedi/raw/`. Then run `eval/match_eedi.py suggest`, decide each rule, and record it with `eval/match_eedi.py set`. Until then, the ten held-back students count as `unchecked`.
+**Eedi status, done 7 November:** `eedi_status` is filled in for all ten held-back rules (`eval/match_eedi.py` has each decision and why). 8 are known only as text and 2 never seen (`decimals.shorter_is_larger`, `ratios_proportions.each_fraction_digit_is_ratio`). Two rules match two Eedi misconceptions each (adding and subtracting), and a diagnosis of either counts as right.
+
+**Changes for C: done in 847b77b.** The trial run is in `docs/trial_week3.md`.

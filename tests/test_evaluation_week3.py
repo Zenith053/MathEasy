@@ -358,10 +358,29 @@ def test_match_eedi_records_a_decision(tmp_path):
     path = tmp_path / "held.json"
     path.write_text(json.dumps({"eedi_status": {"fractions.subtract_across": None}}))
     assert match_eedi.set_status("fractions.subtract_across", "1287", path, known_ids={1287}) == {
-        "fractions.subtract_across": 1287}
+        "fractions.subtract_across": [1287]}
+    assert match_eedi.set_status("fractions.subtract_across", "1287, 5", path, known_ids={1287, 5}) == {
+        "fractions.subtract_across": [1287, 5]}
     assert match_eedi.set_status("fractions.subtract_across", "never_seen", path)["fractions.subtract_across"] \
         == "never_seen"
     with pytest.raises(ValueError):
         match_eedi.set_status("fractions.subtract_across", "99", path, known_ids={1287})
     with pytest.raises(ValueError):
         match_eedi.set_status("fractions.add_numerators_denominators", "1", path)
+
+
+def test_every_held_back_rule_has_an_eedi_decision():
+    import json
+    from matheasy.diagnosis.rules import HELD_BACK_FILE
+    from matheasy.evaluation import student_group
+    status = json.loads(HELD_BACK_FILE.read_text())["eedi_status"]
+    assert set(status) == set(held_back_names())
+    for name, value in status.items():
+        assert value == "never_seen" or (isinstance(value, list) and value and all(isinstance(m, int) for m in value))
+        assert student_group(name) in ("known_as_text", "never_seen")
+    assert sorted(compute_accepted("negative_numbers.negative_swaps_operation")) == ["eedi:2566", "eedi:971"]
+
+
+def compute_accepted(name):
+    from matheasy.evaluation.metrics import accepted
+    return accepted(f"rule:{name}", "known_as_text")

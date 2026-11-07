@@ -55,9 +55,10 @@ def test_held_back_students_run_through_the_tutor(tmp_path):
         "fractions.subtract_across", "decimals.right_align_decimals")]
     path = run(tmp_path, students, problems=("3/4 - 1/2", "3.5 + 2.75"))
     assert check_files([path]) == []
-    unchecked = compute(read_jsonl([path]))["full"]["unchecked"]
-    assert unchecked["sessions"] == 2 and unchecked["unknowable_episodes"] > 0
-    assert unchecked["unknowable_claim_rate"] is not None
+    # Both are known only as text (eedi_status), so their diagnoses are scored against the Eedi IDs
+    known = compute(read_jsonl([path]))["full"]["known_as_text"]
+    assert known["sessions"] == 2 and known["misconception_episodes"] > 0
+    assert known["top1_accuracy"] is not None and known["unknowable_episodes"] == 0
 
 
 def test_cli(tmp_path, capsys):

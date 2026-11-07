@@ -10,13 +10,29 @@ decision. Needs data/eedi/raw/misconception_mapping.csv (Kaggle, under the compe
 terms; see matheasy/shortlister/prepare_eedi.py).
 
     PYTHONPATH=. .venv/bin/python eval/match_eedi.py suggest                 # top candidates for each rule
-    PYTHONPATH=. .venv/bin/python eval/match_eedi.py set fractions.subtract_across 1287
-    PYTHONPATH=. .venv/bin/python eval/match_eedi.py set decimals.right_align_decimals never_seen
+    PYTHONPATH=. .venv/bin/python eval/match_eedi.py set fractions.subtract_across 172
+    PYTHONPATH=. .venv/bin/python eval/match_eedi.py set decimals.right_align_decimals 1730,2346
+    PYTHONPATH=. .venv/bin/python eval/match_eedi.py set decimals.shorter_is_larger never_seen
     PYTHONPATH=. .venv/bin/python eval/match_eedi.py status                  # what is decided so far
 
 Matching rule of thumb: the Eedi name must describe the same wrong method on the same
 kind of question (not just the same topic). If two candidates both fit, pick the one
-whose wording is closest to the rule's example, and note the other in the commit message.
+whose wording is closest to the rule's example. A rule that covers two Eedi misconceptions
+(adding and subtracting, say) gets both, comma-separated, as B's bank lists them; a diagnosis
+of either counts as right.
+
+Decisions (2026-11-07), from BM25 suggestions and a search of all 2,587 names:
+
+    fractions.subtract_across                          172
+    fractions.denominator_comparison_error             2030
+    ratios_proportions.each_fraction_digit_is_ratio    never_seen  (1076 "cancels digits" is another method)
+    decimals.right_align_decimals                      1730, 2346  (adding; subtracting)
+    decimals.shorter_is_larger                         never_seen  (Eedi has only the opposite, 2237)
+    percentages.percentage_as_index                    2276
+    algebra.change_side_change_sign                    1971
+    negative_numbers.multiplication_rule_for_addition  1639
+    negative_numbers.negative_swaps_operation          971, 2566   (adding a negative; subtracting one)
+    negative_numbers.two_negatives_always_positive     1435
 """
 
 from __future__ import annotations
@@ -48,18 +64,21 @@ def eedi_ids() -> set[int]:
 
 
 def set_status(name: str, value: str, path: Path = HELD_BACK_FILE, known_ids: Optional[set[int]] = None) -> dict:
-    """Record `value` (an Eedi MisconceptionId, or never_seen) for held-back rule `name`."""
+    """Record `value` for held-back rule `name`: Eedi MisconceptionIds, comma-separated (stored as
+    a list, closest first), or never_seen."""
     data = json.loads(path.read_text())
     if name not in data["eedi_status"]:
         raise ValueError(f"{name} is not a held-back rule; choose from {sorted(data['eedi_status'])}")
     if value == NEVER_SEEN:
         status: object = NEVER_SEEN
     else:
-        if not value.isdigit():
-            raise ValueError(f"expected an Eedi MisconceptionId or {NEVER_SEEN}, got {value!r}")
-        status = int(value)
-        if known_ids is not None and status not in known_ids:
-            raise ValueError(f"{status} is not an Eedi MisconceptionId")
+        parts = [p.strip() for p in value.split(",")]
+        if not parts or not all(p.isdigit() for p in parts):
+            raise ValueError(f"expected Eedi MisconceptionIds (comma-separated) or {NEVER_SEEN}, got {value!r}")
+        status = [int(p) for p in parts]
+        unknown = [m for m in status if known_ids is not None and m not in known_ids]
+        if unknown:
+            raise ValueError(f"not an Eedi MisconceptionId: {unknown}")
     data["eedi_status"][name] = status
     path.write_text(json.dumps(data, indent=2) + "\n")
     return data["eedi_status"]
@@ -73,7 +92,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("rules", nargs="*", help="default: every held-back rule not yet decided")
     t = sub.add_parser("set")
     t.add_argument("rule")
-    t.add_argument("value", help=f"an Eedi MisconceptionId, or {NEVER_SEEN}")
+    t.add_argument("value", help=f"Eedi MisconceptionIds, comma-separated, or {NEVER_SEEN}")
     sub.add_parser("status")
     args = parser.parse_args(argv)
 

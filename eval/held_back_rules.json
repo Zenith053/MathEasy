@@ -61,15 +61,33 @@
     "scientific_notation.wrong_exponent_sign"
   ],
   "eedi_status": {
-    "fractions.denominator_comparison_error": null,
-    "fractions.subtract_across": null,
-    "ratios_proportions.each_fraction_digit_is_ratio": null,
-    "decimals.right_align_decimals": null,
-    "decimals.shorter_is_larger": null,
-    "percentages.percentage_as_index": null,
-    "algebra.change_side_change_sign": null,
-    "negative_numbers.multiplication_rule_for_addition": null,
-    "negative_numbers.negative_swaps_operation": null,
-    "negative_numbers.two_negatives_always_positive": null
+    "fractions.denominator_comparison_error": [
+      2030
+    ],
+    "fractions.subtract_across": [
+      172
+    ],
+    "ratios_proportions.each_fraction_digit_is_ratio": "never_seen",
+    "decimals.right_align_decimals": [
+      1730,
+      2346
+    ],
+    "decimals.shorter_is_larger": "never_seen",
+    "percentages.percentage_as_index": [
+      2276
+    ],
+    "algebra.change_side_change_sign": [
+      1971
+    ],
+    "negative_numbers.multiplication_rule_for_addition": [
+      1639
+    ],
+    "negative_numbers.negative_swaps_operation": [
+      971,
+      2566
+    ],
+    "negative_numbers.two_negatives_always_positive": [
+      1435
+    ]
   }
 }
