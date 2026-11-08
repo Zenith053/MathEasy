@@ -33,7 +33,7 @@ See `docs/diagnosis_fallback.md` for the fallback and its results, and `docs/dia
 **Not settled yet.**
 
 - Whether the baselines (B0, B1, B2) and the experiment runner stay.
-- Whether the Eedi shortlister stays. No rule is mapped to Eedi yet.
+- Whether the Eedi shortlister stays. 33 of B's rules are mapped to Eedi misconceptions (`bank.yaml`), and the trained model and its cache are built (section 7). Neither is connected to `diagnose()` yet. Until one is, students "known only as text" score 0 (`docs/trial_week3.md`).
 
 Sections below written before this decision still mention the hypotheses and baselines.
 
@@ -207,6 +207,31 @@ The model (A, `train_shortlister.ipynb`) is a **bi-encoder**: one fine-tuned lan
 The shortlister does **not** look for similar Eedi questions. What it learned from them is stored in the model's weights, and live it searches only the names. So it can rank a misconception that never appeared in training, because it scores the name's text. That is how held-back misconceptions can still be found.
 
 The model is trained but not connected yet: `shortlist()` still uses BM25 word matching over the names, and `diagnose()` uses `RuleShortlister` (every rule is run, and the ones that reproduce the student's answer are kept). `ModelShortlister` (`shortlister/model.py`) and `CachedShortlist` (`shortlister/cache.py`) both plug into `EediShortlister`, if the team keeps the shortlister.
+
+**Test scores of the four runs** (`shortlister/score_test.py`): 289 test rows, 91 of them with a misconception that has no training question ("unseen"). The 95% intervals come from resampling rows 2,000 times.
+
+| Run | Trained on | MAP@25 | Recall@10 | MAP@25 seen | MAP@25 unseen |
+|---|---|---|---|---|---|
+| BM25 | (no training) | 0.038 [0.021, 0.059] | 0.059 [0.035, 0.087] | 0.024 | 0.070 |
+| 1 | Qwen2.5 3B, Eedi rows | 0.292 [0.254, 0.330] | 0.612 [0.557, 0.668] | 0.338 | 0.190 [0.136, 0.250] |
+| 2 | Qwen2.5 1.5B, Eedi rows | 0.275 [0.239, 0.312] | 0.578 [0.519, 0.633] | 0.318 | 0.180 |
+| 3 | 3B, plus 512 LLM-written examples | 0.323 [0.283, 0.363] | 0.644 [0.592, 0.696] | 0.335 | 0.295 [0.218, 0.373] |
+| 4 | 3B, plus LLM examples and 939 rule pairs | 0.329 [0.288, 0.372] | 0.630 [0.578, 0.682] | 0.381 | 0.216 [0.157, 0.281] |
+
+Each change compared on the same rows (paired), MAP@25:
+
+| Change | All rows | Seen | Unseen |
+|---|---|---|---|
+| Training (run 1 against BM25) | **+0.253 [0.215, 0.293]** | **+0.315** | **+0.120** |
+| 3B against 1.5B (run 1 against run 2) | +0.017 [-0.015, 0.049] | +0.020 | +0.010 |
+| LLM-written examples (run 3 against run 1) | +0.031 [-0.001, 0.061] | -0.003 | **+0.105 [0.055, 0.157]** |
+| Rule pairs (run 4 against run 3) | +0.006 [-0.031, 0.043] | **+0.046 [0.001, 0.091]** | **-0.080 [-0.141, -0.017]** |
+
+- Training is the only change that clearly helps on all rows.
+- The LLM-written examples help where they were aimed: misconceptions with no training question. They were written for exactly those names.
+- The rule pairs trade unseen misconceptions for seen ones, so they leave the total unchanged.
+- The 1.5B model is not clearly worse than the 3B.
+- The intervals are not corrected for the dozen comparisons made here. Two results sit right at 0, so they are weak evidence either way: rule pairs on seen rows (the interval only just excludes 0) and LLM examples on all rows (it only just includes 0).
 
 ### 7.4 Training and live queries must match
 

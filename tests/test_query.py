@@ -1,5 +1,6 @@
 """build_query() and its fallback. Pure functions: no data files needed."""
 
+import pytest
 import sympy
 
 from matheasy.shortlister.query import UNPARSED, build_query, clean, fallback_diff, parse, text_diff
@@ -183,3 +184,30 @@ def test_cached_shortlist_sends_a_miss_to_the_fallback(tmp_path):
     ranker = CachedShortlist(path, fallback=lambda q, k: [(5, "live", 0.7)])
     assert ranker("unknown") == [(5, "live", 0.7)]
     assert ranker.misses == 1
+
+
+def test_test_scores_per_row_match_map_and_recall():
+    import numpy as np
+    from matheasy.shortlister.score_test import per_row, summary
+    from matheasy.shortlister.shortlist import map_at_k, recall_at_k
+
+    ranked = [[1, 2, 3], [2, 1, 3], [3, 2, 1], [4, 5, 6]]
+    true = [1, 1, 1, 1]
+    rr, hit = per_row(ranked, true)
+    assert rr.tolist() == [1, 1 / 2, 1 / 3, 0]
+    assert rr.mean() == map_at_k(ranked, true, 25) and hit.mean() == recall_at_k(ranked, true, 10)
+    s = summary(rr, hit, unseen=np.array([False, False, True, True]))
+    assert s["MAP@25 seen"]["n"] == 2 and s["MAP@25 unseen"]["mean"] == (1 / 3) / 2
+    low, high = s["MAP@25"]["ci95"]
+    assert low <= s["MAP@25"]["mean"] <= high
+
+
+def test_test_score_difference_is_paired_by_row():
+    import numpy as np
+    from matheasy.shortlister.score_test import difference
+
+    a = (np.array([1.0, 0.5, 0.2, 0.0]), np.array([1.0, 1.0, 1.0, 0.0]))
+    b = (a[0] - 0.1, a[1])  # b is a, 0.1 worse on every row
+    d = difference(a, b, unseen=np.array([False, True, False, True]))
+    assert d["MAP@25"]["ci95"] == [pytest.approx(0.1), pytest.approx(0.1)]  # paired: no row-to-row noise
+    assert d["Recall@10"]["mean"] == 0 and d["MAP@25 unseen"]["n"] == 2
