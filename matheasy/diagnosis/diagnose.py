@@ -5,7 +5,7 @@
     if not check_step("1/2 + 1/3", "2/5"):
         d = diagnose("1/2 + 1/3", "2/5", student_id="student-017")
         d.status         # 'clear' | 'ambiguous' | 'unknown'
-        d.misconception  # 'rule:fractions.add_numerators_denominators' when clear, else None
+        d.misconception  # 'rule:fractions.add_numerators_denominators' (or 'eedi:1287') when clear, else None
         d.probe          # a follow-up question to ask, or None
         d.to_log()       # JSON-safe record for the run logs
 
@@ -16,7 +16,8 @@ answers so far in `follow_ups`. At most MAX_FOLLOW_UPS probes are ever returned.
 Rules run first, on the located change and then on solve back's pieces (solve_back.py).
 Rules that tie are 'ambiguous', and a probe from the bank (probes.py) tells them apart.
 A step no rule reproduces goes to the LLM fallback (explain.py) if a session is given;
-see docs/diagnosis_fallback.md. d.topics names the topics whichever found the mistake.
+see docs/diagnosis_fallback.md. With an `eedi_ranker` too (eedi.py), the fallback picks
+from the closest Eedi misconceptions, and a pick becomes the diagnosis: 'eedi:<n>'. d.topics names the topics whichever found the mistake.
 mode="b2" is the same without probes.
 """
 
@@ -25,6 +26,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Sequence, Union
 
+from .eedi import EediRanker
+from .eedi import options as eedi_options
 from .explain import Explanation, explain, rule_topic
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
 from .maths import LocatedError, Node, equivalent, locate
@@ -86,11 +89,13 @@ def diagnose(
     k: int = 25,
     question: str = "",
     session=None,
+    eedi_ranker: Optional[EediRanker] = None,
 ) -> Diagnosis:
     """Diagnose the wrong step before -> after. Raises ParseError or StepIsCorrect.
 
     With an LLM `session`, a step no rule reproduces is passed to explain(), so the
-    result carries the model's reading of it; without one, no model is called.
+    result carries the model's reading of it; without one, no model is called. With an
+    `eedi_ranker` as well, the model may name an Eedi misconception (eedi.py).
     """
     if mode not in ("full", "b2"):
         raise ValueError(f"unknown mode {mode!r}")
@@ -149,8 +154,13 @@ def diagnose(
 
     explanation = None
     if status == "unknown" and session is not None:
-        explanation = explain(located, question=question, session=session, pieces=[p for p, _ in pieces])
-        trace.append({"stage": "explain", **explanation.to_log()})
+        choices = eedi_options(located, eedi_ranker) if eedi_ranker is not None else []
+        explanation = explain(located, question=question, session=session, pieces=[p for p, _ in pieces],
+                              options=choices)
+        trace.append({"stage": "explain", "eedi_options": [mid for mid, _ in choices], **explanation.to_log()})
+        if explanation.eedi is not None and explanation.kind == "misconception":
+            status, top, beliefs = "clear", explanation.eedi, {explanation.eedi: 1.0}
+            trace.append({"stage": "decide", "status": status, "misconception": top})
     topics = (explanation.topics if explanation is not None
               else tuple(sorted({rule_topic(m) for m in beliefs if m.startswith("rule:")})))
     return Diagnosis(status, top, beliefs, probe, located, mode, tuple(trace), explanation, topics)

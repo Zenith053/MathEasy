@@ -32,9 +32,10 @@ line. Errors from the LLM client are not caught, as in transcribe().
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Literal, Optional, Sequence
 
+from .eedi import named
 from .maths import LocatedError, ParseError, check_step, equivalent, locate, parse
 from .solve_back import rules_for
 
@@ -98,6 +99,8 @@ class Explanation:
     steps: tuple[str, ...]
     wrong_steps: tuple[WrongStep, ...] = ()
     reason: str = ""  # why the status is not 'verified'
+    eedi: Optional[str] = None  # the Eedi misconception picked from the options given, e.g. 'eedi:1287'
+    eedi_fit: Optional[str] = None  # 'exact': it explains the answer; 'close': only the nearest offered
 
     def to_log(self) -> dict:
         return {**asdict(self), "topics": list(self.topics), "steps": list(self.steps),
@@ -126,6 +129,11 @@ Reply as JSON:
   Give more than one when the student's mistakes span topics. Name the topic of the
   mistake, not of the question: a wrong times-table fact while solving an equation is
   whole_number_arithmetic, not solving_equations.
+- "eedi": if "Possible misconceptions" are listed, the number of the one closest to what this
+  student did. Always pick one: the closest in meaning to your "mistake", not merely one about
+  the same topic. With no list, give 0.
+- "eedi_fit": "exact" if that misconception explains this student's answer, "close" if it is
+  only the nearest one listed. With no list, give "close".
 - "kind": "misconception" if the mistake follows a wrong belief or method, "slip" if it
   looks careless (a miscopied number, a wrong times-table fact), "unclear" if you cannot
   tell what the student did; then give "steps": [].
@@ -143,14 +151,14 @@ Before: 2x + 3 = 11   Student wrote: x = 7   Correct: x = 4
            {"line": "x = 7", "mistake": false}],
  "mistake": "moved +3 across the equals sign without changing its sign",
  "explanation": "The student moved 3 to the other side but kept it as +3, then divided correctly. They may think a term keeps its sign when it moves.",
- "topics": ["solving_equations"], "kind": "misconception"}
+ "topics": ["solving_equations"], "eedi": 0, "eedi_fit": "close", "kind": "misconception"}
 
 Before: 5 × 6 - 4   Student wrote: 22   Correct: 26
 One operation wrong: 5 × 6 gave 26 (should be 30); 30 - 4 gave 22 (should be 26)
 {"steps": [{"line": "26 - 4", "mistake": true}, {"line": "22", "mistake": false}],
  "mistake": "5 × 6 worked out as 26",
  "explanation": "The student got 26 for 5 × 6 and then subtracted 4 correctly. A times-table slip.",
- "topics": ["whole_number_arithmetic"], "kind": "slip"}
+ "topics": ["whole_number_arithmetic"], "eedi": 0, "eedi_fit": "close", "kind": "slip"}
 """.replace("{topics}", "\n".join(f"  {name}: {about}" for name, about in TOPICS.items()))
 
 SCHEMA = {
@@ -164,26 +172,38 @@ SCHEMA = {
         "mistake": {"type": "string"},
         "explanation": {"type": "string"},
         "topics": {"type": "array", "items": {"type": "string", "enum": list(TOPICS)}},
+        "eedi": {"type": "integer"},
+        "eedi_fit": {"type": "string", "enum": ["exact", "close"]},
         "kind": {"type": "string", "enum": ["misconception", "slip", "unclear"]},
     },
-    "required": ["steps", "mistake", "explanation", "topics", "kind"],
+    "required": ["steps", "mistake", "explanation", "topics", "eedi", "eedi_fit", "kind"],
 }
 
 
 def explain(located: LocatedError, *, question: str = "", session,
-            pieces: Sequence[LocatedError] = ()) -> Explanation:
+            pieces: Sequence[LocatedError] = (), options: Sequence[tuple[str, str]] = ()) -> Explanation:
     """Ask the model what the student did in the wrong step `located`, then check its answer.
 
     `pieces` are solve_back()'s single-operation explanations, given to the model as checked facts.
+    `options` are Eedi misconceptions as [(eedi ID, name)] (eedi.options()); the model may pick one.
     """
     prompt = (f"Question: {_as_data(question)}\nBefore: {located.before}\n"
               f"Student wrote: <<<{_as_data(located.after)}>>>\nCorrect: {located.correct}")
     if pieces:
         prompt += "\nOne operation wrong: " + "; ".join(
             f"{p.source} gave {p.wrong} (should be {p.expected})" for p in pieces)
+    if options:
+        prompt += "\nPossible misconceptions:\n" + "\n".join(f"{i}. {name}" for i, (_, name) in enumerate(options, 1))
     result = session.call(ROLE, [{"role": "user", "content": prompt}], system=SYSTEM,
                           json_schema=SCHEMA, max_output_tokens=500)
     reply = result.parsed if isinstance(result.parsed, dict) else {}
+    pick = named(options, reply.get("eedi"))
+    fit = (reply.get("eedi_fit") if reply.get("eedi_fit") in ("exact", "close") else "close") if pick else None
+    return replace(_reading(located, reply), eedi=pick, eedi_fit=fit)
+
+
+def _reading(located: LocatedError, reply: dict) -> Explanation:
+    """The model's reply, checked by code."""
     mistake, why = str(reply.get("mistake", "")).strip(), str(reply.get("explanation", "")).strip()
     kind = reply.get("kind") if reply.get("kind") in ("misconception", "slip") else "unclear"
     named = reply.get("topics") if isinstance(reply.get("topics"), list) else []
