@@ -293,3 +293,9 @@ MalruleLib's code was read, never copied or run. Rules that give the same answer
 | Human review of `quantity_words.txt` before the final runs | B |
 | D's `item_key()` handles the new `Word` and `Mixed` nodes | D |
 | Training and live shortlister queries in one format (7.4), including where the topic comes from | A and B |
+
+## Future work
+
+| Item | Why it is not done now | Plan |
+|---|---|---|
+| **Multiple misconceptions in one answer** | Only the first wrong line is diagnosed, and two mistakes in one line match no rule, so the LLM reports only one of them. Example: `x^2 × x^3 + 2^3 → x^6 + 6` is `unknown`, although each half alone is caught by a rule. Put on hold on 2026-11-09 | `docs/plan_multiple_misconceptions.md` |

@@ -168,3 +168,5 @@ v2 is `data/shortlister/adapter-3B-v2` (git-ignored, like all Eedi-derived files
   letters go straight to the LLM.
 - **Topic check in code.** Decide which of the LLM's topics are worth keeping.
 - **More hand cases.** The hand set needs more cases to be reliable.
+- **More than one misconception per answer** (future work). Only the first wrong line is
+  diagnosed, and two mistakes in one line match no rule. Plan: `plan_multiple_misconceptions.md`.
