@@ -5,8 +5,11 @@ update functions; the experiment runner calls plan() before each session.
 
     P(knows skill)          per topic (B's topic labels, explain.TOPICS): Bayesian
                             knowledge tracing on every answer the student gives to a
-                            problem, for the topics its rules cover and the topics
-                            the diagnosis names. A topic is mastered at MASTERED.
+                            problem or a probe, for the topics its rules cover and the
+                            topics the diagnosis names. A right answer also counts for
+                            every concept the question visibly uses (B's
+                            question_topics()), so a concept no rule covers is credited
+                            too. A topic is mastered at MASTERED.
     Mistakes per topic      a count of the wrong answers diagnosed in each topic.
     P(holds misconception)  per misconception ID: set high by a clear diagnosis,
                             then updated by Bayes' rule whenever the student answers
@@ -23,7 +26,9 @@ plan() puts one re-check item first for each misconception that is due, then one
 practice problem from B's probe bank on the weakest topic the student has made
 mistakes in ("what to practise"), then the rest of the pool, weakest topic first.
 Only rule misconceptions can be re-checked: an Eedi ID has no code to say which
-items it gets wrong.
+items it gets wrong. Instead, each right answer on a question in an Eedi
+misconception's topics lowers P(holds) a little (EEDI_RIGHT_IF_HELD): weaker
+evidence than a rule's exact prediction, so it takes several.
 """
 
 from __future__ import annotations
@@ -34,6 +39,7 @@ from typing import Optional, Sequence
 from ..diagnosis import SLIP, ParseError, RuleError, equivalent, rule_id, rule_names, run_rule, split_id
 from ..diagnosis.explain import rule_topic
 from ..diagnosis.probes import similar_items
+from ..diagnosis.topics import question_topics
 from ..evaluation import correct_answer
 from .state import Problem, StudentMemory
 
@@ -49,6 +55,10 @@ FOLLOWS = 0.9  # a student holding a misconception gives its answer on an item i
 STRAY = 0.05  # a student without it gives that same wrong answer anyway
 RELAPSE = 0.1  # share of the gap to 1 that P(holds) regains between sessions
 FIXED_BELOW = 0.5  # P(holds) under this counts as fixed
+# An Eedi misconception shows only on some items in its topic, so a student holding it still
+# answers many of them right: a right answer is weak evidence against it.
+EEDI_RIGHT_IF_HELD = 0.6
+EEDI_RIGHT_IF_NOT = 0.95
 
 
 def begin_session(memory: StudentMemory, session_index: int) -> None:
@@ -60,11 +70,13 @@ def begin_session(memory: StudentMemory, session_index: int) -> None:
     memory.session_index = session_index
 
 
-def diagnosed(memory: StudentMemory, misconception_id: str) -> None:
-    """A clear diagnosis of `misconception_id` on the student's last answer."""
+def diagnosed(memory: StudentMemory, misconception_id: str, topics: Sequence[str] = ()) -> None:
+    """A clear diagnosis of `misconception_id` on the student's last answer; `topics` are the diagnosis's."""
     memory.times_diagnosed[misconception_id] = memory.times_diagnosed.get(misconception_id, 0) + 1
     if misconception_id == SLIP:
         return  # a slip is not something the student holds
+    if topics:
+        memory.topics_of[misconception_id] = sorted(set(memory.topics_of.get(misconception_id, [])) | set(topics))
     memory.p_holds[misconception_id] = max(memory.p_holds.get(misconception_id, 0.0), HOLDS_WHEN_DIAGNOSED)
     memory.next_check.setdefault(misconception_id, memory.session_index + 1)
     _note(memory, "diagnosed", misconception=misconception_id)
@@ -76,7 +88,10 @@ def answered(memory: StudentMemory, problem: Problem, answer: str, correct: bool
     diagnosis's, for a wrong answer."""
     if problem.question not in memory.worked:
         memory.worked.append(problem.question)
-    for topic in sorted(set(problem_topics(problem.question)) | set(topics)):
+    tested = set(problem_topics(problem.question))
+    if correct:
+        tested |= set(question_topics(problem.question))  # every concept it uses was used correctly
+    for topic in sorted(tested | set(topics)):
         p = memory.p_knows.get(topic, KNOWS_AT_START)
         if correct:
             p = p * (1 - SLIP_RATE) / (p * (1 - SLIP_RATE) + (1 - p) * GUESS)
@@ -89,6 +104,10 @@ def answered(memory: StudentMemory, problem: Problem, answer: str, correct: bool
     for mid, held in list(memory.p_holds.items()):
         predicted = exposes(mid, problem.question, problem.correct_answer)
         if predicted is None:
+            if correct and split_id(mid)[0] == "eedi" and tested & set(memory.topics_of.get(mid, ())):
+                memory.p_holds[mid] = held * EEDI_RIGHT_IF_HELD / (
+                    held * EEDI_RIGHT_IF_HELD + (1 - held) * EEDI_RIGHT_IF_NOT)
+                _note(memory, "rechecked", misconception=mid, item=problem.question, passed=True)
             continue
         if correct:
             likely_if_held, likely_if_not = 1 - FOLLOWS, 1 - STRAY

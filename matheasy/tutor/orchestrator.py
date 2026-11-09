@@ -190,6 +190,7 @@ class Orchestrator:
             state.follow_ups.append(FollowUp(state.probe, answer))
             if _same(answer, state.unsolved.get(state.probe.question)):
                 state.unsolved.pop(state.probe.question)
+            self._observe_probe(state, state.probe.question, answer)
             state.probe = None
 
         # diagnose
@@ -204,7 +205,7 @@ class Orchestrator:
             self.store.observe(state.memory, state.problem, answer, False,
                                topics=diagnosis.topics if diagnosis is not None else ())
         if diagnosis is not None and diagnosis.misconception:
-            self.store.record(state.memory, diagnosis.misconception)
+            self.store.record(state.memory, diagnosis.misconception, topics=diagnosis.topics)
 
         # probe or hint
         if (diagnosis is not None and diagnosis.status == "ambiguous" and diagnosis.probe is not None
@@ -219,6 +220,15 @@ class Orchestrator:
         return self._hint(state, diagnosis)
 
     # --- stages ----------------------------------------------------------------
+
+    def _observe_probe(self, state: TutorState, question: str, answer: str) -> None:
+        """A probe answer is evidence too: right counts towards its concepts, wrong against them."""
+        try:
+            correct = check_step(question, answer)
+        except ParseError:
+            return
+        probe = Problem(f"probe:{question}", state.problem.topic, question, _answer(question) or "")
+        self.store.observe(state.memory, probe, answer, correct)
 
     def _diagnose(self, state: TutorState) -> Optional[Diagnosis]:
         try:

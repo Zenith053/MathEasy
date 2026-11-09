@@ -31,8 +31,8 @@ class InMemoryStore:
     def begin_session(self, memory: StudentMemory, session_index: int) -> None:
         planner.begin_session(memory, session_index)
 
-    def record(self, memory: StudentMemory, misconception_id: str) -> None:
-        planner.diagnosed(memory, misconception_id)
+    def record(self, memory: StudentMemory, misconception_id: str, topics: Sequence[str] = ()) -> None:
+        planner.diagnosed(memory, misconception_id, topics)
 
     def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool,
                 topics: Sequence[str] = ()) -> None:
@@ -63,8 +63,8 @@ class JsonStudentStore(InMemoryStore):
         super().begin_session(memory, session_index)
         self._changed(memory)
 
-    def record(self, memory: StudentMemory, misconception_id: str) -> None:
-        super().record(memory, misconception_id)
+    def record(self, memory: StudentMemory, misconception_id: str, topics: Sequence[str] = ()) -> None:
+        super().record(memory, misconception_id, topics)
         self._changed(memory)
 
     def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool,
@@ -96,7 +96,7 @@ class NoMemoryStore:
     def begin_session(self, memory: StudentMemory, session_index: int) -> None:
         pass
 
-    def record(self, memory: StudentMemory, misconception_id: str) -> None:
+    def record(self, memory: StudentMemory, misconception_id: str, topics: Sequence[str] = ()) -> None:
         pass
 
     def observe(self, memory: StudentMemory, problem: Problem, answer: str, correct: bool,

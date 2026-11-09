@@ -53,6 +53,7 @@ class StudentMemory:
     student_id: str
     times_diagnosed: dict[str, int] = field(default_factory=dict)  # misconception ID -> count
     p_holds: dict[str, float] = field(default_factory=dict)  # misconception ID -> P(still holds it)
+    topics_of: dict[str, list[str]] = field(default_factory=dict)  # misconception ID -> its diagnosed topics
     p_knows: dict[str, float] = field(default_factory=dict)  # topic -> P(knows the skill), B's topic labels
     mistakes: dict[str, int] = field(default_factory=dict)  # topic -> wrong answers diagnosed in it
     worked: list[str] = field(default_factory=list)  # problems the student has answered
