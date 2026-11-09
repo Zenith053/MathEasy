@@ -135,6 +135,8 @@ class Tutor:
 
 
 def _source(d) -> str:
+    if d.explanation is not None and d.explanation.eedi and d.misconception:
+        return "eedi"  # picked from Eedi, even when recorded under the one rule it belongs to
     if d.misconception and d.misconception.startswith("rule:"):
         return "rule"
     if d.misconception and d.misconception.startswith("eedi:"):

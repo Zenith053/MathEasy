@@ -32,7 +32,7 @@ misconceptions:
 
   rule:fractions.natural_number_bias_numerator_only:
     text: Compares fractions by their numerators only, e.g. 3/4 < 5/8 because 3 < 5.
-    eedi: []
+    eedi: [684]
 
   rule:ratios_proportions.additive_instead_of_multiplicative:
     text: Keeps the difference between quantities instead of the ratio, e.g. 2/3 = 6/x gives x = 7.
@@ -84,7 +84,7 @@ misconceptions:
 
   rule:order_of_operations.ignore_parentheses:
     text: Ignores brackets and works from left to right, e.g. 2 × (3 + 4) = 10.
-    eedi: [1507]
+    eedi: [2488]
 
   rule:order_of_operations.addition_before_subtraction_always:
     text: Always adds before subtracting, e.g. 10 - 3 + 2 = 5.
@@ -112,7 +112,7 @@ misconceptions:
 
   rule:algebra.distribute_over_non_distributive:
     text: Squares a bracket term by term, e.g. (x + 3)^2 = x^2 + 9.
-    eedi: []
+    eedi: [729]
 
   rule:exponents.multiply_base_by_exponent:
     text: Multiplies the base by the exponent, e.g. 2^3 = 6.
@@ -148,7 +148,7 @@ misconceptions:
 
   rule:buggy_addition.carry_adds_to_same_column:
     text: Adds the carry into the same column instead of the next, e.g. 37 + 25 = 53.
-    eedi: []
+    eedi: [1383]
 
   rule:buggy_addition.carry_not_reset:
     text: Never resets the carry, adding it into every later column, e.g. 328 + 917 = 1345.
@@ -220,7 +220,7 @@ misconceptions:
 
   rule:subtraction.stops_borrow_at_zero:
     text: Stops borrowing at a 0 and takes smaller from larger, e.g. 402 - 6 = 404.
-    eedi: []
+    eedi: [1751]
 
   rule:buggy_multiplication.column_mimics_addition:
     text: Multiplies column by column like adding, e.g. 68 × 46 = 24.

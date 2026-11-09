@@ -148,6 +148,14 @@ have a tutor-format query, ranking all 2,587 names:
 - **Read with care:** 137 rows give roughly ±7 points of uncertainty. Recall@10 on
   misconceptions with no training question fell from 0.63 to 0.56, on very few rows.
 
+**Rule-to-Eedi mapping** (`bank.yaml`). 37 of the 58 rules name the Eedi misconceptions they
+match. Reviewed on 9 November 2026 against the Eedi names closest in meaning to each rule:
+`order_of_operations.ignore_parentheses` now maps to 2488 (brackets ignored) instead of 1507
+(left to right), and four rules gained a mapping (729, 684, 1383, 1751). The other 21, mostly
+column-arithmetic bugs, have no Eedi name for the same mistake. When the LLM picks an Eedi name
+that belongs to exactly one rule, the diagnosis records the rule's ID and keeps the pick in
+`explanation.eedi`, so memory counts one mistake under one ID and the rule can re-check it.
+
 v2 is `data/shortlister/adapter-3B-v2` (git-ignored, like all Eedi-derived files) and is what
 `load_ranker()` loads. The notebook is `shortlister/train_shortlister.ipynb`.
 
@@ -155,8 +163,6 @@ v2 is `data/shortlister/adapter-3B-v2` (git-ignored, like all Eedi-derived files
 
 - **Pick accuracy.** How often the LLM picks the right Eedi name from the 20, and how
   accurate `exact` and `close` picks are, has not been measured with the real model.
-- **Rule-to-Eedi mapping.** Swaraj mapped 33 of the 58 rules to Eedi IDs; several links are
-  doubtful and the mapping is not yet used to give one ID per mistake in memory.
 - **Loading time.** The ranker takes about 8 minutes to load on a 4 GB GPU.
 - **Equations.** Solve back covers lines of numbers only; equations and expressions with
   letters go straight to the LLM.

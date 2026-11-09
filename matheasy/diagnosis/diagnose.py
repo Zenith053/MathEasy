@@ -29,6 +29,8 @@ from typing import Literal, Optional, Sequence, Union
 from .eedi import EediRanker
 from .eedi import options as eedi_options
 from .explain import Explanation, explain, rule_topic
+from .bank import load_bank
+from .ids import split_id
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
 from .maths import LocatedError, Node, equivalent, locate
 from .probes import Probe, choose_probe
@@ -159,8 +161,12 @@ def diagnose(
                               options=choices)
         trace.append({"stage": "explain", "eedi_options": [mid for mid, _ in choices], **explanation.to_log()})
         if explanation.eedi is not None and explanation.kind == "misconception":
-            status, top, beliefs = "clear", explanation.eedi, {explanation.eedi: 1.0}
-            trace.append({"stage": "decide", "status": status, "misconception": top})
+            # One ID per mistake: an Eedi name that belongs to exactly one of our rules is that rule,
+            # so memory counts it with the rule's own diagnoses and the rule can re-check it later.
+            owners = load_bank().for_eedi(int(split_id(explanation.eedi)[1]))
+            top = owners[0] if len(owners) == 1 else explanation.eedi
+            status, beliefs = "clear", {top: 1.0}
+            trace.append({"stage": "decide", "status": status, "misconception": top, "eedi": explanation.eedi})
     topics = (explanation.topics if explanation is not None
               else tuple(sorted({rule_topic(m) for m in beliefs if m.startswith("rule:")})))
     return Diagnosis(status, top, beliefs, probe, located, mode, tuple(trace), explanation, topics)
