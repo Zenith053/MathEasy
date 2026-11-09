@@ -301,6 +301,209 @@ MalruleLib's code was read, never copied or run. Rules that give the same answer
 | D's `item_key()` handles the new `Word` and `Mixed` nodes | D |
 | Training and live shortlister queries in one format (7.4), including where the topic comes from | A and B |
 
+## To do
+
+Decided, but not started. Anyone in the team can pick an item up.
+
+| # | Item | Decided |
+|---|---|---|
+| T1 | No MalruleLib rule is held back | 2026-11-09 (team leader, final) |
+| T2 | Rules for bracket and like-term mistakes | 2026-11-09 |
+| T3 | Testing with only the diagnoser's LLM off | 2026-11-09 |
+| T4 | B0 on LangChain/LangGraph | 2026-11-09 |
+| T5 | B1 on LangGraph | 2026-11-09 |
+| T6 | Every hint rejected: wrong misconception given to the hinter, and a critic that is too strict | 2026-11-09 |
+| T7 | Group near-duplicate Eedi names | 2026-11-09 |
+| T8 | The LLM's own "slip" verdict becomes a slip diagnosis | 2026-11-09 |
+| T9 | Slips from counting each rule's right and wrong uses | 2026-11-09 |
+
+### T1. No MalruleLib rule is held back
+
+**Decision (final).** Every MalruleLib rule may now go into the bank. Until now, D set aside 10 rules (`eval/held_back_rules.json`) so the evaluation could test diagnosis on misconceptions the rules never saw:
+
+| Group | Held back until now |
+|---|---|
+| fractions | `fractions.denominator_comparison_error`, `fractions.subtract_across`, `ratios_proportions.each_fraction_digit_is_ratio` |
+| decimals | `decimals.right_align_decimals`, `decimals.shorter_is_larger`, `percentages.percentage_as_index` |
+| expressions | `algebra.change_side_change_sign`, `negative_numbers.multiplication_rule_for_addition`, `negative_numbers.negative_swaps_operation`, `negative_numbers.two_negatives_always_positive` |
+
+**What has to change.**
+- **Code that refuses them.** `diagnosis/rules/__init__.py` (`held_back_rules()`, `HeldBackRuleError`) and `diagnosis/bank.py` refuse these names. Remove the check, or empty the list.
+- **The 10 rules themselves.** They were never written, because they were refused. Each needs a rule function that follows MalruleLib's `calculate_expected_answer()` (decision 8), a `bank.yaml` entry with its Eedi ID, a topic, and tests. A rule that ties with an existing rule needs probe items (`eval/build_probes.py`).
+- **Evaluation code that uses the held-back set.** Update or retire these: `evaluation/held_back.py`, `metrics.py`, `students.py`, `prepost.py`, `adversarial.py`, `log_fields.py`, `eval/select_held_back.py`, `eval/match_eedi.py`, `eval/eedi_pick.py`, and their tests (`test_evaluation*.py`, `test_metrics.py`, `test_students_week2.py`, `test_b1.py`, `test_diagnosis_rules.py`).
+- **"Unseen misconception" results need a new source.** The held-back rules were how we measured the Eedi and LLM stage on mistakes no rule covers. Use instead mistakes no rule covers at all, for example Eedi misconceptions with no MalruleLib counterpart, or the bracket cases in T2 measured before their rules are added.
+- **Docs.** `docs/diagnosis_rules.md`, `docs/Mid_Submission_Report.md` and this file (sections 7.3 and 8) mention the held-back set.
+
+### T2. Rules for bracket and like-term mistakes
+
+**The problem.** Our 58 rules re-implement MalruleLib (decision 8), and MalruleLib has no rule for the most common bracket mistakes. Its whole algebra folder is six rules: `cancel_across_equals`, `change_side_change_sign`, `distribute_over_non_distributive`, `divide_one_term_only`, `forget_negative_division` and `variable_letter_has_value`. `distribute_over_non_distributive` is a different mistake: spreading an operation that does not spread, such as a square root over a sum. Measured on the current code:
+
+| Student's step | Today |
+|---|---|
+| `2(x + 3) → 2x + 3` | `unknown` |
+| `-(x + 1) → -x + 1` | `unknown` |
+| `2(x + 3) - (x + 1) → 2x + 3 - x + 1` | `unknown` (two mistakes in one line) |
+
+**What that costs.**
+- **With the LLM on,** each such step costs one LLM call, and the result depends on the model's reading and on the Eedi pick. These steps should be found exactly and for free.
+- **With the LLM off,** nothing is found. The step has no misconception and no topic, the student's memory does not change, and the hint is the general template (see T3).
+
+**The rules to add.** Each takes the student's expression and returns the answer the mistake predicts, or `None` when it does not apply, like every other rule (`diagnosis/rules/`). Use `rewrite()` from `rules/_common.py`, so a rule also fires on a bracket inside a longer line.
+
+| Proposed name | The mistake | Example: question → what the rule predicts |
+|---|---|---|
+| `brackets.multiply_first_term_only` | multiplies only the first term inside the bracket | `2(x + 3)` → `2x + 3`; `3(a - b + 4)` → `3a - b + 4` |
+| `brackets.minus_first_term_only` | a minus in front of a bracket changes only the first term's sign | `-(x + 1)` → `-x + 1`; `5 - (x - 2)` → `5 - x - 2` |
+| `brackets.negative_multiplier_first_term_only` | multiplies by the size of a negative number but applies its sign only to the first term | `-2(x - 3)` → `-2x - 6` (right: `-2x + 6`) |
+| `like_terms.add_letters_as_powers` | adds like terms by multiplying the letters | `x + x` → `x^2`; `2x + 3x` → `5x^2` |
+| `like_terms.combine_unlike_terms` | adds a number to a letter term | `3x + 2` → `5x`; `4a + 3b` → `7ab` |
+
+**How they must fit with what exists.**
+- **Names.** These are our own rules, not MalruleLib's. Decision 8 says the rules keep MalruleLib's names, so update it: rules with no MalruleLib counterpart use the groups `brackets.` and `like_terms.`, which MalruleLib does not use, and are marked as ours. Check that `rule_id()` accepts the new groups.
+- **Topics.** Add the groups to `_GROUP_TOPIC` in `diagnosis/explain.py`: `brackets` → `expanding_brackets`, `like_terms` → `collecting_like_terms`. `test_every_rule_has_a_topic_in_the_list` checks this.
+- **Eedi.** Give each rule its Eedi ID in `bank.yaml` (Eedi has names for most of these mistakes; `eval/match_eedi.py` helps find them), so an Eedi pick of the same mistake is recorded as the rule (one ID per mistake).
+- **The slip check.** `diagnosis/slips.py` stays as it is. A rule describes a *consistent* mistake: `2(x + y + z) → 2x + y + z` (no term after the first multiplied) is `multiply_first_term_only`. The slip check describes an *inconsistent* one: `−2(x + y − z − k) → −2x − 2y + 2z − 2k` (−z right, −k wrong) is a slip. Rules run first, and the slip check only runs when no rule fits, so the two do not overlap. Add one test of each kind.
+- **Ties and probes.** If a new rule gives the same answer as an existing rule on some question, the two tie. `eval/build_probes.py` must find a probe that tells them apart, or they are twins (decision 8).
+- **Tests.** Follow `tests/test_diagnosis_rules.py`. For each rule: the examples above, a case where it returns `None`, and the whole step diagnosed through `diagnose()`.
+
+**What "done" means.** The first two steps in the first table are diagnosed `clear` by a rule, with no LLM call, and the full suite passes. The third has two mistakes in one line, so no single rule fits it (multiple misconceptions are future work). With the LLM on, though, each step of the model's reconstructed working is then matched by a rule.
+
+### T3. Testing with only the diagnoser's LLM off
+
+**Why.** One switch (`--llm` in the page and the runner) turns the LLM on or off for everything: reading the student's lines, diagnosis (the explainer, and through it the Eedi pick), the hinter and the critic. To learn what the LLM adds *to diagnosis alone*, turn off only the diagnoser and keep everything else the same. This comparison is rules, solve back and the slip check, against all of those plus the LLM.
+
+**What to build.**
+- A switch, for example `--no-llm-diagnosis`, in `ui/__main__.py` and `tutor/runner.py`. It calls `diagnose()` with `session=None`, while the transcriber, hinter and critic keep their session. With the LLM off for diagnosis, the Eedi ranker is unused (it only supplies the LLM's options), so it need not be loaded.
+- **A known gap to fix first.** When no rule matches and the diagnoser's LLM is off, the diagnosis has no topics. The wrong answer then changes nothing in the student's memory: no mastery update, nothing on the chart, no Revise card and no similar problems. Fix: when nothing names a topic, take the topics from the wrong part that `locate()` found, using `question_topics()` (`diagnosis/topics.py`), which correct answers already use for credit. For example, `2(x + 3)` gives `expanding_brackets` and `algebraic_notation`. For a line turned into one number, use solve back's wrong piece: `5 × 6 → 26` gives `whole_number_arithmetic`.
+
+**What to measure, with the diagnoser's LLM on and off.**
+- share of wrong steps diagnosed `clear`, `ambiguous` and `unknown`;
+- diagnosis accuracy on steps whose misconception is known (rule-generated items);
+- topics named per wrong step, and how often memory changed;
+- hint critic pass rate, and how often the safe template was used;
+- LLM calls and tokens per session.
+
+Run it before and after T2, since the bracket rules should move many `unknown` steps to `clear`.
+
+### T4. B0 on LangChain/LangGraph
+
+B0 (`tutor/baselines.py`, `B0Tutor`) is one prompted tutor: each turn it reads the student's line, makes one LLM call, and sends the message. In LangGraph it is a small `StateGraph`: a reading node, a tutor node (the LLM call) and a delivery node, with the conversation kept in the graph's state.
+
+- **Every model call stays on our client.** Calls must go through our `LLMClient` session (`state.llm.call`), wrapped as a LangChain chat model if LangChain is used, so that the per-session token budget, the cache and the run logs stay exactly as they are. Do not use LangChain's own Gemini wrapper: it skips all three, and the conditions would no longer be comparable.
+- **Same outputs as now.** Keep B0's prompt, schema and log records (`diagnosis` with `stated_misconception`, and `hint`), so the evaluation metrics read it unchanged. Port B0's tests and re-run the B0 baseline.
+- Pin the `langchain-core` and `langgraph` versions in `requirements.txt`.
+
+### T5. B1 on LangGraph
+
+Rebuild `B1Agent`'s tool loop as a LangGraph `StateGraph`: an agent node (the LLM call), a tool node, and the message step, joined by a conditional edge on the reply's `action`, with at most `MAX_TOOL_CALLS` tool calls. The same rules as T4 apply:
+- every model call goes through our `LLMClient` session;
+- every tool call goes through `ToolBox.call`, which the tool-call metric reads;
+- the versions are pinned.
+
+Port `tests/test_b1.py` and re-run the B1 baseline. Only the baselines use LangGraph; the full tutor and diagnosis stay as plain code.
+
+### T6. Every hint rejected: wrong misconception given to the hinter, and a critic that is too strict
+
+**The case** (page, LLM and Eedi on). The question is `1/2 + 1/3 + 1/6 + 2^2` (answer 5), and the student wrote `1`: the fractions are right (they sum to 1), but `2^2 = 4` was dropped. The hinter wrote three hints, and the LLM critic rejected all three, so the student got the safe template. Attempt 2 was a good hint:
+
+> You correctly identified that the fractions add up to 1, but you still need to include the value of the exponent. Remember that 2^2 means 2 multiplied by itself. What is the total value when you add 1 to the result of 2^2?
+
+The critic rejected it with "gives away the result of the fraction addition", "gives away the result of the exponent calculation" and "performs the final addition for the student". Attempts 1 and 3 were about "any number divided by itself is one" and were rightly rejected as not relevant.
+
+**What happened, from the LLM logs (`runs/llm_logs/ui.jsonl`) and the attempt saved in the page database.**
+1. **The explainer misread the step, and code caught it.** Its reconstructed working marked `1/2 + 1/3 + 1/6 + 4 → 1 + 4` as the mistake, which is a correct step, and marked `1 + 4 → 1`, which is the real mistake, as right. `_reading()` therefore returned `unverified` ("step … is right, but the model says it is a mistake").
+2. **The Eedi pick was used anyway (a bug in diagnosis).** `diagnose()` takes the explainer's Eedi pick whenever `kind == "misconception"` (`diagnosis/diagnose.py`, the `elif explanation.eedi is not None …` branch), without checking that the explanation is `verified`. So the step was recorded as `eedi:413`, "Believes that n/n = n, instead of 1". That misconception was unrelated, and even contradicted by the student's work, but it was passed to the hinter and to the critic as the diagnosis.
+3. **The hinter was told to aim at that misconception.** Attempts 1 and 3 did, and the critic correctly rejected them (rule 3: aimed at the misconception, but it does not fit). Attempt 2 ignored it and addressed the real mistake.
+4. **The critic's rule 2 is read too strictly.** It forbids "work out the correct result of the step". The critic only sees the question, the correct answer, the student's answer, the misconception and the hint. It cannot see that the student already has `1` for the fractions, so restating the student's own right result looks to it like giving the answer away. Explaining what `2^2` means (not its value) was counted as a leak too.
+5. **The rewrite loop cannot recover.** Each rewrite gets the critic's reasons, but the wrong misconception stays in the hinter's prompt. So after `MAX_REWRITES` (2) it ends on the safe template.
+
+**What to fix.**
+1. **Use an Eedi pick only from a verified explanation.** In `diagnose()`, require `explanation.status == "verified"` before an Eedi pick becomes the diagnosis. Consider requiring `eedi_fit == "exact"` too: the pick test (`eval/eedi_pick.py`) found exact picks acceptable 13 of 14 times, but close picks only 3 of 8. Otherwise the misconception is `None`, and the hinter gets "not known".
+2. **Give the critic what the student got right.** Add "What went wrong" (the located part, as the hinter already gets) and, when known, the parts of the student's work that are right, to the critic's prompt. Reword rule 2: the hint must not give the final answer or the corrected result of the *wrong* part. It may restate what the student already worked out correctly, and explain what a notation means (`2^2` means 2 × 2) without giving its value.
+3. **Tell the hinter how sure the diagnosis is.** Pass the misconception's source and confidence in `HintRequest`: a rule reproduces the step exactly, or an Eedi pick (exact or close), or none. When it is not certain, the hinter should aim at the located mistake and treat the misconception as a possibility only. The critic's rule 3 should then not require the hint to aim at an uncertain misconception.
+4. **Let a rewrite drop the misconception.** If the critic says the misconception is not relevant, the next attempt should be written without it ("help the student check their own work"), instead of being told to aim at it again.
+
+**Test.** Add this case as a regression test with scripted model replies:
+- the explainer's unverified working above must not produce an Eedi diagnosis;
+- attempt 2's hint must pass a critic given the new inputs.
+
+Then check it once on the real model, which costs at most about 6 calls.
+
+### T7. Group near-duplicate Eedi names
+
+**Why.** The LLM picks one Eedi name from the shortlister's 20 (`EEDI_K`). Eedi has many names that describe the same mistake in slightly different words. They take up places in the 20, split the model's choice, and make a right pick look wrong in evaluation. In the pick test (`eval/eedi_pick.py`, 22 cases), the right name was in the list 16 times, but the pick matched it exactly only 5 times, while 16 picks were judged acceptable. Much of that gap is near-duplicates.
+
+**Measured, and why grouping by similarity alone is wrong.** Using the saved name vectors (927 live candidates), 113 pairs have a cosine similarity above 0.90, touching 143 names (above 0.95: 28 pairs). But high similarity does not mean the same mistake. Even pairs above 0.98 are often different, or opposite, beliefs:
+
+| Similarity | Pair | Same mistake? |
+|---|---|---|
+| 0.977 | "Carries out operations from left to right regardless of priority order" / "…, unless brackets are used" | yes |
+| 0.954 | ratio: "uses the difference as the total" / "…as the total for one side instead" | yes |
+| 0.983 | subtracting fractions: "subtracts the numerators and denominators" / "subtracts the numerators and multiplies the denominators" | **no** |
+| 0.984 | eliminating a variable: "the operation inverse to the sign" / "the operation matching the sign" | **no, opposites** |
+
+Merging by a similarity threshold would merge different misconceptions, which is worse than not grouping.
+
+**What to do.**
+1. **Find candidate pairs.** Use vector similarity above 0.90, plus large wording overlap.
+2. **Judge each pair** "same mistake or not", and have a second person check the list. Do this by hand (about 113 pairs) or with an LLM in batches, then check by hand.
+3. **Use the groups.**
+   - Write them to a group file. It stays out of git, like every Eedi-derived file.
+   - In `eedi.options()`, show one name per group and give the freed places to the next names.
+   - A pick counts as its group, both in the diagnosis and in evaluation.
+   - `bank.for_eedi()` checks every member of a group, so a rule mapped to one member owns the group.
+4. **Re-score** the 22 existing pick results counting group matches (no API calls). Re-running the pick test live is optional (22 calls).
+
+Time: about 1 to 1.5 hours.
+
+### T8. The LLM's own "slip" verdict becomes a slip diagnosis
+
+**Why.** The explainer returns `kind`: `misconception` or `slip`. Today a verified explanation with `kind == "slip"` gives *no* misconception at all. The diagnosis is `unknown`, so the tutor treats the mistake as unexplained, rather than as a careless slip. Example: `7 × 8 + 6 → 60` (a times-table slip, 7 × 8 taken as 54). Code already turns two kinds of evidence into a slip:
+- the bracket check (`diagnosis/slips.py`);
+- wrong steps in the LLM's working that are all bracket slips.
+
+The LLM's own verdict is not used.
+
+**What to do.** In `diagnose()`, after the checks on the LLM's working: if the explanation is `verified`, `kind == "slip"`, and no rule reproduces any of its wrong steps, then the diagnosis is `slip`. Add a trace stage `slip` whose reason is the explainer's `mistake` text, so the page's "Why a slip" card shows it. An unverified explanation changes nothing. The slip handling already exists: mastery moves by a quarter of a normal mistake (`SLIP_WEIGHT`), the mistake is not recorded as a habit, and the hint is general.
+
+**Check.** A test with a scripted model reply: verified with `kind: slip`, unverified with `kind: slip`, and verified with `kind: slip` where a rule reproduces a step (the rule wins). Time: about 15 to 20 minutes.
+
+### T9. Slips from counting each rule's right and wrong uses
+
+**Why.** A misconception is applied the same way every time; a slip is not. If the same student does an operation right in one place and wrong in another *in the same answer*, the wrong one is probably a slip. Today only brackets are checked this way (`slips.py`). This item generalises the idea to all the rules.
+
+**The idea: count chances, not mistakes.** For every part of every step, each rule that would give a wrong answer there is a *chance* to make that mistake. Every rule returns `None` where its mistake does not apply, so there is no table of which rule goes with which operation: running all the rules on a part finds its chances. Measured: about 290 rule runs per line, in under 0.2 s. Each chance then becomes:
+- **right**, when the student worked that part out and got it right: the step is correct, or the part is outside the part `locate()` found wrong. A part copied unchanged to the next line was not worked out, and is not counted;
+- **wrong**, when the rule reproduces what the student wrote for that part.
+
+Per rule, over the whole answer:
+
+| Right | Wrong | Verdict |
+|---|---|---|
+| ≥ 1 | 1 | slip |
+| 0 | ≥ 1 | misconception |
+| any | ≥ 2 | misconception (repeated) |
+
+**What works today, tried on the current code.**
+
+| Case | Example | Works? |
+|---|---|---|
+| Across steps | line 1 `1/2 + 1/3 + 1/4 → 5/6 + 1/4` (right); line 2 `5/6 + 1/4 → 6/10` (wrong) | yes: line 2 matches `fractions.add_numerators_denominators`, and the same rule fires on `1/2 + 1/3` in line 1 |
+| Same line, letter terms | `x^2 × x^3 + x^4 × x^2 → x^5 + x^8` | yes: `locate()` sets aside `x^5` as right, and the rule catches `x^4 × x^2 → x^8` |
+| Same line, numbers | `1/2 + 1/3 + 1/4 + 1/5 → 5/6 + 2/9` | no: numbers combine, so the line is not split into parts (it needs the line-splitting in `docs/plan_multiple_misconceptions.md`) |
+| A mistake no rule covers | the sign error in `−2 × −k` | no: the bracket check stays for it, and T2's rules would add more chances |
+
+**Three details the trial showed.**
+1. **Count each chance once, at the smallest part.** Rules apply wherever they fit inside an expression, so `multiply_base_by_exponent` also fires on a whole line that contains `2^3`.
+2. **Skip typed fractions.** `1/2` is a number, not a division, but `divide_larger_by_smaller_always` treats it as one. Solve back already skips fractions this way.
+3. **Equation rules** (`divide_one_term_only` and others) fire on the whole equation. They count once per line.
+
+**Where it goes.**
+- `rule_uses(chain)` in `diagnosis/slips.py`, called once per answer by the page (`ui/__main__.py`) and the orchestrator.
+- Optionally, keep the counts in the student's memory too. Then a suspected misconception fades only after a right answer where that rule actually had a chance to fire, instead of after any right answer in its topic, as now.
+
+No LLM call is needed. Time: about half a day, with tests.
+
 ## Future work
 
 | Item | Why it is not done now | Plan |
