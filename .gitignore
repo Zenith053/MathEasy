@@ -8,6 +8,7 @@ runs/
 
 # Role A: Eedi (competition rules: never re-upload) and OpenStax downloads, rebuilt by the scripts
 data/
+/data
 
 # Role B: local copy of MalruleLib (non-commercial, share-alike licence: never commit)
 Dataset/

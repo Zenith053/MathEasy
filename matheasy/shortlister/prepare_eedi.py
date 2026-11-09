@@ -23,6 +23,7 @@ Usage: python -m matheasy.shortlister.prepare_eedi
 
 import json
 import random
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -85,6 +86,35 @@ TOPICS = {
 }
 
 
+# Question form. The tutor takes typed maths only, so a question whose meaning is in
+# sentences or a picture can never look like a live query. Rows are kept in the
+# files (the split is unchanged) and marked, so training and scoring can leave them out.
+WORD_LIMIT = 12  # words of 3+ letters outside the maths; more makes a word problem
+_MATHS = re.compile(r"\\\(.*?\\\)|\\\[.*?\\\]", re.S)
+_PICTURE = re.compile(r"!\[|diagram|shaded|picture|image|shown|grid|bar model|number line|table", re.I)
+_JUDGEMENT = re.compile(r"who is correct|tom says|katie says|discussing|arguing", re.I)  # "Only Tom" answers
+
+
+def _words(text) -> list[str]:
+    """Words of 3+ letters outside the LaTeX maths."""
+    return re.findall(r"[A-Za-z]{3,}", _MATHS.sub(" ", text if isinstance(text, str) else ""))
+
+
+def question_form(text) -> str:
+    """'calculation', 'word problem' or 'diagram'."""
+    text = text if isinstance(text, str) else ""
+    if _PICTURE.search(text):
+        return "diagram"
+    if _JUDGEMENT.search(text) or len(_words(text)) > WORD_LIMIT:
+        return "word problem"
+    return "calculation"
+
+
+def answer_is_maths(text) -> bool:
+    """False for an answer in words: 'Only Tom', 'Neither is correct', 'term'."""
+    return not _words(text)
+
+
 def load():
     train = pd.read_csv(RAW / "train.csv")
     names = pd.read_csv(RAW / "misconception_mapping.csv")
@@ -93,6 +123,7 @@ def load():
     assert not missing, f"subjects not in Eedi: {missing}"
     q = train[train.SubjectName.isin(subject_topic)].copy()
     q["Topic"] = q.SubjectName.map(subject_topic)
+    q["Form"] = q.QuestionText.map(question_form)
     return q, names
 
 
@@ -124,6 +155,7 @@ def to_pairs(questions, names):
                 "QuestionId": r.QuestionId,
                 "Split": r.Split,
                 "Topic": r.Topic,
+                "Form": r.Form if answer_is_maths(r[f"Answer{opt}Text"]) else "word answer",
                 "SubjectName": r.SubjectName,
                 "ConstructName": r.ConstructName,
                 "QuestionText": r.QuestionText,
@@ -151,7 +183,9 @@ def report(questions, pairs, ids):
               f"have a misconception never seen in train")
     overlap = set(ids["train"]) & (set(ids["val"]) | set(ids["test"]))
     assert not overlap, f"questions in more than one split: {overlap}"
-    print("no question appears in more than one split")
+    print("no question appears in more than one split\n")
+    print("labelled wrong answers by question form (only 'calculation' can look like a live query):")
+    print(pd.crosstab(pairs.Form, pairs.Split, margins=True)[["train", "val", "test", "All"]].to_string())
 
 
 if __name__ == "__main__":
