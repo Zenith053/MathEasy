@@ -221,7 +221,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             parser.error("--eedi needs --llm: the LLM fallback picks the Eedi misconception")
         eedi_ranker = load_ranker()
         if eedi_ranker is None:
-            parser.error("--eedi: the shortlister did not load (needs torch, a GPU and data/shortlister/adapter-3B-llm)")
+            parser.error("--eedi: the shortlister did not load (needs torch, a GPU and data/shortlister/adapter-3B-v2)")
     # The judge is replaced per session. --students keeps runs small: the first N of each kind.
     students = roster(keyword_judge, slip_only=SLIP_ONLY, relapse_rate=args.relapse)[i::n][:args.students]
     if args.per_attack:

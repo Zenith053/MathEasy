@@ -14,7 +14,8 @@ wrong step
   1. rules on the located change                     code  → clear / ambiguous
   2. solve back (lines of numbers only)              code  → the one operation that went wrong
      rules on that piece                             code  → clear / ambiguous
-  3. LLM fallback, explain() (only with a session)   LLM   → mistake, explanation, topics
+  3. Eedi names (only with a ranker)                 local model → the 20 closest Eedi misconceptions
+     LLM fallback, explain() (only with a session)   LLM   → mistake, explanation, topics, Eedi pick
      the model's working checked step by step        code  → verified / unverified
 ```
 
@@ -47,6 +48,15 @@ Code then checks the working:
   jump onto the student's line fails.
 
 Rules run on each wrong step, and a topic a rule confirms is added for certain.
+
+**Eedi misconceptions** (`matheasy/diagnosis/eedi.py`). With an `eedi_ranker` (the trained
+shortlister, from `load_ranker()`), stage 3 first ranks Eedi's misconception names against the
+step's query and passes the 20 closest in-topic names to the same LLM call. No extra call is
+made. The model always picks the closest name, since a near concept helps a student more than
+no answer, and says whether it fits `exact` or is only the `close`st offered
+(`Explanation.eedi_fit`). A pick becomes the diagnosis, `eedi:<n>`, so the tutor shows it,
+aims the hint at it, searches the textbook with it and records it in the student's memory, as
+for a rule. A slip, or a step the model calls unclear, gets no Eedi misconception.
 
 **Topics** (`TOPICS` in `explain.py`). The list is the rule groups, with two changes:
 column arithmetic is one topic, and algebra is split into notation, expanding brackets,
@@ -105,11 +115,49 @@ Precision is the share of all topics named that are the true topic.
 - `85 - 23 + 5 - 3 → 54`, from the rules: a column-subtraction bug and an
   order-of-operations rule give the same answer.
 
+## The shortlister: run 3 against v2
+
+The shortlister ranks Eedi names for stage 3. Run 3 (Swaraj's model) was trained on Eedi's
+own query format and did much worse on the tutor's maths-only queries. v2 is the same model
+(Qwen2.5-3B-Instruct with a QLoRA adapter, LoRA rank 16) retrained on Kaggle on 9 November
+2026 with these changes:
+
+| | Run 3 | v2 |
+|---|---|---|
+| Training rows | all 1,038 Eedi rows | the 626 calculation rows (no word problems, diagrams or word answers) |
+| Query format | Eedi's | Eedi's plus a tutor-format copy of 294 rows |
+| Best epoch chosen by | MAP@25, Eedi-format val | Recall@25, both formats of val |
+| Epochs, batch, query length | 3, 8, 512 tokens | 6, 16, 256 tokens |
+| LLM-written examples | yes | yes |
+
+Scored by `shortlister/score_baseline.py` on the 137 val and test calculation steps that
+have a tutor-format query, ranking all 2,587 names:
+
+| Tutor-format queries | Run 3 | v2 |
+|---|---|---|
+| Right misconception first | 0.07 | **0.20** |
+| In the top 10 | 0.47 | **0.61** |
+| In the top 25 | 0.62 | **0.78** |
+| In the top 50 | 0.72 | **0.90** |
+
+- **Eedi-format queries did not get worse:** top 25 went from 0.87 to 0.90.
+- **On test rows only,** which played no part in choosing the epoch, v2's tutor-format
+  top-25 recall is 0.78 (82 rows): the gain is not from the epoch choice.
+- **The in-topic list helps v2 a little:** 0.82 in the top 25 with the 972 in-topic names
+  against 0.78 with all names, so the live link keeps it.
+- **Read with care:** 137 rows give roughly ±7 points of uncertainty. Recall@10 on
+  misconceptions with no training question fell from 0.63 to 0.56, on very few rows.
+
+v2 is `data/shortlister/adapter-3B-v2` (git-ignored, like all Eedi-derived files) and is what
+`load_ranker()` loads. The notebook is `shortlister/train_shortlister.ipynb`.
+
 ## Not done
 
-- **Orchestrator (C).** It does not pass `session` and `question` to `diagnose()` yet, so
-  the tutor never calls the fallback. It also reads the line with `extract_answer()`, not
-  `transcribe()`.
+- **Pick accuracy.** How often the LLM picks the right Eedi name from the 20, and how
+  accurate `exact` and `close` picks are, has not been measured with the real model.
+- **Rule-to-Eedi mapping.** Swaraj mapped 33 of the 58 rules to Eedi IDs; several links are
+  doubtful and the mapping is not yet used to give one ID per mistake in memory.
+- **Loading time.** The ranker takes about 8 minutes to load on a 4 GB GPU.
 - **Equations.** Solve back covers lines of numbers only; equations and expressions with
   letters go straight to the LLM.
 - **Topic check in code.** Decide which of the LLM's topics are worth keeping.

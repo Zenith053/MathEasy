@@ -5,7 +5,7 @@ A bi-encoder from train_shortlister.ipynb: the query and the names are embedded 
 the same model and ranked by cosine similarity. It has the same signature as the
 BM25 shortlist(), so it plugs straight into B's EediShortlister:
 
-  ranker = ModelShortlister("data/shortlister/adapter-3B-llm")
+  ranker = ModelShortlister("data/shortlister/adapter-3B-v2")
   diagnose(before, after, shortlister=EediShortlister(ranker))
 
 Uses the same 4-bit setup as training on a GPU, and full precision on a CPU (slower,

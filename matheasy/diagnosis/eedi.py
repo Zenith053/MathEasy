@@ -25,7 +25,9 @@ from .maths import LocatedError
 
 EEDI_K = 20      # names the LLM chooses from: more names, more chance the right one is there
 RANK_DEPTH = 80  # names asked of the ranker, so that EEDI_K in-topic ones are left after filtering
-ADAPTER = Path(__file__).resolve().parents[2] / "data" / "shortlister" / "adapter-3B-llm"
+# v2: trained on calculation steps in the tutor's own query format (docs/diagnosis_fallback.md).
+# Run 3, the earlier model, is data/shortlister/adapter-3B-llm: pass it to load_ranker() to compare.
+ADAPTER = Path(__file__).resolve().parents[2] / "data" / "shortlister" / "adapter-3B-v2"
 
 
 class EediRanker(Protocol):
