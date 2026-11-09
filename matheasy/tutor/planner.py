@@ -11,6 +11,10 @@ update functions; the experiment runner calls plan() before each session.
                             question_topics()), so a concept no rule covers is credited
                             too. A topic is mastered at MASTERED.
     Mistakes per topic      a count of the wrong answers diagnosed in each topic.
+    Slips                   is_slip(): a wrong answer whose concepts the student has all
+                            mastered, with no misconception they are suspected of, is a
+                            slip. It lowers mastery at SLIP_WEIGHT of a mistake, is not
+                            counted as a mistake, and is recorded as SLIP, not as a habit.
     P(holds misconception)  per misconception ID: set high by a clear diagnosis,
                             then updated by Bayes' rule whenever the student answers
                             an item that the misconception gets wrong: down for the
@@ -57,6 +61,7 @@ RELAPSE = 0.1  # share of the gap to 1 that P(holds) regains between sessions
 FIXED_BELOW = 0.5  # P(holds) under this counts as fixed
 # An Eedi misconception shows only on some items in its topic, so a student holding it still
 # answers many of them right: a right answer is weak evidence against it.
+SLIP_WEIGHT = 0.25  # a slip moves mastery a quarter as far as a mistake
 EEDI_RIGHT_IF_HELD = 0.6
 EEDI_RIGHT_IF_NOT = 0.95
 
@@ -82,10 +87,19 @@ def diagnosed(memory: StudentMemory, misconception_id: str, topics: Sequence[str
     _note(memory, "diagnosed", misconception=misconception_id)
 
 
+def is_slip(memory: StudentMemory, topics: Sequence[str], misconception: Optional[str]) -> bool:
+    """A wrong answer on concepts the student has mastered, with no misconception they are
+    suspected of holding: a careless mistake, not a gap."""
+    named = [t for t in topics if t != "other"]
+    if not named or not all(mastered(memory, t) for t in named):
+        return False
+    return not (misconception and memory.p_holds.get(misconception, 0.0) >= FIXED_BELOW)
+
+
 def answered(memory: StudentMemory, problem: Problem, answer: str, correct: bool,
-             topics: Sequence[str] = ()) -> None:
-    """The student answered `problem` (not a probe or a test item). `topics` are the
-    diagnosis's, for a wrong answer."""
+             topics: Sequence[str] = (), slip: bool = False) -> None:
+    """The student answered `problem`. `topics` are the diagnosis's, for a wrong answer;
+    `slip` marks a wrong answer is_slip() judged careless."""
     if problem.question not in memory.worked:
         memory.worked.append(problem.question)
     tested = set(problem_topics(problem.question))
@@ -94,10 +108,14 @@ def answered(memory: StudentMemory, problem: Problem, answer: str, correct: bool
     for topic in sorted(tested | set(topics)):
         p = memory.p_knows.get(topic, KNOWS_AT_START)
         if correct:
-            p = p * (1 - SLIP_RATE) / (p * (1 - SLIP_RATE) + (1 - p) * GUESS)
+            updated = p * (1 - SLIP_RATE) / (p * (1 - SLIP_RATE) + (1 - p) * GUESS)
         else:
-            p = p * SLIP_RATE / (p * SLIP_RATE + (1 - p) * (1 - GUESS))
-        memory.p_knows[topic] = p + (1 - p) * LEARN
+            updated = p * SLIP_RATE / (p * SLIP_RATE + (1 - p) * (1 - GUESS))
+        if slip:
+            updated = p + SLIP_WEIGHT * (updated - p)
+        memory.p_knows[topic] = updated + (1 - updated) * LEARN
+    if slip:
+        return  # not a mistake in the topic, and no evidence about any misconception
     for topic in set(topics):
         memory.mistakes[topic] = memory.mistakes.get(topic, 0) + 1
 

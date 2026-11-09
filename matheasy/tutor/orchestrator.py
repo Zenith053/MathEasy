@@ -29,11 +29,12 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from ..diagnosis import (
-    FollowUp, ParseError, Transcription, check_step, diagnose, equivalent, parse, resolve, transcribe,
+    SLIP, FollowUp, ParseError, Transcription, check_step, diagnose, equivalent, parse, resolve, transcribe,
 )
 from ..diagnosis import Diagnosis
 from ..evaluation import correct_answer
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
+from . import planner
 from .analysis import analyse, mistake
 from .mathtext import EDGE_WORDS, maths_runs
 from .parts import Critic, Hinter, StudentStore
@@ -200,11 +201,17 @@ class Orchestrator:
             self.log.log(state, "diagnosis", turn=answered_turn, follow_ups=len(state.follow_ups),
                          read=reading.to_log() if reading.used_llm else None, **diagnosis.to_log())
 
-        # remember: the planner updates the student model and schedules re-checks from it
+        # remember: the planner updates the student model and schedules re-checks from it.
+        # A mistake on mastered concepts with no suspected misconception is a slip, not a habit.
+        slip = fresh and diagnosis is not None and (
+            diagnosis.misconception == SLIP  # inconsistent within the step (diagnosis/slips.py)
+            or planner.is_slip(state.memory, diagnosis.topics, diagnosis.misconception))
         if fresh:
             self.store.observe(state.memory, state.problem, answer, False,
-                               topics=diagnosis.topics if diagnosis is not None else ())
-        if diagnosis is not None and diagnosis.misconception:
+                               topics=diagnosis.topics if diagnosis is not None else (), slip=slip)
+        if slip:
+            self.store.record(state.memory, SLIP, topics=diagnosis.topics)
+        elif diagnosis is not None and diagnosis.misconception:
             self.store.record(state.memory, diagnosis.misconception, topics=diagnosis.topics)
 
         # probe or hint
@@ -217,7 +224,7 @@ class Orchestrator:
             if reply.kind == "safe_template":
                 state.probe = None  # the probe was never asked
             return reply
-        return self._hint(state, diagnosis)
+        return self._hint(state, diagnosis, slip=slip)
 
     # --- stages ----------------------------------------------------------------
 
@@ -243,7 +250,7 @@ class Orchestrator:
         except ParseError:
             return None
 
-    def _hint(self, state: TutorState, diagnosis: Optional[Diagnosis]) -> TutorReply:
+    def _hint(self, state: TutorState, diagnosis: Optional[Diagnosis], slip: bool = False) -> TutorReply:
         # A clear diagnosis, or a verified LLM reading of an unknown step, gets a targeted
         # hint. Ambiguous after the follow-up limit, unexplained, or no diagnosis gets a general one.
         located = diagnosis.located if diagnosis is not None else None
@@ -252,7 +259,7 @@ class Orchestrator:
             topic=state.problem.topic,
             question=state.problem.question,
             student_answer=state.wrong_answer,
-            misconception=mistake(diagnosis, state.problem) if diagnosis is not None else None,
+            misconception=mistake(diagnosis, state.problem) if diagnosis is not None and not slip else None,
             wrong_part=f"{located.source} became {located.wrong}" if located else None,
         )
         state.probe = None
