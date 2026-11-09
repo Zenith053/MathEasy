@@ -11,8 +11,14 @@ BM25 shortlist(), so it plugs straight into B's EediShortlister:
 Uses the same 4-bit setup as training on a GPU, and full precision on a CPU (slower,
 but one query is one forward pass). Needs torch, transformers, peft and bitsandbytes,
 and data/eedi/raw/misconception_mapping.csv.
+
+The names' vectors are computed once and saved in the adapter's folder
+(name_vectors_<key>.pt, git-ignored with the rest of data/). The key covers the adapter,
+the names, the token limit and GPU or CPU, so a changed model or name list never reuses
+old vectors. Loading then only needs the model itself, not a pass over every name.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -56,7 +62,25 @@ class ModelShortlister:
             names = names[names.MisconceptionId.isin(candidates)]
         self.ids = names.MisconceptionId.tolist()
         self.names = names.MisconceptionName.str.strip().tolist()
-        self.vectors = self._embed(self.names, MAX_M, name_batch or NAME_BATCH)
+        self.vectors = self._name_vectors(Path(adapter), name_batch or NAME_BATCH)
+
+    def _name_vectors(self, adapter: Path, batch: int):
+        """The names' vectors, from the saved file when it matches, else computed and saved."""
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        fingerprint = json.dumps([(adapter / "adapter_config.json").read_text(encoding="utf-8"),
+                                  (adapter / "results.json").read_text(encoding="utf-8"),
+                                  MAX_M, device, self.ids, self.names])
+        path = adapter / f"name_vectors_{hashlib.sha256(fingerprint.encode()).hexdigest()[:16]}.pt"
+        if path.exists():
+            saved = torch.load(path, map_location=self.model.device)
+            if saved["ids"] == self.ids:
+                return saved["vectors"]
+        vectors = self._embed(self.names, MAX_M, batch)
+        try:
+            torch.save({"ids": self.ids, "vectors": vectors.cpu()}, path)
+        except OSError:
+            pass  # a read-only folder: just compute them again next time
+        return vectors
 
     @torch.no_grad()
     def _embed(self, texts, max_len, size):
