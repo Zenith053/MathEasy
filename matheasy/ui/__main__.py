@@ -1,31 +1,44 @@
-"""A local page for trying the diagnosis: type a question and a student's answer, press Analyze.
+"""A local page for trying the tutor's analysis: sign in, type a question and the working, press Analyze.
 
+    python -m matheasy.ui.db add-user mr_khan --role teacher   # first, create accounts
+    python -m matheasy.ui.db add-user anna
     python -m matheasy.ui                 # code only: rules, solve back, probes; template hints
     python -m matheasy.ui --llm           # + the LLM fallback, LLM hints and the critic's review (GEMINI_API_KEY)
     python -m matheasy.ui --llm --eedi    # + Eedi misconceptions from the shortlister (GPU; loads for minutes)
     -> http://localhost:8000
 
-Each Analyze runs what the tutor runs on a wrong answer: read the answer (transcribe), check
-it, diagnose(), then the analysis (where it went wrong, the mistake, its topics, similar
-problems from the probe bank), a hint that has passed the critic, and the textbook passage
-to revise. Nothing is saved; no student memory is kept between analyses.
+Each Analyze runs what the tutor runs: every line of the working is read (transcribe) and
+checked against the one before; the first wrong step is diagnosed, then shown with where it
+went wrong, the mistake, its topics, a hint that passed the critic, textbook passages to
+revise and similar problems. The student's memory (the tutor's planner) is updated and the
+attempt saved, so mastery per concept and slips build up over time. A wrong answer on
+concepts the student has mastered, with no misconception they are suspected of, is a slip.
+
+Accounts, sessions, attempts and memory live in runs/ui/matheasy.db (db.py). Anyone can sign
+up for a student account on the page; teacher accounts are created from the command line. A
+student sees only their own work; a teacher picks any student. Served on 127.0.0.1 over plain HTTP: put it
+behind HTTPS before letting anyone reach it over a network.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import threading
 import time
 import traceback
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from ..diagnosis import (
-    ParseError, StepIsCorrect, check_step, diagnose, load_ranker, parse, similar_items, topic_of, unknown_runs,
+    SLIP, ParseError, StepIsCorrect, check_step, diagnose, load_ranker, parse, similar_items, topic_of, unknown_runs,
 )
 from ..evaluation.students import correct_answer
 from ..llm import BudgetExceeded, LLMCallError, LLMClient, LLMOutputError
+from ..tutor import planner
 from ..tutor.__main__ import textbook_retrieve
 from ..tutor.analysis import analyse, mistake, topic_name
 from ..tutor.critic import TutorCritic
@@ -34,15 +47,49 @@ from ..tutor.hinter import LLMHinter
 from ..tutor.orchestrator import MAX_REWRITES, SAFE_TEMPLATE, read_answer
 from ..tutor.placeholders import TemplateHinter
 from ..tutor.state import HintRequest, Problem
+from ..tutor.store import InMemoryStore
+from .db import Database
 
 PAGE = Path(__file__).with_name("index.html")
+COOKIE = "matheasy_session"
 LLM_ERRORS = (BudgetExceeded, LLMCallError, LLMOutputError)
 
 
-class Tutor:
-    """The pieces the page uses, built once: the LLM session, the Eedi ranker, the textbook search."""
+class DbStore(InMemoryStore):
+    """The tutor's store, kept in the database: every change is saved straight away."""
 
-    def __init__(self, llm: bool, eedi: bool):
+    def __init__(self, db: Database):
+        super().__init__()
+        self.db = db
+
+    def load(self, student_id):
+        if student_id not in self._memories:
+            self._memories[student_id] = self.db.load_memory(student_id)
+        return self._memories[student_id]
+
+    def begin_session(self, memory, session_index):
+        super().begin_session(memory, session_index)
+        self.db.save_memory(memory)
+
+    def record(self, memory, misconception_id, topics=()):
+        super().record(memory, misconception_id, topics)
+        self.db.save_memory(memory)
+
+    def observe(self, memory, problem, answer, correct, topics=(), slip=False):
+        super().observe(memory, problem, answer, correct, topics, slip)
+        self.db.save_memory(memory)
+
+    def forget(self, student_id):
+        self._memories.pop(student_id, None)
+
+
+class Tutor:
+    """The pieces the page uses, built once: the database, the LLM session, the Eedi ranker, the textbook search."""
+
+    def __init__(self, llm: bool, eedi: bool, db: Optional[Database] = None):
+        self.db = db or Database()
+        self.store = DbStore(self.db)
+        self.lock = threading.Lock()  # one analysis at a time: memory updates must not interleave
         self.session = LLMClient(run_id="ui").session("ui", "full", budget_tokens=None) if llm else None
         self.retrieve = textbook_retrieve()
         self.hinter = LLMHinter(self.retrieve) if llm else TemplateHinter(self.retrieve)
@@ -56,70 +103,139 @@ class Tutor:
     def status(self) -> dict:
         return {"llm": self.session is not None, "eedi": self.ranker is not None, "textbook": self.retrieve is not None}
 
-    def analyze(self, question: str, answer_text: str) -> dict:
+    def memory(self, student: str):
+        memory = self.store.load(student)
+        if memory.session_index < 0:
+            self.store.begin_session(memory, 0)
+        return memory
+
+    def student(self, student: str) -> dict:
+        """What the tutor remembers about this student: mastery per concept (weakest first),
+        misconceptions seen, slips, and recent attempts."""
+        memory = self.memory(student)
+        rows = []
+        for t in sorted(set(memory.p_knows) | set(memory.mistakes)):
+            p = memory.p_knows.get(t, planner.KNOWS_AT_START)
+            state = "mastered" if planner.mastered(memory, t) else "weak" if memory.mistakes.get(t) else "learning"
+            rows.append({"topic": topic_name(t), "mastery": round(p, 3), "mistakes": memory.mistakes.get(t, 0), "state": state})
+        rows.sort(key=lambda r: (r["mastery"], -r["mistakes"], r["topic"]))
+        seen = [{"id": m, "text": misconception_text(m) or m, "times": n,
+                 "suspected": round(memory.p_holds.get(m, 0.0), 2), "topics": [topic_name(t) for t in memory.topics_of.get(m, [])]}
+                for m, n in sorted(memory.times_diagnosed.items(), key=lambda kv: -kv[1]) if m != SLIP]
+        return {"name": student, "answered": len(memory.worked), "topics": rows, "misconceptions": seen,
+                "slips": memory.times_diagnosed.get(SLIP, 0), "mastered_at": planner.MASTERED,
+                "history": self.db.attempts(student, limit=15)}
+
+    def reset(self, student: str) -> dict:
+        self.db.clear_student(student)
+        self.store.forget(student)
+        return self.student(student)
+
+    def analyze(self, question: str, answer_text: str, student: str) -> dict:
+        with self.lock:
+            result = self._analyze(question, answer_text, student)
+            if result["kind"] in ("correct", "wrong"):
+                self.db.add_attempt(student, question.strip(), answer_text.strip(), result["kind"] == "correct",
+                                    slip=result.get("slip", False), wrong_line=result.get("wrong_line"),
+                                    step=result.get("step"), status=result.get("status"),
+                                    misconception=result.get("misconception"), topics=result.get("topics", ()))
+            result["student"] = self.student(student)
+        return result
+
+    def _analyze(self, question: str, answer_text: str, student: str) -> dict:
+        """The student's working, one step per line: each line is checked against the one before,
+        and the first wrong step is diagnosed (previous line -> wrong line)."""
         start = time.time()
-        question, answer_text = question.strip(), answer_text.strip()
+        question = question.strip()
         try:
             node = parse(question)
         except ParseError as e:
             return {"kind": "error", "message": f"The question doesn't parse: {e}"}
-        if self.session is None and unknown_runs(answer_text):
-            # Without the LLM nothing can tell a word ("hello") from letters multiplied (h × e × l × l × o).
-            return {"kind": "unread", "message": "Type the answer as maths, e.g. 5/6 or x = 4.", "choices": []}
-        reading = read_answer(answer_text, question, self.session)
-        if reading.status != "ok":
-            return {"kind": "unread", "message": _unread(reading), "choices": list(reading.choices)}
-        answer = reading.line
+        written = [line.strip() for line in answer_text.splitlines() if line.strip()]
+        if not written:
+            return {"kind": "unread", "message": "Type the working, one step per line.", "choices": []}
+        lines = []
+        for i, text in enumerate(written, 1):
+            if self.session is None and unknown_runs(text):
+                # Without the LLM nothing can tell a word ("hello") from letters multiplied (h × e × l × l × o).
+                return {"kind": "unread", "message": f"Line {i}: type it as maths, e.g. 5/6 or x = 4.", "choices": []}
+            reading = read_answer(text, question, self.session)
+            if reading.status != "ok":
+                return {"kind": "unread", "message": f"Line {i}: {_unread(reading)}", "choices": list(reading.choices)}
+            lines.append(reading.line)
         try:
             correct: Optional[str] = correct_answer(question)
         except Exception:
             correct = None
-        if check_step(question, answer):
-            return {"kind": "correct", "answer": answer, "seconds": round(time.time() - start, 1)}
-
+        memory = self.memory(student)
+        chain = [question, *lines]
         try:
-            d = diagnose(question, answer, question=question, session=self.session, eedi_ranker=self.ranker)
-        except StepIsCorrect:
-            return {"kind": "correct", "answer": answer}
-        except LLM_ERRORS as e:
-            return {"kind": "error", "message": f"LLM call failed: {e}"}
+            ok = [check_step(a, b) for a, b in zip(chain, chain[1:])]
+        except ParseError as e:
+            return {"kind": "error", "message": f"A line doesn't parse: {e}"}
+        steps = [{"line": text, "read_as": line if line != text else None, "ok": good}
+                 for text, line, good in zip(written, lines, ok)]
         topic = topic_of(node)
         problem = Problem("ui", topic, question, correct or "")
-        analysis = analyse(d, problem)
-        words = mistake(d, problem)
-        hint, citation = self._hint(problem, answer, words, d)
+        if all(ok):
+            self.store.observe(memory, problem, lines[-1], True)
+            return {"kind": "correct", "answer": lines[-1], "steps": steps, "seconds": round(time.time() - start, 1)}
+
+        k = ok.index(False)  # the first wrong step: chain[k] -> chain[k + 1]
+        before, after = chain[k], chain[k + 1]
+        try:
+            d = diagnose(before, after, question=question, session=self.session, eedi_ranker=self.ranker)
+        except StepIsCorrect:
+            return {"kind": "correct", "answer": lines[-1], "steps": steps}
+        except LLM_ERRORS as e:
+            return {"kind": "error", "message": f"LLM call failed: {e}"}
+        slip = d.misconception == SLIP or planner.is_slip(memory, d.topics, d.misconception)
+        why_slip = next((t["reason"] for t in d.trace if t.get("stage") == "slip"), None)
+        self.store.observe(memory, problem, lines[-1], False, topics=d.topics, slip=slip)
+        if slip:
+            self.store.record(memory, SLIP, topics=d.topics)
+        elif d.misconception:
+            self.store.record(memory, d.misconception, topics=d.topics)
+        analysis = analyse(d, problem, memory.worked)
+        words = None if slip else mistake(d, problem)
+        hint, citation, rejected = self._hint(problem, after, words, d)
 
         e = d.explanation
         practice = list(analysis.practice) or similar_items(d.topics, seen=[question], n=3)
         return {
-            "kind": "wrong", "answer": answer, "read_as": answer if answer != answer_text else None,
-            "status": d.status, "source": _source(d), "fit": e.eedi_fit if e else None,
-            "misconception": d.misconception, "mistake": words, "where": analysis.where,
+            "kind": "wrong", "answer": lines[-1], "steps": steps, "wrong_line": k + 1, "step": f"{before} → {after}",
+            "status": d.status, "source": _source(d), "fit": e.eedi_fit if e else None, "slip": slip,
+            "why_slip": why_slip,
+            "misconception": None if slip else d.misconception, "mistake": words, "where": analysis.where,
             "topics": [topic_name(t) for t in analysis.topics],
-            "hint": hint, "citation": citation, "revise": self._revise(words, d, topic, citation),
+            "hint": hint, "citation": citation, "hint_rejected": rejected, "revise": [] if slip else self._revise(words, d, topic, citation),
             "similar": practice,
-            "probe": d.probe.question if d.probe else None,
-            "working": [{"line": s, "wrong": any(w.after == s for w in e.wrong_steps)} for s in e.steps] if e else [],
+            "probe": d.probe.question if d.probe and not slip else None,
+            "working": _working(e),
             "working_checked": e.status if e else None,
             "seconds": round(time.time() - start, 1),
         }
 
-    def _hint(self, problem: Problem, answer: str, words: Optional[str], d) -> tuple[str, Optional[str]]:
-        """A hint that passed the critic, as in the orchestrator; else the safe template."""
+    def _hint(self, problem: Problem, answer: str, words: Optional[str], d) -> tuple[str, Optional[str], list]:
+        """A hint that passed the critic, as in the orchestrator; else the safe template.
+        Also every rejected attempt and the critic's reasons, so the page can show them."""
         located = d.located
         request = HintRequest(problem.topic, problem.question, answer, words,
                               f"{located.source} became {located.wrong}" if located else None)
         feedback: list[str] = []
+        rejected: list[dict] = []
         for _ in range(MAX_REWRITES + 1):
             try:
                 hint = self.hinter.hint(request, feedback or None, llm=self.session)
                 verdict = self.critic.review(hint.text, "hint", problem, request=request, llm=self.session)
-            except LLM_ERRORS:
+            except LLM_ERRORS as e:
+                rejected.append({"hint": None, "reasons": [f"LLM call failed: {e}"]})
                 break
             if verdict.passed:
-                return hint.text, hint.citations[0] if hint.citations else None
+                return hint.text, hint.citations[0] if hint.citations else None, rejected
             feedback = list(verdict.reasons)
-        return SAFE_TEMPLATE, None
+            rejected.append({"hint": hint.text, "reasons": feedback})
+        return SAFE_TEMPLATE, None, rejected
 
     def _revise(self, words: Optional[str], d, topic: str, citation: Optional[str]) -> list[dict]:
         """Textbook passages to read, the hint's citation first. Searched with the mistake's words
@@ -134,7 +250,23 @@ class Tutor:
         return [{"ref": p["ref"], "text": p["text"][:700]} for p in passages[:2]]
 
 
+def _working(e) -> list[dict]:
+    """The LLM's reconstructed working, each wrong step with what code found in it."""
+    if e is None:
+        return []
+    wrong = {w.after: w for w in e.wrong_steps}
+    rows = []
+    for line in e.steps:
+        w = wrong.get(line)
+        rows.append({"line": line, "wrong": w is not None,
+                     "rule": (misconception_text(w.rule) or w.rule) if w and w.rule else None,
+                     "slip": w.slip if w else None})
+    return rows
+
+
 def _source(d) -> str:
+    if any(t.get("from") == "working" for t in d.trace) and d.misconception != SLIP:
+        return "working"  # a rule reproduces a step of the LLM's reconstructed working
     if d.explanation is not None and d.explanation.eedi and d.misconception:
         return "eedi"  # picked from Eedi, even when recorded under the one rule it belongs to
     if d.misconception and d.misconception.startswith("rule:"):
@@ -156,31 +288,97 @@ def _unread(reading) -> str:
 
 
 def make_handler(tutor: Tutor):
+    db = tutor.db
+
     class Handler(BaseHTTPRequestHandler):
-        def _send(self, code: int, body: bytes, kind: str):
+        def _send(self, code: int, body, kind: str = "application/json", cookie: Optional[str] = None):
+            data = body if isinstance(body, bytes) else json.dumps(body).encode()
             self.send_response(code)
             self.send_header("Content-Type", kind)
-            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            if cookie is not None:
+                self.send_header("Set-Cookie", cookie)
             self.end_headers()
-            self.wfile.write(body)
+            self.wfile.write(data)
+
+        def _token(self) -> Optional[str]:
+            jar = SimpleCookie(self.headers.get("Cookie", ""))
+            return jar[COOKIE].value if COOKIE in jar else None
+
+        def _user(self):
+            return db.session_user(self._token())
+
+        def _body(self) -> dict:
+            return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+
+        def _whose(self, user, asked: Optional[str]) -> Optional[str]:
+            """The student this request is about: a student only ever themselves; a teacher any student."""
+            name, role = user
+            if role == "student":
+                return name
+            asked = (asked or "").strip()
+            return asked if asked and db.role(asked) == "student" else None
 
         def do_GET(self):
-            if self.path == "/api/status":
-                return self._send(200, json.dumps(tutor.status()).encode(), "application/json")
-            if self.path in ("/", "/index.html"):
+            url = urlparse(self.path)
+            if url.path in ("/", "/index.html"):
                 return self._send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
-            self._send(404, b"not found", "text/plain")
+            if url.path == "/api/status":
+                return self._send(200, tutor.status())
+            user = self._user()
+            if user is None:
+                return self._send(401, {"error": "Please sign in."})
+            if url.path == "/api/me":
+                return self._send(200, {"user": user[0], "role": user[1],
+                                        "students": db.students() if user[1] == "teacher" else [user[0]]})
+            if url.path == "/api/student":
+                who = self._whose(user, parse_qs(url.query).get("name", [None])[0])
+                if who is None:
+                    return self._send(404, {"error": "No such student."})
+                return self._send(200, tutor.student(who))
+            self._send(404, {"error": "not found"})
 
         def do_POST(self):
-            if self.path != "/api/analyze":
-                return self._send(404, b"not found", "text/plain")
             try:
-                data = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-                result = tutor.analyze(str(data.get("question", "")), str(data.get("answer", "")))
+                data = self._body()
+                if self.path == "/api/login":
+                    name = str(data.get("username", "")).strip()
+                    role = db.check(name, str(data.get("password", "")))
+                    if role is None:
+                        return self._send(401, {"error": "Wrong username or password."})
+                    token = db.start_session(name)
+                    return self._send(200, {"user": name, "role": role},
+                                      cookie=f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/")
+                if self.path == "/api/signup":
+                    # Anyone can create a student account; teachers are made from the command line only.
+                    name, password = str(data.get("username", "")).strip(), str(data.get("password", ""))
+                    try:
+                        db.add_user(name, password, "student")
+                    except ValueError as e:
+                        return self._send(400, {"error": str(e).capitalize() + "."})
+                    token = db.start_session(name)
+                    return self._send(200, {"user": name, "role": "student"},
+                                      cookie=f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/")
+                if self.path == "/api/logout":
+                    db.end_session(self._token())
+                    return self._send(200, {"ok": True}, cookie=f"{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")
+                user = self._user()
+                if user is None:
+                    return self._send(401, {"error": "Please sign in."})
+                who = self._whose(user, data.get("student"))
+                if who is None:
+                    return self._send(404, {"error": "Pick a student."})
+                if self.path == "/api/reset":
+                    if user[1] != "teacher":
+                        return self._send(403, {"error": "Only a teacher can reset a student."})
+                    return self._send(200, tutor.reset(who))
+                if self.path == "/api/analyze":
+                    return self._send(200, tutor.analyze(str(data.get("question", "")), str(data.get("answer", "")), who))
+                self._send(404, {"error": "not found"})
             except Exception as e:  # show the error on the page rather than dropping the connection
                 traceback.print_exc()
-                result = {"kind": "error", "message": f"{type(e).__name__}: {e}"}
-            self._send(200, json.dumps(result).encode(), "application/json")
+                self._send(200, {"kind": "error", "message": f"{type(e).__name__}: {e}"})
 
         def log_message(self, *args):
             pass
@@ -197,6 +395,8 @@ def main() -> None:
     if args.eedi and not args.llm:
         ap.error("--eedi needs --llm: the LLM fallback picks the Eedi misconception")
     tutor = Tutor(args.llm, args.eedi)
+    if not tutor.db.users():
+        print("No accounts yet. Create one first:  python -m matheasy.ui.db add-user <name> --role teacher")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(tutor))
     print(f"MathEasy analysis page: http://localhost:{args.port}  ({tutor.status()})  Ctrl+C to stop")
     try:

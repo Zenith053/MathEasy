@@ -9,44 +9,54 @@
     --bg: #f6f7f9; --panel: #ffffff; --ink: #1d232b; --muted: #5e6875; --line: #e2e6eb;
     --accent: #2f6fde; --accent-ink: #ffffff; --good: #1d8a4e; --good-bg: #e7f6ee;
     --bad: #c4322b; --bad-bg: #fdecea; --warn: #9a6400; --warn-bg: #fff4dc; --chip: #eef2f8;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --bar: #2a78d6; --grid: #e6e9ee; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #12161b; --panel: #1b2128; --ink: #e6e9ed; --muted: #9aa4b0; --line: #2c343e;
       --accent: #5b8ff0; --accent-ink: #0b1220; --good: #4cc786; --good-bg: #16301f;
       --bad: #f07067; --bad-bg: #3a1b19; --warn: #e3b04b; --warn-bg: #352a12; --chip: #26303b;
+      --bar: #3987e5; --grid: #2a323c; color-scheme: dark;
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }  /* the page's own display rules must not undo hidden */
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 64px; }
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   h1 { font-size: 22px; margin: 0; }
+  h2.section { font-size: 17px; margin: 28px 0 10px; }
   .badges { display: flex; gap: 6px; flex-wrap: wrap; }
   .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
   .badge.on { color: var(--good); background: var(--good-bg); }
-  form { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
-         display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+  #form { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+          display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+  .full { grid-column: 1 / -1; }
   label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-  input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
-          color: var(--ink); font: 16px var(--mono); }
-  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+          color: var(--ink); font: 16px/1.45 var(--mono); }
+  textarea { resize: vertical; min-height: 92px; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .actions .who { display: flex; gap: 8px; align-items: center; }
+  .actions .who input { width: 160px; font: 14px system-ui, sans-serif; padding: 7px 9px; }
   button { padding: 10px 18px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink);
            font-weight: 600; cursor: pointer; font-size: 15px; }
+  button.quiet { background: var(--chip); color: var(--ink); font-weight: 500; padding: 7px 12px; font-size: 13px; }
   button:disabled { opacity: .6; cursor: wait; }
-  .examples { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--muted); }
+  .hintline { font-size: 12.5px; color: var(--muted); }
+  .examples { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--muted); }
   .examples a { font-family: var(--mono); color: var(--accent); cursor: pointer; text-decoration: none;
                 background: var(--chip); padding: 2px 8px; border-radius: 6px; }
-  @media (max-width: 640px) { form { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { #form { grid-template-columns: 1fr; } }
   #result { margin-top: 18px; display: grid; gap: 12px; }
   .verdict { border-radius: 10px; padding: 14px 16px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
   .verdict.good { background: var(--good-bg); color: var(--good); }
   .verdict.bad { background: var(--bad-bg); color: var(--bad); }
   .verdict.warn { background: var(--warn-bg); color: var(--warn); }
   .verdict small { font-weight: 400; color: var(--muted); }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
   .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px;
              display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .tag { font-size: 11px; text-transform: none; letter-spacing: 0; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--ink); }
@@ -56,6 +66,11 @@
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip { background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
   .cite { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  ol.steps { margin: 0; padding-left: 26px; font-family: var(--mono); display: grid; gap: 3px; }
+  ol.steps li.ok::marker { color: var(--good); } ol.steps li.bad::marker { color: var(--bad); }
+  ol.steps li.bad { color: var(--bad); font-weight: 600; }
+  ol.steps .mark { font-family: system-ui, sans-serif; font-size: 12px; margin-left: 8px; }
+  ol.steps .read { color: var(--muted); font-size: 12px; margin-left: 6px; font-weight: 400; }
   .passage + .passage { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
   .passage b { display: block; font-size: 14px; }
   .passage p { margin: 4px 0 0; color: var(--muted); font-size: 14px; white-space: pre-line; }
@@ -63,43 +78,153 @@
   ul.similar a { font-family: var(--mono); color: var(--accent); cursor: pointer; }
   ol.working { margin: 0; padding-left: 22px; font-family: var(--mono); }
   ol.working li.wrong { color: var(--bad); }
+  ol.working .found { font-family: system-ui, sans-serif; font-size: 13px; color: var(--ink); margin: 2px 0 6px; }
   details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   .muted { color: var(--muted); font-size: 13px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* student memory */
+  .mem-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .chart { position: relative; overflow-x: auto; }
+  .chart svg { display: block; width: 100%; min-width: 520px; height: auto; color: var(--ink); }
+  .chart .lbl { fill: var(--ink); font-size: 13px; }
+  .chart .val { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chart .axis { fill: var(--muted); font-size: 11px; }
+  .chart .gridline { stroke: var(--grid); stroke-width: 1; }
+  .chart .goal { stroke: var(--good); stroke-width: 1.5; }
+  .chart .goal-lbl { fill: var(--good); font-size: 11px; }
+  .chart .bar { fill: var(--bar); }
+  .chart .hit { fill: transparent; cursor: default; }
+  .chart .hit:hover + .bar, .chart .hit:focus + .bar { opacity: .8; }
+  .chart .state-weak { fill: var(--bad); } .chart .state-mastered { fill: var(--good); } .chart .state-learning { fill: var(--muted); }
+  #tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+         padding: 6px 9px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12); white-space: nowrap; }
+  table.mis { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.mis th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 0 10px 6px 0; }
+  table.mis td { border-top: 1px solid var(--line); padding: 7px 10px 7px 0; vertical-align: top; }
+  table.mis td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .who-line { font-size: 13px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
+  .who-line a { color: var(--accent); cursor: pointer; }
+  #login, #signup { max-width: 360px; margin: 60px auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+           padding: 22px; display: grid; gap: 12px; }
+  #login button, #signup button { width: 100%; }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  #login h1, #signup h1 { font-size: 20px; }
+  a.switch { color: var(--accent); cursor: pointer; }
+  #login .err, #signup .err { color: var(--bad); font-size: 13px; min-height: 1.2em; }
+  select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: 14px system-ui, sans-serif; }
+  .verdict.slip { background: var(--warn-bg); color: var(--warn); }
+  .res { font-weight: 600; } .res.ok { color: var(--good); } .res.bad { color: var(--bad); } .res.slip { color: var(--warn); }
 </style>
 </head>
 <body>
-<main>
+<form id="login" hidden>
+  <h1>MathEasy · sign in</h1>
+  <div><label for="u">Username</label><input id="u" autocomplete="username"></div>
+  <div><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"></div>
+  <button type="submit">Sign in</button>
+  <div class="err" id="login-err"></div>
+  <button type="button" class="secondary" id="to-signup">Create account</button>
+</form>
+<form id="signup" hidden>
+  <h1>MathEasy · create an account</h1>
+  <div><label for="nu">Username</label><input id="nu" autocomplete="username" maxlength="40"></div>
+  <div><label for="npw">Password <span class="muted">(at least 6 characters)</span></label>
+    <input id="npw" type="password" autocomplete="new-password"></div>
+  <div><label for="npw2">Password again</label><input id="npw2" type="password" autocomplete="new-password"></div>
+  <button type="submit">Create account</button>
+  <div class="err" id="signup-err"></div>
+  <button type="button" class="secondary" id="to-login">Back to sign in</button>
+</form>
+<main id="app" hidden>
   <header>
     <h1>MathEasy · answer analysis</h1>
-    <div class="badges" id="badges"></div>
+    <div class="who-line"><span id="me"></span><a id="logout">Sign out</a><span class="badges" id="badges"></span></div>
   </header>
 
   <form id="form">
-    <div><label for="q">Question</label><input id="q" value="1/2 + 1/3" autocomplete="off"></div>
-    <div><label for="a">Student's answer</label><input id="a" value="2/5" autocomplete="off"></div>
-    <button id="go" type="submit">Analyze</button>
-    <div class="examples">Try:
+    <div><label for="q">Question</label><input id="q" value="1/2 + 1/3 + 1/6" autocomplete="off"></div>
+    <div><label for="a">Student's working, one step per line</label>
+      <textarea id="a" rows="3" autocomplete="off">3/6 + 2/6 + 1/6
+6/18</textarea></div>
+    <div class="full actions">
+      <button id="go" type="submit">Analyze</button>
+      <span class="hintline">Ctrl + Enter to analyze. Every line is checked against the one before.</span>
+      <span class="who" id="picker" style="margin-left:auto" hidden><label for="s" style="margin:0">Student</label><select id="s"></select></span>
+    </div>
+    <div class="full examples">Try:
       <a data-q="1/2 + 1/3" data-a="2/5">1/2 + 1/3 → 2/5</a>
-      <a data-q="2x + 3 = 11" data-a="x = 7">2x + 3 = 11 → x = 7</a>
-      <a data-q="(3y - 4)^2" data-a="9y^2 + 16">(3y − 4)² → 9y² + 16</a>
+      <a data-q="2x + 3 = 11" data-a="2x = 14&#10;x = 7">2x + 3 = 11 (two lines)</a>
+      <a data-q="2x + 3 = 11" data-a="2x = 8&#10;x = 4">… solved right</a>
+      <a data-q="(x + 3)^2 - x^2" data-a="x^2 + 9 - x^2&#10;9">(x + 3)² − x²</a>
       <a data-q="7 × 8 + 6" data-a="60">7 × 8 + 6 → 60</a>
-      <a data-q="2/3 ÷ 4/5" data-a="8/15">2/3 ÷ 4/5 → 8/15</a>
     </div>
   </form>
 
   <section id="result"></section>
+
+  <div class="mem-head"><h2 class="section" id="mem-title">Student memory</h2>
+    <button class="quiet" id="reset" type="button" hidden>Reset this student</button></div>
+  <div class="card" id="memory"><span class="muted">Loading…</span></div>
 </main>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let ME = null;
+const student = () => (ME && ME.role === "teacher" ? $("s").value : ME?.user) || "";
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.status === 401) { showLogin(); throw new Error("signed out"); }
+  return r.json();
+}
+function showLogin(message = "") {
+  $("app").hidden = true; $("signup").hidden = true; $("login").hidden = false;
+  $("login-err").textContent = message; $("u").focus();
+}
+function showSignup() { $("login").hidden = true; $("signup").hidden = false; $("signup-err").textContent = ""; $("nu").focus(); }
+async function start() {
+  const r = await fetch("/api/me");
+  if (r.status !== 200) return showLogin();
+  ME = await r.json();
+  $("login").hidden = true; $("app").hidden = false;
+  $("me").textContent = `Signed in as ${ME.user} (${ME.role})`;
+  const teacher = ME.role === "teacher";
+  $("picker").hidden = !teacher; $("reset").hidden = !teacher;
+  if (teacher) {
+    $("s").innerHTML = ME.students.map((n) => `<option>${esc(n)}</option>`).join("") || "<option value=''>no students yet</option>";
+  }
+  loadStudent();
+}
+$("login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: $("u").value, password: $("pw").value }) });
+  $("pw").value = "";
+  if (r.status !== 200) return showLogin((await r.json()).error);
+  start();
+});
+$("to-signup").addEventListener("click", showSignup);
+$("to-login").addEventListener("click", () => showLogin());
+$("signup").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if ($("npw").value !== $("npw2").value) { $("signup-err").textContent = "The two passwords differ."; return; }
+  const r = await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: $("nu").value, password: $("npw").value }) });
+  $("npw").value = $("npw2").value = "";
+  if (r.status !== 200) { $("signup-err").textContent = (await r.json()).error; return; }
+  $("signup").hidden = true;
+  start();
+});
+$("logout").addEventListener("click", async () => { await fetch("/api/logout", { method: "POST" }); ME = null; showLogin(); });
 
 const SOURCE = {
-  rule: ["Rule", "a hand-written rule reproduces the answer exactly"],
+  rule: ["Rule", "a hand-written rule reproduces the step exactly"],
   eedi: ["Eedi", "chosen from Eedi's catalogue of real student misconceptions"],
   llm: ["LLM reading", "the LLM's own reading of the working"],
+  working: ["Rule on the LLM's steps", "the LLM rebuilt the student's steps; a hand-written rule reproduces the wrong one exactly"],
   ambiguous: ["Several rules fit", "a follow-up question would tell them apart"],
   none: ["Not identified", ""],
 };
@@ -112,15 +237,18 @@ fetch("/api/status").then((r) => r.json()).then((s) => {
 document.querySelectorAll(".examples a").forEach((a) => a.addEventListener("click", () => {
   $("q").value = a.dataset.q; $("a").value = a.dataset.a; $("form").requestSubmit();
 }));
+$("a").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $("form").requestSubmit(); } });
+$("s").addEventListener("change", loadStudent);
+$("reset").addEventListener("click", async () => renderMemory(await api("/api/reset", { student: student() })));
 
 $("form").addEventListener("submit", async (event) => {
   event.preventDefault();
   $("go").disabled = true; $("go").textContent = "Analyzing…";
   $("result").innerHTML = "";
   try {
-    const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: $("q").value, answer: $("a").value }) });
-    render(await r.json());
+    const d = await api("/api/analyze", { question: $("q").value, answer: $("a").value, student: student() });
+    render(d);
+    if (d.student) renderMemory(d.student);
   } catch (e) {
     render({ kind: "error", message: String(e) });
   } finally {
@@ -128,14 +256,44 @@ $("form").addEventListener("submit", async (event) => {
   }
 });
 
-function card(title, body, extra = "") {
-  return `<div class="card"><h2>${title}${extra}</h2>${body}</div>`;
+function rejections(d) {
+  const r = d.hint_rejected || [];
+  if (!r.length) return "";
+  const items = r.map((x, i) => `<li>${x.hint ? `<span class="muted">Attempt ${i + 1}:</span> ${esc(x.hint)}` : ""}
+    <div class="muted">Rejected: ${esc(x.reasons.join(" "))}</div></li>`).join("");
+  return `<details style="margin-top:8px"><summary>${r.length} hint${r.length === 1 ? "" : "s"} rejected by the critic before this one</summary><ol>${items}</ol></details>`;
+}
+
+function card(title, body, extra = "") { return `<div class="card"><h2>${title}${extra}</h2>${body}</div>`; }
+
+function stepsCard(d) {
+  if (!d.steps || !d.steps.length) return "";
+  const items = d.steps.map((s, i) => {
+    const bad = d.wrong_line === i + 1;
+    const mark = bad ? "✗ first wrong step" : s.ok ? "✓" : "✗";
+    return `<li class="${bad ? "bad" : s.ok ? "ok" : ""}">${esc(s.line)}${s.read_as ? `<span class="read">read as ${esc(s.read_as)}</span>` : ""}<span class="mark">${mark}</span></li>`;
+  }).join("");
+  return card("Student's working", `<ol class="steps">${items}</ol>`);
+}
+
+function workingCard(d) {
+  if (!d.working || !d.working.length) return "";
+  const first = `<li class="muted">${esc(d.step.split(" → ")[0])}</li>`;
+  const rows = d.working.map((s) => {
+    const found = s.rule ? `<div class="found">↳ rule: ${esc(s.rule)}</div>`
+                : s.slip ? `<div class="found">↳ slip: ${esc(s.slip)}</div>`
+                : s.wrong ? `<div class="found muted">↳ no rule reproduces this step</div>` : "";
+    return `<li class="${s.wrong ? "wrong" : ""}">${s.wrong ? "✗" : "✓"} ${esc(s.line)}${found}</li>`;
+  }).join("");
+  return card("How the student probably did it", `<ol class="working">${first}${rows}</ol>`,
+    ` <span class="tag">LLM, ${esc(d.working_checked)} by code</span>`);
 }
 
 function render(d) {
   const out = [];
   if (d.kind === "correct") {
     out.push(`<div class="verdict good">✓ Correct <small class="maths">${esc(d.answer)}</small></div>`);
+    out.push(stepsCard(d));
   } else if (d.kind === "unread") {
     const choices = (d.choices || []).map((c, i) => `${i + 1}) <span class="maths">${esc(c)}</span>`).join(" or ");
     out.push(`<div class="verdict warn">${esc(d.message)} ${choices ? `<small>${choices}</small>` : ""}</div>`);
@@ -144,8 +302,23 @@ function render(d) {
   } else {
     const [label, about] = SOURCE[d.source] || SOURCE.none;
     const fit = d.source === "eedi" && d.fit ? ` <span class="tag ${d.fit}">${d.fit === "exact" ? "exact match" : "closest match"}</span>` : "";
-    out.push(`<div class="verdict bad">✗ Wrong answer <small class="maths">${esc(d.answer)}</small>
-      ${d.read_as ? `<small>(read as <span class="maths">${esc(d.read_as)}</span>)</small>` : ""}</div>`);
+    if (d.slip) {
+      out.push(`<div class="verdict slip">⚠ Looks like a slip at line ${d.wrong_line} <small class="maths">${esc(d.step)}</small></div>`);
+      out.push(stepsCard(d));
+      out.push(workingCard(d));
+      out.push(card("Why a slip", d.why_slip
+        ? `The student ${esc(d.why_slip)}. A misconception would be applied the same way every time, so this is treated as a
+           careless mistake: it counts only a little against mastery and is not recorded as a habit.`
+        : `The concepts in this step (${esc(d.topics.join(", "))}) are already mastered, and no misconception is suspected,
+        so this is treated as a careless mistake: it counts only a little against mastery and is not recorded as a habit.`));
+      out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}`));
+      out.push(`<div class="muted">Status: ${esc(d.status)} · ${d.seconds}s</div>`);
+      $("result").innerHTML = out.join("");
+      return;
+    }
+    out.push(`<div class="verdict bad">✗ Wrong at line ${d.wrong_line} <small class="maths">${esc(d.step)}</small></div>`);
+    out.push(stepsCard(d));
+    out.push(workingCard(d));
     out.push(`<div class="grid2">
       ${card("Where it went wrong", d.where ? `<span class="maths">${esc(d.where)}</span>` : `<span class="muted">Not located.</span>`)}
       ${card("Topics", d.topics.length ? `<div class="chips">${d.topics.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</div>`
@@ -155,14 +328,12 @@ function render(d) {
                                            : `<span class="muted">${d.probe ? "Several causes fit." : "No cause identified."} ${esc(about)}</span>`,
       ` <span class="tag">${label}</span>${fit}`));
     if (d.probe) out.push(card("Follow-up question", `To tell the causes apart, the tutor would ask: <span class="maths">${esc(d.probe)}</span>`));
-    out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}`));
+    out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}${rejections(d)}`));
     if (d.revise.length) out.push(card("Revise",
       d.revise.map((p) => `<div class="passage"><b>${esc(p.ref)}</b><p>${esc(p.text)}…</p></div>`).join("")
       + `<div class="cite">OpenStax Prealgebra 2e and Elementary Algebra 2e, CC BY 4.0</div>`));
     if (d.similar.length) out.push(card("Try a similar problem",
       `<ul class="similar">${d.similar.map((q) => `<li><a data-q="${esc(q)}">${esc(q)}</a></li>`).join("")}</ul>`));
-    if (d.working.length) out.push(`<div class="card"><details><summary>How the student probably worked (LLM, ${esc(d.working_checked)} by code)</summary>
-      <ol class="working">${d.working.map((s) => `<li class="${s.wrong ? "wrong" : ""}">${esc(s.line)}</li>`).join("")}</ol></details></div>`);
     out.push(`<div class="muted">Status: ${esc(d.status)} · ${d.seconds}s</div>`);
   }
   $("result").innerHTML = out.join("");
@@ -170,6 +341,71 @@ function render(d) {
     $("q").value = a.dataset.q; $("a").value = ""; $("a").focus(); window.scrollTo({ top: 0, behavior: "smooth" });
   }));
 }
+
+async function loadStudent() {
+  if (!student()) { $("memory").innerHTML = `<span class="muted">No student accounts yet.</span>`; return; }
+  renderMemory(await api(`/api/student?name=${encodeURIComponent(student())}`));
+}
+
+const STATE = { weak: ["⚠", "weak"], learning: ["○", "learning"], mastered: ["✓", "mastered"] };
+
+function renderMemory(m) {
+  $("mem-title").textContent = `Student memory · ${m.name}`;
+  if (!m.topics.length && !m.history.length) {
+    $("memory").innerHTML = `<span class="muted">Nothing recorded yet for ${esc(m.name)}. Analyze some working: correct answers credit the concepts they use, wrong ones count against the diagnosed concept.</span>`;
+    return;
+  }
+  // Horizontal bars: mastery 0-100% per concept, weakest first. One scale for marks, ticks and the goal line.
+  const rowH = 34, top = 26, labelW = 190, stateW = 120, plotW = 420, W = labelW + plotW + stateW + 16;
+  const H = top + m.topics.length * rowH + 8, x = (v) => labelW + v * plotW, barH = 16;
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mastery per concept for ${esc(m.name)}, weakest first">`;
+  for (const t of ticks) {
+    svg += `<line class="gridline" x1="${x(t)}" y1="${top - 6}" x2="${x(t)}" y2="${H - 6}"/>`;
+    svg += `<text class="axis" x="${x(t)}" y="${top - 12}" text-anchor="middle">${t * 100}%</text>`;
+  }
+  svg += `<line class="goal" x1="${x(m.mastered_at)}" y1="${top - 6}" x2="${x(m.mastered_at)}" y2="${H - 6}"/>`;
+  svg += `<text class="goal-lbl" x="${x(m.mastered_at) - 4}" y="${H - 10}" text-anchor="end">mastered</text>`;
+  m.topics.forEach((t, i) => {
+    const y = top + i * rowH, w = Math.max(2, t.mastery * plotW), by = y + (rowH - barH) / 2;
+    const [icon, word] = STATE[t.state];
+    const tip = `${t.topic}: ${Math.round(t.mastery * 100)}% · ${t.mistakes} mistake${t.mistakes === 1 ? "" : "s"} · ${word}`;
+    svg += `<text class="lbl" x="${labelW - 10}" y="${y + rowH / 2 + 4}" text-anchor="end">${esc(t.topic)}</text>`;
+    svg += `<rect class="hit" x="${labelW}" y="${y}" width="${plotW}" height="${rowH}" tabindex="0" data-tip="${esc(tip)}"/>`;
+    svg += `<path class="bar" d="M${labelW} ${by} h${w - 4} a4 4 0 0 1 4 4 v${barH - 8} a4 4 0 0 1 -4 4 h-${w - 4} z"/>`;
+    svg += `<text class="val" x="${labelW + w + 6}" y="${y + rowH / 2 + 4}">${Math.round(t.mastery * 100)}%</text>`;
+    svg += `<text class="state-${t.state}" x="${labelW + plotW + 14}" y="${y + rowH / 2 + 4}" font-size="12.5">${icon} ${word}${t.mistakes ? ` · ${t.mistakes}✗` : ""}</text>`;
+  });
+  svg += `</svg>`;
+  const mis = m.misconceptions.length
+    ? `<table class="mis"><thead><tr><th>Misconception seen</th><th>Times</th><th>Still suspected</th></tr></thead><tbody>${
+        m.misconceptions.map((c) => `<tr><td>${esc(c.text)}<div class="muted">${esc(c.id)}${c.topics.length ? " · " + esc(c.topics.join(", ")) : ""}</div></td>
+          <td class="num">${c.times}</td><td class="num">${c.suspected ? Math.round(c.suspected * 100) + "%" : "—"}</td></tr>`).join("")}</tbody></table>`
+    : `<span class="muted">No misconceptions recorded.</span>`;
+  const hist = m.history.length
+    ? `<table class="mis"><thead><tr><th>Recent work</th><th>Result</th><th>When</th></tr></thead><tbody>${
+        m.history.map((h) => `<tr><td><span class="maths">${esc(h.question)}</span><div class="muted maths">${esc(h.working.replace(/\n/g, "  ⟶  "))}</div></td>
+          <td class="res ${h.correct ? "ok" : h.slip ? "slip" : "bad"}">${h.correct ? "✓ correct" : h.slip ? `⚠ slip, line ${h.wrong_line}` : `✗ line ${h.wrong_line}`}</td>
+          <td class="num muted">${esc(h.created.replace("T", " ").slice(0, 16))}</td></tr>`).join("")}</tbody></table>`
+    : "";
+  $("memory").innerHTML = `<div class="muted" style="margin-bottom:8px">${m.answered} question${m.answered === 1 ? "" : "s"} answered. Bars show how sure the tutor is that the student knows each concept; ${Math.round(m.mastered_at * 100)}% counts as mastered.</div>
+    <div class="chart">${svg}<div id="tip" hidden></div></div><div style="margin-top:14px">${mis}</div>
+    ${m.slips ? `<div class="muted" style="margin-top:8px">${m.slips} slip${m.slips === 1 ? "" : "s"} so far: mistakes on mastered concepts, not counted as habits.</div>` : ""}
+    <div style="margin-top:14px">${hist}</div>`;
+  const tipEl = $("tip"), box = $("memory").querySelector(".chart");
+  box.querySelectorAll(".hit").forEach((h) => {
+    const show = (ev) => {
+      tipEl.textContent = h.dataset.tip; tipEl.hidden = false;
+      const r = box.getBoundingClientRect(), hr = h.getBoundingClientRect();
+      tipEl.style.left = `${Math.min(r.width - 220, Math.max(0, (ev?.clientX ?? hr.left + 40) - r.left + 12))}px`;
+      tipEl.style.top = `${hr.top - r.top - 4}px`;
+    };
+    h.addEventListener("pointermove", show); h.addEventListener("focus", () => show());
+    h.addEventListener("pointerleave", () => (tipEl.hidden = true)); h.addEventListener("blur", () => (tipEl.hidden = true));
+  });
+}
+
+start();
 </script>
 </body>
 </html>
