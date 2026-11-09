@@ -59,6 +59,8 @@ SCHEMA = {
 
 # An equation's answer, e.g. "x = 4": the value alone ("4") gives it away too.
 _SOLUTION = re.compile(r"\s*[A-Za-z]\s*=\s*(.+)")
+_PARTS = re.compile(r"\s+(halves|half|thirds?|quarters?|fifths?|sixths?|sevenths?|eighths?|ninths?|tenths?"
+                    r"|elevenths?|twelfths?|hundredths?|thousandths?)\b", re.I)
 
 
 def leaks_answer(text: str, answer: str, question: Optional[str] = None) -> Optional[str]:
@@ -66,9 +68,13 @@ def leaks_answer(text: str, answer: str, question: Optional[str] = None) -> Opti
 
     Repeating the question as written, or a number in it, is not a leak, even when the
     answer is equal to it: "Look at (x + 3)^2 again" doesn't give away (x + 3)^2, and
-    "simplify 12/34" doesn't give away 6/17. This follows D's leak metric."""
+    "simplify 12/34" doesn't give away 6/17. A number counting fraction parts, "1 sixth" or
+    "3 quarters", is not a stated answer either; "the total is 1" still is. When the answer is the question itself, unworked (an expansion the answer key
+    leaves as written), only the worked-out, expanded form gives it away: (3y - 4)(3y - 4)
+    restates (3y - 4)^2. This follows D's leak metric."""
     asked = _normalise(question) if question else None
     given = {_normalise(n) for n in _MATHS.findall(question)} if question else set()
+    unworked = bool(question) and _equal(answer, question)
     solution = _SOLUTION.fullmatch(answer)
     if solution or re.search(r"[A-Za-z<>]", answer):
         # An expression, equation or comparison: a piece of maths in the text equal to it.
@@ -77,16 +83,29 @@ def leaks_answer(text: str, answer: str, question: Optional[str] = None) -> Opti
             for piece in sides:
                 if _normalise(piece) == asked or (solution and not _SOLUTION.fullmatch(piece)):
                     continue  # an equation counts only in solved form: x + 3 = 7 equals x = 4 too
-                if _equal(piece, answer):
+                if _equal(piece, answer) and (not unworked or _worked_out(piece)):
                     return piece
     value = solution.group(1).strip() if solution else answer
     if re.search(r"[A-Za-z<>=]", value):
         return None
-    for token in _MATHS.findall(text):
-        token = token.strip()
+    for match in _MATHS.finditer(text):
+        token = match.group().strip()
+        if _PARTS.match(text, match.end()):
+            continue  # "1 sixth", "3 quarters": counting parts, not stating a result
         if _normalise(token) not in given and _equal(token, value):
             return token
     return None
+
+
+def _worked_out(piece: str) -> bool:
+    """True if the maths is already expanded: 9y^2 - 24y + 16, not (3y - 4)(3y - 4)."""
+    try:
+        from ..diagnosis import parse
+        import sympy
+        value = parse(piece).to_sympy()
+        return sympy.expand(value) == value
+    except Exception:
+        return True  # unreadable: treat as a possible leak, the safe side
 
 
 def _equal(a: str, b: str) -> bool:
