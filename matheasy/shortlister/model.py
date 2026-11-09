@@ -47,12 +47,16 @@ def _load(adapter):
 
 
 class ModelShortlister:
-    def __init__(self, adapter):
+    def __init__(self, adapter, candidates=None, name_batch=None):
+        """`candidates`: rank only these MisconceptionIds (e.g. candidates.candidate_ids()).
+        `name_batch`: smaller for a small GPU (8 fits in 4 GB)."""
         self.tok, self.model = _load(adapter)
         names = pd.read_csv(DATA / "raw" / "misconception_mapping.csv")
+        if candidates is not None:
+            names = names[names.MisconceptionId.isin(candidates)]
         self.ids = names.MisconceptionId.tolist()
         self.names = names.MisconceptionName.str.strip().tolist()
-        self.vectors = self._embed(self.names, MAX_M, NAME_BATCH)
+        self.vectors = self._embed(self.names, MAX_M, name_batch or NAME_BATCH)
 
     @torch.no_grad()
     def _embed(self, texts, max_len, size):
