@@ -35,11 +35,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import functools
 import json
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
-from ..diagnosis import diagnose
+from ..diagnosis import EediRanker, diagnose, load_ranker
 from ..evaluation import (
     SAMPLE_ITEMS, SLIP_ITEMS, LLMAttackLine, LLMFeedbackJudge, SimStudent, TestForm, adversarial_roster,
     check_files, prepost_forms, roster,
@@ -111,14 +112,17 @@ def b2_diagnose(*args, **kwargs):
     return dataclasses.replace(d, status="clear", misconception=shortlist[0][0])
 
 
-def make_tutor(condition: str, log: TurnLogger, store, *, llm: bool, retrieve: Optional[Callable]):
+def make_tutor(condition: str, log: TurnLogger, store, *, llm: bool, retrieve: Optional[Callable],
+               eedi_ranker: Optional[EediRanker] = None):
     if condition == "b0":
         return B0Tutor(log)
     if condition == "b1":
         return B1Agent(log, ToolBox(standard_tools(retrieve), log))
     hinter = LLMHinter(retrieve) if llm else TemplateHinter()
-    return Orchestrator(hinter, TutorCritic(), store, log, mode=condition,
-                        diagnose_fn=diagnose if condition == "full" else b2_diagnose)
+    diagnose_fn = diagnose if condition == "full" else b2_diagnose
+    if eedi_ranker is not None:  # B's Eedi link: a step no rule explains may get an eedi: misconception
+        diagnose_fn = functools.partial(diagnose_fn, eedi_ranker=eedi_ranker)
+    return Orchestrator(hinter, TutorCritic(), store, log, mode=condition, diagnose_fn=diagnose_fn)
 
 
 def finished_sessions(path: Path) -> set[str]:
@@ -134,12 +138,13 @@ def finished_sessions(path: Path) -> set[str]:
 
 
 def run_condition(condition: str, students: Sequence[SimStudent], out: Path, *, sessions: int, shard: str,
-                  client: Optional[LLMClient], config_hash: str, retrieve: Optional[Callable]) -> dict:
+                  client: Optional[LLMClient], config_hash: str, retrieve: Optional[Callable],
+                  eedi_ranker: Optional[EediRanker] = None) -> dict:
     log = TurnLogger(f"{condition}-shard{shard}", config_hash, out / "turns")
     done = finished_sessions(log.path)
     store = JsonStudentStore(out / "memory" / f"{condition}-shard{shard}.json", autosave=False) \
         if condition in WITH_MEMORY else NoMemoryStore()
-    tutor = make_tutor(condition, log, store, llm=client is not None, retrieve=retrieve)
+    tutor = make_tutor(condition, log, store, llm=client is not None, retrieve=retrieve, eedi_ranker=eedi_ranker)
     state_dir = out / "students" / condition
     ran = skipped = 0
     for fresh in students:
@@ -193,6 +198,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--relapse", type=float, default=RELAPSE_RATE,
                         help="chance a fixed misconception comes back at a later session")
     parser.add_argument("--llm", action="store_true", help="LLM hinter, critic and judge (needs GEMINI_API_KEY)")
+    parser.add_argument("--eedi", action="store_true",
+                        help="name Eedi misconceptions with A's shortlister (needs --llm, a GPU and data/)")
     args = parser.parse_args(argv)
 
     conditions = args.conditions.split(",")
@@ -208,6 +215,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     config = dataclasses.replace(load_config(), log_dir=out / "llm")
     client = LLMClient(config, run_id=f"shard{shard}") if args.llm else None
     retrieve = textbook_retrieve() if args.llm else None
+    eedi_ranker = None
+    if args.eedi:
+        if not args.llm:
+            parser.error("--eedi needs --llm: the LLM fallback picks the Eedi misconception")
+        eedi_ranker = load_ranker()
+        if eedi_ranker is None:
+            parser.error("--eedi: the shortlister did not load (needs torch, a GPU and data/shortlister/adapter-3B-llm)")
     # The judge is replaced per session. --students keeps runs small: the first N of each kind.
     students = roster(keyword_judge, slip_only=SLIP_ONLY, relapse_rate=args.relapse)[i::n][:args.students]
     if args.per_attack:
@@ -217,7 +231,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         # A fresh copy of each student per condition: no condition sees another's effect on it.
         copies = [type(s).from_state(s.to_state(), judge=keyword_judge) for s in students]
         result = run_condition(condition, copies, out, sessions=args.sessions, shard=shard, client=client,
-                               config_hash=config.hash, retrieve=retrieve)
+                               config_hash=config.hash, retrieve=retrieve, eedi_ranker=eedi_ranker)
         problems = check_files([result["log"]])
         print(f"{condition}: {result['ran']} sessions run, {result['skipped']} already done; "
               f"{_shown(result['log'])}  D's checker: {'logs OK' if not problems else problems[:3]}")
