@@ -17,8 +17,9 @@ The model reconstructs the student's working as a chain of whole lines, marking 
 steps are mistakes. Code checks the chain: every line parses, the last line is
 equivalent to the student's line, and check_step() finds exactly the steps the model
 marked, so an unexplained jump onto the student's line is caught. Each wrong step is
-small, so the rules are run on it too; a rule that reproduces it names the
-misconception exactly. For a line turned into one number, the model is also given
+small, so the rules are run on it too (with solve back for a numeric step); a rule that
+reproduces it names the misconception exactly, and diagnose() takes it as the diagnosis. A
+wrong step that is an inconsistent bracket expansion (slips.py) is marked as a slip. For a line turned into one number, the model is also given
 solve_back()'s pieces: the operations that, alone done wrong, give the student's number.
 
     verified    the chain passes every check; wrong_steps are code's verdict
@@ -37,7 +38,8 @@ from typing import Literal, Optional, Sequence
 
 from .eedi import named
 from .maths import LocatedError, ParseError, check_step, equivalent, locate, parse
-from .solve_back import rules_for
+from .slips import bracket_slip
+from .solve_back import rules_for, solve_back
 
 ROLE = "explainer"
 MAX_LINE = 300  # characters of a line sent to the model
@@ -87,6 +89,7 @@ class WrongStep:
     before: str
     after: str
     rule: Optional[str]  # the one rule that reproduces this step, or None
+    slip: Optional[str] = None  # why this step looks like a slip (slips.py), when no rule reproduces it
 
 
 @dataclass(frozen=True)
@@ -231,18 +234,27 @@ def _reading(located: LocatedError, reply: dict) -> Explanation:
             return Explanation("unverified", mistake, why, kind, topics, steps,
                                reason=f"step {step} is {'wrong' if is_wrong else 'right'}, "
                                       f"but the model says it is {'right' if is_wrong else 'a mistake'}")
-    wrong_steps = tuple(WrongStep(str(a), str(b), _rule(a, b))
-                        for (a, b), w in zip(zip(lines, lines[1:]), wrong) if w)
+    wrong_steps = tuple(_wrong_step(a, b) for (a, b), w in zip(zip(lines, lines[1:]), wrong) if w)
     confirmed = {rule_topic(w.rule) for w in wrong_steps if w.rule}  # certain: a rule reproduces the step
     if confirmed:
         topics = tuple(sorted((set(topics) - {"other"}) | confirmed))
     return Explanation("verified", mistake, why, kind, topics, steps, wrong_steps)
 
 
+def _wrong_step(before, after) -> WrongStep:
+    rule = _rule(before, after)
+    return WrongStep(str(before), str(after), rule, None if rule else bracket_slip(before, after))
+
+
 def _rule(before, after) -> Optional[str]:
-    """The rule that reproduces this one step, if exactly one does."""
+    """The rule that reproduces this one step, if exactly one does: on the changed part, or
+    for a numeric step on the one operation solve back finds wrong."""
     located = locate(before, after)
-    rules = rules_for(located) if located is not None else []
+    if located is None:
+        return None
+    rules = rules_for(located)
+    if not rules:
+        rules = sorted({r for piece in solve_back(before, after) for r in rules_for(piece)})
     return rules[0] if len(rules) == 1 else None
 
 

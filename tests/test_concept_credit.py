@@ -83,3 +83,21 @@ def test_probe_answers_count_towards_the_probes_concepts(tmp_path):
     probe = state.probe.question
     tutor.respond(state, "35" if probe == "7 ÷ 0.2" else "1")
     assert probe in state.memory.worked           # the probe answer reached the student model
+
+
+@pytest.mark.parametrize("before, after, slip", [
+    ("-2(x + y - z - k)", "-2x - 2y + 2z - 2k", True),    # -z right, -k wrong: a slip
+    ("-2(x + y - z - k)", "-2x - 2y - 2z - 2k", False),   # both minus terms wrong alike: a misconception
+    ("3(x + y + z + 4)", "3x + 3y + 3z + 4", False),      # the number has no term like it
+    ("-(a - b + c - d)", "-a + b - c - d", True),
+    ("3k - 2(x + y - z - k)", "3k - 2x - 2y + 2z - 2k", False),   # k outside too: cannot pin it on one term
+    ("-2(x + y - z - k) = 4", "-2x - 2y + 2z - 2k = 4", True),
+])
+def test_an_operation_done_right_on_all_terms_but_one_is_a_slip(before, after, slip):
+    from matheasy.diagnosis import SLIP
+    from matheasy.diagnosis.slips import bracket_slip
+    assert bool(bracket_slip(before, after)) == slip
+    d = diagnose(before, after)
+    assert (d.misconception == SLIP) == slip
+    if slip:
+        assert d.topics == ("expanding_brackets",) and any(t["stage"] == "slip" for t in d.trace)

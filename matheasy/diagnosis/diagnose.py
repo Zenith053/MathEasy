@@ -18,6 +18,11 @@ Rules that tie are 'ambiguous', and a probe from the bank (probes.py) tells them
 A step no rule reproduces goes to the LLM fallback (explain.py) if a session is given;
 see docs/diagnosis_fallback.md. With an `eedi_ranker` too (eedi.py), the fallback picks
 from the closest Eedi misconceptions, and a pick becomes the diagnosis: 'eedi:<n>'. d.topics names the topics whichever found the mistake.
+A step done right on every term of a bracket but one, where a term like the wrong one came
+out right, is a slip (slips.py): d.misconception == 'slip', with no model call.
+The LLM's reconstructed working is checked step by step: a wrong step a rule reproduces
+exactly makes that rule the diagnosis (ahead of an Eedi pick), and wrong steps that are all
+bracket slips make it a slip. Several rules, one per wrong step, are all kept in d.beliefs.
 mode="b2" is the same without probes.
 """
 
@@ -34,6 +39,8 @@ from .ids import split_id
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
 from .maths import LocatedError, Node, equivalent, locate
 from .probes import Probe, choose_probe
+from .ids import SLIP
+from .slips import bracket_slip
 from .solve_back import rules_for, solve_back
 
 MAX_FOLLOW_UPS = 2
@@ -154,13 +161,27 @@ def diagnose(
         trace.append({"stage": "probe", "suspects": suspects, "status": status,
                       "probe": None if probe is None else probe.question})
 
+    slipped = None
+    if status == "unknown":  # a step done right on every term of a bracket but one: a slip, not a belief
+        slipped = bracket_slip(before, after)
+        if slipped:
+            status, top, beliefs = "clear", SLIP, {SLIP: 1.0}
+            trace.append({"stage": "slip", "reason": slipped})
+
     explanation = None
     if status == "unknown" and session is not None:
         choices = eedi_options(located, eedi_ranker) if eedi_ranker is not None else []
         explanation = explain(located, question=question, session=session, pieces=[p for p, _ in pieces],
                               options=choices)
         trace.append({"stage": "explain", "eedi_options": [mid for mid, _ in choices], **explanation.to_log()})
-        if explanation.eedi is not None and explanation.kind == "misconception":
+        found = _from_working(explanation)
+        if found:
+            top, beliefs = found[0], {m: 1 / len(found) for m in found}
+            status = "clear"
+            if top == SLIP:
+                trace.append({"stage": "slip", "reason": "; and ".join(w.slip for w in explanation.wrong_steps)})
+            trace.append({"stage": "decide", "status": status, "misconception": top, "from": "working"})
+        elif explanation.eedi is not None and explanation.kind == "misconception":
             # One ID per mistake: an Eedi name that belongs to exactly one of our rules is that rule,
             # so memory counts it with the rule's own diagnoses and the rule can re-check it later.
             owners = load_bank().for_eedi(int(split_id(explanation.eedi)[1]))
@@ -168,8 +189,20 @@ def diagnose(
             status, beliefs = "clear", {top: 1.0}
             trace.append({"stage": "decide", "status": status, "misconception": top, "eedi": explanation.eedi})
     topics = (explanation.topics if explanation is not None
+              else ("expanding_brackets",) if slipped
               else tuple(sorted({rule_topic(m) for m in beliefs if m.startswith("rule:")})))
     return Diagnosis(status, top, beliefs, probe, located, mode, tuple(trace), explanation, topics)
+
+
+def _from_working(explanation: Explanation) -> list[str]:
+    """What code finds in the LLM's verified working: the rules reproducing its wrong steps, in
+    order, or [SLIP] when every wrong step is a bracket slip; else []."""
+    if explanation.status != "verified" or not explanation.wrong_steps:
+        return []
+    rules = list(dict.fromkeys(w.rule for w in explanation.wrong_steps if w.rule))
+    if rules:
+        return rules
+    return [SLIP] if all(w.slip for w in explanation.wrong_steps) else []
 
 
 def _still_suspected(suspects: list[str], follow_up: FollowUp) -> list[str]:

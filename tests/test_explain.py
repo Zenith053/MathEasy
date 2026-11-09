@@ -149,3 +149,35 @@ def test_diagnose_calls_the_model_only_for_unknown_steps(model):
     assert diagnose("1/2 + 1/3", "2/5", session=session).explanation is None  # a rule reproduces it: no call
     assert len(backend.requests) == 1
     assert diagnose("2x + 3 = 11", "x = 7").explanation is None  # no session: no call
+
+
+# ---------------------------------------------------------------- what code finds in the model's working
+
+def test_rules_on_the_models_steps_name_each_misconception(model):
+    # Two mistakes in one line match no rule; the model's two steps each match one.
+    session, _, say = model
+    assert diagnose("x^2 × x^3 + 2^3", "x^6 + 6").status == "unknown"
+    say([("x^6 + 2^3", True), ("x^6 + 6", True)], topics=["exponents"])
+    d = diagnose("x^2 × x^3 + 2^3", "x^6 + 6", session=session)
+    assert d.status == "clear" and d.misconception == "rule:exponents.multiply_exponents_when_multiplying_powers"
+    assert list(d.beliefs) == ["rule:exponents.multiply_exponents_when_multiplying_powers",
+                               "rule:exponents.multiply_base_by_exponent"]   # one per wrong step, in order
+    assert any(t.get("from") == "working" for t in d.trace)
+
+
+def test_an_unverified_working_names_nothing(model):
+    session, _, say = model
+    say([("x^6 + 6", False)], topics=["exponents"])      # the model calls the wrong step right
+    d = diagnose("x^2 × x^3 + 2^3", "x^6 + 6", session=session)
+    assert d.explanation.status == "unverified" and d.misconception is None
+
+
+def test_bracket_slips_in_the_models_steps_make_a_slip(model):
+    from matheasy.diagnosis import SLIP
+    session, _, say = model
+    before, after = "-(a - b + c - d) - (e - f + g - h)", "-a + b - c - d - e + f - g - h"
+    assert diagnose(before, after).status == "unknown"   # two slips at once: no single check fits
+    say([("-a + b - c - d - (e - f + g - h)", True), (after, True)], kind="slip", topics=["expanding_brackets"])
+    d = diagnose(before, after, session=session)
+    assert d.misconception == SLIP and all(w.slip for w in d.explanation.wrong_steps)
+    assert any(t["stage"] == "slip" for t in d.trace)
