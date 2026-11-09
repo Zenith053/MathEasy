@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MathEasy Analysis</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d232b; --muted: #5e6875; --line: #e2e6eb;
+    --accent: #2f6fde; --accent-ink: #ffffff; --good: #1d8a4e; --good-bg: #e7f6ee;
+    --bad: #c4322b; --bad-bg: #fdecea; --warn: #9a6400; --warn-bg: #fff4dc; --chip: #eef2f8;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161b; --panel: #1b2128; --ink: #e6e9ed; --muted: #9aa4b0; --line: #2c343e;
+      --accent: #5b8ff0; --accent-ink: #0b1220; --good: #4cc786; --good-bg: #16301f;
+      --bad: #f07067; --bad-bg: #3a1b19; --warn: #e3b04b; --warn-bg: #352a12; --chip: #26303b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+  .badge.on { color: var(--good); background: var(--good-bg); }
+  form { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+         display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+          color: var(--ink); font: 16px var(--mono); }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button { padding: 10px 18px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink);
+           font-weight: 600; cursor: pointer; font-size: 15px; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .examples { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--muted); }
+  .examples a { font-family: var(--mono); color: var(--accent); cursor: pointer; text-decoration: none;
+                background: var(--chip); padding: 2px 8px; border-radius: 6px; }
+  @media (max-width: 640px) { form { grid-template-columns: 1fr; } }
+  #result { margin-top: 18px; display: grid; gap: 12px; }
+  .verdict { border-radius: 10px; padding: 14px 16px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .verdict.good { background: var(--good-bg); color: var(--good); }
+  .verdict.bad { background: var(--bad-bg); color: var(--bad); }
+  .verdict.warn { background: var(--warn-bg); color: var(--warn); }
+  .verdict small { font-weight: 400; color: var(--muted); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px;
+             display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tag { font-size: 11px; text-transform: none; letter-spacing: 0; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--ink); }
+  .tag.exact { background: var(--good-bg); color: var(--good); }
+  .tag.close { background: var(--warn-bg); color: var(--warn); }
+  .maths { font-family: var(--mono); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
+  .cite { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .passage + .passage { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .passage b { display: block; font-size: 14px; }
+  .passage p { margin: 4px 0 0; color: var(--muted); font-size: 14px; white-space: pre-line; }
+  ul.similar { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  ul.similar a { font-family: var(--mono); color: var(--accent); cursor: pointer; }
+  ol.working { margin: 0; padding-left: 22px; font-family: var(--mono); }
+  ol.working li.wrong { color: var(--bad); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>MathEasy · answer analysis</h1>
+    <div class="badges" id="badges"></div>
+  </header>
+
+  <form id="form">
+    <div><label for="q">Question</label><input id="q" value="1/2 + 1/3" autocomplete="off"></div>
+    <div><label for="a">Student's answer</label><input id="a" value="2/5" autocomplete="off"></div>
+    <button id="go" type="submit">Analyze</button>
+    <div class="examples">Try:
+      <a data-q="1/2 + 1/3" data-a="2/5">1/2 + 1/3 → 2/5</a>
+      <a data-q="2x + 3 = 11" data-a="x = 7">2x + 3 = 11 → x = 7</a>
+      <a data-q="(3y - 4)^2" data-a="9y^2 + 16">(3y − 4)² → 9y² + 16</a>
+      <a data-q="7 × 8 + 6" data-a="60">7 × 8 + 6 → 60</a>
+      <a data-q="2/3 ÷ 4/5" data-a="8/15">2/3 ÷ 4/5 → 8/15</a>
+    </div>
+  </form>
+
+  <section id="result"></section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const SOURCE = {
+  rule: ["Rule", "a hand-written rule reproduces the answer exactly"],
+  eedi: ["Eedi", "chosen from Eedi's catalogue of real student misconceptions"],
+  llm: ["LLM reading", "the LLM's own reading of the working"],
+  ambiguous: ["Several rules fit", "a follow-up question would tell them apart"],
+  none: ["Not identified", ""],
+};
+
+fetch("/api/status").then((r) => r.json()).then((s) => {
+  $("badges").innerHTML = [["LLM", s.llm], ["Eedi", s.eedi], ["Textbook", s.textbook]]
+    .map(([name, on]) => `<span class="badge ${on ? "on" : ""}">${name} ${on ? "on" : "off"}</span>`).join("");
+});
+
+document.querySelectorAll(".examples a").forEach((a) => a.addEventListener("click", () => {
+  $("q").value = a.dataset.q; $("a").value = a.dataset.a; $("form").requestSubmit();
+}));
+
+$("form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("go").disabled = true; $("go").textContent = "Analyzing…";
+  $("result").innerHTML = "";
+  try {
+    const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: $("q").value, answer: $("a").value }) });
+    render(await r.json());
+  } catch (e) {
+    render({ kind: "error", message: String(e) });
+  } finally {
+    $("go").disabled = false; $("go").textContent = "Analyze";
+  }
+});
+
+function card(title, body, extra = "") {
+  return `<div class="card"><h2>${title}${extra}</h2>${body}</div>`;
+}
+
+function render(d) {
+  const out = [];
+  if (d.kind === "correct") {
+    out.push(`<div class="verdict good">✓ Correct <small class="maths">${esc(d.answer)}</small></div>`);
+  } else if (d.kind === "unread") {
+    const choices = (d.choices || []).map((c, i) => `${i + 1}) <span class="maths">${esc(c)}</span>`).join(" or ");
+    out.push(`<div class="verdict warn">${esc(d.message)} ${choices ? `<small>${choices}</small>` : ""}</div>`);
+  } else if (d.kind === "error") {
+    out.push(`<div class="verdict warn">${esc(d.message)}</div>`);
+  } else {
+    const [label, about] = SOURCE[d.source] || SOURCE.none;
+    const fit = d.source === "eedi" && d.fit ? ` <span class="tag ${d.fit}">${d.fit === "exact" ? "exact match" : "closest match"}</span>` : "";
+    out.push(`<div class="verdict bad">✗ Wrong answer <small class="maths">${esc(d.answer)}</small>
+      ${d.read_as ? `<small>(read as <span class="maths">${esc(d.read_as)}</span>)</small>` : ""}</div>`);
+    out.push(`<div class="grid2">
+      ${card("Where it went wrong", d.where ? `<span class="maths">${esc(d.where)}</span>` : `<span class="muted">Not located.</span>`)}
+      ${card("Topics", d.topics.length ? `<div class="chips">${d.topics.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</div>`
+                                       : `<span class="muted">None named.</span>`)}
+    </div>`);
+    out.push(card("The mistake", d.mistake ? `${esc(d.mistake)}<div class="muted">${esc(about)}${d.misconception ? ` · ${esc(d.misconception)}` : ""}</div>`
+                                           : `<span class="muted">${d.probe ? "Several causes fit." : "No cause identified."} ${esc(about)}</span>`,
+      ` <span class="tag">${label}</span>${fit}`));
+    if (d.probe) out.push(card("Follow-up question", `To tell the causes apart, the tutor would ask: <span class="maths">${esc(d.probe)}</span>`));
+    out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}`));
+    if (d.revise.length) out.push(card("Revise",
+      d.revise.map((p) => `<div class="passage"><b>${esc(p.ref)}</b><p>${esc(p.text)}…</p></div>`).join("")
+      + `<div class="cite">OpenStax Prealgebra 2e and Elementary Algebra 2e, CC BY 4.0</div>`));
+    if (d.similar.length) out.push(card("Try a similar problem",
+      `<ul class="similar">${d.similar.map((q) => `<li><a data-q="${esc(q)}">${esc(q)}</a></li>`).join("")}</ul>`));
+    if (d.working.length) out.push(`<div class="card"><details><summary>How the student probably worked (LLM, ${esc(d.working_checked)} by code)</summary>
+      <ol class="working">${d.working.map((s) => `<li class="${s.wrong ? "wrong" : ""}">${esc(s.line)}</li>`).join("")}</ol></details></div>`);
+    out.push(`<div class="muted">Status: ${esc(d.status)} · ${d.seconds}s</div>`);
+  }
+  $("result").innerHTML = out.join("");
+  $("result").querySelectorAll("ul.similar a").forEach((a) => a.addEventListener("click", () => {
+    $("q").value = a.dataset.q; $("a").value = ""; $("a").focus(); window.scrollTo({ top: 0, behavior: "smooth" });
+  }));
+}
+</script>
+</body>
+</html>
