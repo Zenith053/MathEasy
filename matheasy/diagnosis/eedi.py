@@ -1,6 +1,7 @@
 """Linking a step no rule explains to an Eedi misconception.
 
     ranker = load_ranker()                       # the trained shortlister on this machine's GPU, or None
+                                                 # (an NVIDIA GPU, or Apple silicon's MPS)
     d = diagnose(before, after, question=q, session=s, eedi_ranker=ranker)
     d.misconception                              # 'eedi:1287' when the LLM picked an Eedi name
 
@@ -47,13 +48,15 @@ def options(located: LocatedError, ranker: EediRanker, k: int = EEDI_K) -> list[
 
 
 def load_ranker(adapter: Path | str = ADAPTER, *, name_batch: int = 8) -> Optional[EediRanker]:
-    """The trained shortlister, ranking only in-topic names, if this machine has a GPU and the
-    adapter; else None. Loading takes about a minute and 2 GB of GPU memory, so load it once
-    per process and pass it to every diagnose() call."""
+    """The trained shortlister, ranking only in-topic names, if this machine has a GPU (NVIDIA,
+    or Apple silicon's MPS) and the adapter; else None. Loading takes about a minute and 2 GB
+    of GPU memory (about 6 GB on MPS, which has no 4-bit), so load it once per process and
+    pass it to every diagnose() call."""
     try:
         import torch
 
-        if not torch.cuda.is_available() or not Path(adapter).exists():
+        gpu = torch.cuda.is_available() or torch.backends.mps.is_available()
+        if not gpu or not Path(adapter).exists():
             return None
         from matheasy.shortlister.candidates import candidate_ids
         from matheasy.shortlister.model import ModelShortlister

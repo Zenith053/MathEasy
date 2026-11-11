@@ -40,7 +40,8 @@ except BudgetExceeded:
     ...                                                 # fall back to the safe template
 ```
 
-- **Budget:** a tutor session gets `budget.session_tokens` from the config. Calls outside the tutor (simulated students, LLM judges) use `llm.session(..., budget_tokens=None)` so they don't eat the tutor's budget.
+- **Budget:** a tutor session gets `budget.session_tokens` from the config. Before each call the client estimates the prompt's size, caps the reply to what is left after it, and does not start a call there is no room for, so a session stays within its budget. Calls outside the tutor (simulated students, LLM judges) use `llm.session(..., budget_tokens=None)` so they don't eat the tutor's budget.
+- **Rate limits and outages:** the client waits and tries again on its own: as long as Gemini asks after a 429, and with growing waits when the service can't be reached. If that doesn't help, or a daily quota is used up, it raises `LLMUnavailable`. Don't catch it in tutor code: it is not a tutor failure, and the experiment runner stops on it (exit status 2) so the run can carry on later instead of filling sessions with fallback messages.
 - **JSON replies:** pass `json_schema={...}` and read `result.parsed`.
 - **Other models:** `model="large"` picks the H3 comparison model. Names refer to entries under `models:` in `config/llm.yaml`.
 - **No API key:** set `provider: fake` in your local copy of the config, or pass `backend=FakeBackend(...)` in tests.
@@ -82,8 +83,8 @@ kaggle competitions download -c eedi-mining-misconceptions-in-mathematics -p dat
 ```
 
 **The trained shortlister (v2).** Put the adapter folder at `data/shortlister/adapter-3B-v2/`. It is shared privately in the team, never in git, because it is built from Eedi data.
-- `--eedi` needs a CUDA GPU (about 2 GB) and PyTorch. Without them, `load_ranker()` returns `None`, and diagnosis runs without Eedi names.
-- The first start embeds the candidate names, which takes about 8 minutes on a 4 GB GPU. Later starts reuse them (`docs/design_decisions.md` 7.5).
+- `--eedi` needs PyTorch and a GPU: CUDA (about 2 GB, in 4-bit), or Apple silicon (MPS, about 6 GB in half precision; works on a 16 GB M1). Without one, `load_ranker()` returns `None`, and diagnosis runs without Eedi names.
+- The first start embeds the candidate names, which takes about 8 minutes on a 4 GB GPU (about 2.5 minutes on an M1). Later starts reuse them (`docs/design_decisions.md` 7.5).
 
 **Never commit or re-upload Eedi-derived files:** raw data, `data/eedi/*`, adapters, name vectors or name groups. `data/` is git-ignored. Only Eedi question IDs (`eedi_split.json`) and misconception IDs (`candidates.json`, `bank.yaml`) are in the repo.
 

@@ -8,9 +8,11 @@ BM25 shortlist(), so it plugs straight into B's EediShortlister:
   ranker = ModelShortlister("data/shortlister/adapter-3B-v2")
   diagnose(before, after, shortlister=EediShortlister(ranker))
 
-Uses the same 4-bit setup as training on a GPU, and full precision on a CPU (slower,
-but one query is one forward pass). Needs torch, transformers, peft and bitsandbytes,
-and data/eedi/raw/misconception_mapping.csv.
+Uses the same 4-bit setup as training on an NVIDIA GPU, half precision on an Apple
+silicon GPU (MPS: about 6 GB, where full precision would not fit in 16 GB), and full
+precision on a CPU (slower, but one query is one forward pass). Needs torch,
+transformers and peft (and bitsandbytes for the 4-bit setup), and
+data/eedi/raw/misconception_mapping.csv.
 
 The names' vectors are computed once and saved in the adapter's folder
 (name_vectors_<key>.pt, git-ignored with the rest of data/). The key covers the adapter,
@@ -34,11 +36,21 @@ MAX_Q, MAX_M = 512, 96  # token limits, as in training
 QUERY_BATCH, NAME_BATCH = 16, 64
 
 
+def device() -> str:
+    """Where the model runs: an NVIDIA GPU, an Apple silicon GPU, or the CPU."""
+    if torch.cuda.is_available():
+        return "cuda"
+    return "mps" if torch.backends.mps.is_available() else "cpu"
+
+
 def _load(adapter):
     """The base model named in the adapter's results.json, with the adapter on top."""
     base = json.loads((Path(adapter) / "results.json").read_text(encoding="utf-8"))["model"]
     tok = AutoTokenizer.from_pretrained(adapter)
     tok.padding_side = "right"
+    if device() == "mps":  # bitsandbytes' 4-bit needs CUDA; half precision fits instead
+        model = AutoModel.from_pretrained(base, dtype=torch.float16)
+        return tok, PeftModel.from_pretrained(model, adapter).to("mps").eval()
     if torch.cuda.is_available():
         model = AutoModel.from_pretrained(
             base,
@@ -66,10 +78,9 @@ class ModelShortlister:
 
     def _name_vectors(self, adapter: Path, batch: int):
         """The names' vectors, from the saved file when it matches, else computed and saved."""
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         fingerprint = json.dumps([(adapter / "adapter_config.json").read_text(encoding="utf-8"),
                                   (adapter / "results.json").read_text(encoding="utf-8"),
-                                  MAX_M, device, self.ids, self.names])
+                                  MAX_M, device(), self.ids, self.names])
         path = adapter / f"name_vectors_{hashlib.sha256(fingerprint.encode()).hexdigest()[:16]}.pt"
         if path.exists():
             saved = torch.load(path, map_location=self.model.device)
