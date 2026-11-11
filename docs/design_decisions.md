@@ -456,6 +456,14 @@ Merging by a similarity threshold would merge different misconceptions, which is
 
 Time: about 1 to 1.5 hours.
 
+**Status, 11 November (A): steps 1 and 2 done, waiting for a second check.**
+- **The tool.** `shortlister/name_groups.py` lists the candidate pairs, builds the groups and provides `group_of()`.
+- **Candidate pairs.** The search used model2vec vectors, the CPU model `retrieve()` uses, because the v2 vectors need a GPU. A pair needs cosine ≥ 0.90 *and* word overlap ≥ 0.5, which gives 156 pairs among the 972 in-topic names.
+- **Judged by A: 15 pairs are the same mistake, so 15 groups of 2.** The other 141 are opposites ("rounds up" / "rounds down"), the same mistake in a different operation (lining up digits when adding / when subtracting), or different mistakes in one topic.
+- **Rule for subsets.** When one name is a narrower case of the other ("adds or subtracts from inside brackets" / "subtracts from inside brackets"), the pair is counted as the same.
+- **Not done.** The second check, step 3 (using the groups in `eedi.options()`, scoring and `bank.for_eedi()`, which is B's code), and step 4.
+- **What it is likely to change.** Some near-duplicates have little wording in common and are missed by this search, so B's v2-based count of 113 similar pairs is not comparable. With only 15 groups, the effect on the pick test is likely to be small.
+
 ### T8. The LLM's own "slip" verdict becomes a slip diagnosis
 
 **Why.** The explainer returns `kind`: `misconception` or `slip`. Today a verified explanation with `kind == "slip"` gives *no* misconception at all. The diagnosis is `unknown`, so the tutor treats the mistake as unexplained, rather than as a careless slip. Example: `7 × 8 + 6 → 60` (a times-table slip, 7 × 8 taken as 54). Code already turns two kinds of evidence into a slip:
