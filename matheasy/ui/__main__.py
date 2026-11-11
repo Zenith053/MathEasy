@@ -35,6 +35,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ..diagnosis import (
     SLIP, ParseError, StepIsCorrect, check_step, diagnose, load_ranker, parse, similar_items, topic_of, unknown_runs,
+    uses_slip,
 )
 from ..evaluation.students import correct_answer
 from ..llm import BudgetExceeded, LLMCallError, LLMClient, LLMOutputError
@@ -190,8 +191,10 @@ class Tutor:
             return {"kind": "correct", "answer": lines[-1], "steps": steps}
         except LLM_ERRORS as e:
             return {"kind": "error", "message": f"LLM call failed: {e}"}
-        slip = d.misconception == SLIP or planner.is_slip(memory, d.topics, d.misconception)
-        why_slip = next((t["reason"] for t in d.trace if t.get("stage") == "slip"), None)
+        # T9: the diagnosed rule's mistake made once, and the same step done right elsewhere in this answer
+        uses = uses_slip(chain, d.misconception)
+        slip = d.misconception == SLIP or bool(uses) or planner.is_slip(memory, d.topics, d.misconception)
+        why_slip = next((t["reason"] for t in d.trace if t.get("stage") == "slip"), None) or uses
         self.store.observe(memory, problem, lines[-1], False, topics=d.topics, slip=slip)
         if slip:
             self.store.record(memory, SLIP, topics=d.topics)

@@ -525,6 +525,18 @@ Per rule, over the whole answer:
 
 No LLM call is needed. Time: about half a day, with tests.
 
+**Status, 11 November (D, Rahul): done, except the optional memory counts.**
+- `rule_uses(chain)` and `uses_slip(chain, misconception)` in `diagnosis/slips.py`. A part counts as worked out when it does not appear unchanged in the next line. Each rule counts at the smallest parts it fires on, so two separate right uses in one line are two chances. Typed fractions are numbers, not divisions.
+- **Used by the page and the orchestrator.** When the diagnosed rule's verdict is `slip`, the wrong answer is a slip, with the reason "did the same kind of step right once elsewhere in this answer, and wrong once". The orchestrator sees one line per answer, so it counts within that line (`question → answer`); the page counts over the whole working.
+- **Checked on the cases above:**
+  - across steps: right 1, wrong 1, a slip;
+  - same line with letter terms: a slip;
+  - the same mistake twice: a misconception (repeated);
+  - numbers that combine in one line: nothing claimed, as expected.
+
+  Under 0.1 s per answer. Tests: `tests/test_rule_uses.py`.
+- **Not done:** keeping the counts in the student's memory (optional above).
+
 ## Future work
 
 | Item | Why it is not done now | Plan |

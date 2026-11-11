@@ -31,6 +31,7 @@ from typing import Callable, Optional
 
 from ..diagnosis import (
     SLIP, FollowUp, ParseError, Transcription, check_step, diagnose, equivalent, parse, resolve, transcribe,
+    uses_slip,
 )
 from ..diagnosis import Diagnosis
 from ..evaluation import correct_answer
@@ -206,6 +207,8 @@ class Orchestrator:
         # A mistake on mastered concepts with no suspected misconception is a slip, not a habit.
         slip = fresh and diagnosis is not None and (
             diagnosis.misconception == SLIP  # inconsistent within the step (diagnosis/slips.py)
+            # T9: the rule's mistake made once, and the same step done right elsewhere in the answer
+            or bool(uses_slip([state.problem.question, state.wrong_answer], diagnosis.misconception))
             or planner.is_slip(state.memory, diagnosis.topics, diagnosis.misconception))
         if fresh:
             self.store.observe(state.memory, state.problem, answer, False,

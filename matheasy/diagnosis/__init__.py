@@ -33,3 +33,6 @@ __all__ = [
     "held_back_rules", "load_bank", "locate", "notation_issue", "parse", "rule_id", "RuleError", "rule_names",
     "run_rule", "resolve", "split_id", "topic_of", "Transcription", "transcribe", "unknown_runs",
 ]
+
+from .slips import RuleUse, rule_uses, uses_slip  # noqa: E402  T9: slips from each rule's right and wrong uses
+__all__ += ["RuleUse", "rule_uses", "uses_slip"]
