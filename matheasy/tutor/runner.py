@@ -24,6 +24,9 @@ Everything goes under runs/<run>/: turns/ (run logs), llm/ (LLM call logs),
 students/ and memory/ (state between sessions). Each is saved when a session
 finishes, so a stopped run carries on where it stopped: run the same command
 again. Records of a session that never finished are dropped from its log first.
+The LLM client waits out rate limits itself; when the model stays unavailable
+(a daily quota used up, an outage), the run stops with exit status 2 rather
+than going on with fallback messages, and the same command carries on later.
 
 Each student works D's sample items on which its rule gives a wrong answer (the
 pool; slip-only students get fixed items), and its pre- and post-tests are D's
@@ -37,6 +40,7 @@ import argparse
 import dataclasses
 import functools
 import json
+import sys
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
@@ -45,7 +49,7 @@ from ..evaluation import (
     SAMPLE_ITEMS, SLIP_ITEMS, LLMAttackLine, LLMFeedbackJudge, SimStudent, TestForm, adversarial_roster,
     check_files, prepost_forms, roster,
 )
-from ..llm import LLMClient, load_config
+from ..llm import LLMClient, LLMUnavailable, load_config
 from . import planner
 from .__main__ import keyword_judge, textbook_retrieve
 from .baselines import B0Tutor, B1Agent
@@ -168,15 +172,19 @@ def run_condition(condition: str, students: Sequence[SimStudent], out: Path, *, 
                 if client else keyword_judge
             if client and hasattr(student, "attack_line"):  # an adversarial student: the LLM writes its attacks
                 student.attack_line = LLMAttackLine(client.session(session_id, condition, budget_tokens=None))
-            run_session(tutor, student, [make_problem(f"p{i}", q) for i, q in enumerate(problems)],
-                        session_id=session_id, condition=condition, session_index=index,
-                        pre_items=forms[index].pre, post_items=forms[index].post, llm_session=tutor_llm,
-                        rechecks=rechecks)
+            try:
+                run_session(tutor, student, [make_problem(f"p{i}", q) for i, q in enumerate(problems)],
+                            session_id=session_id, condition=condition, session_index=index,
+                            pre_items=forms[index].pre, post_items=forms[index].post, llm_session=tutor_llm,
+                            rechecks=rechecks)
+            except LLMUnavailable as e:
+                finished_sessions(log.path)  # drop this session's records now; it is redone next time
+                return {"log": log.path, "ran": ran, "skipped": skipped, "stopped": f"{session_id}: {e}"}
             student.save(state_dir)
             if isinstance(store, JsonStudentStore):
                 store.save()
             ran += 1
-    return {"log": log.path, "ran": ran, "skipped": skipped}
+    return {"log": log.path, "ran": ran, "skipped": skipped, "stopped": None}
 
 
 def parse_shard(text: str) -> tuple[int, int]:
@@ -232,11 +240,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         copies = [type(s).from_state(s.to_state(), judge=keyword_judge) for s in students]
         result = run_condition(condition, copies, out, sessions=args.sessions, shard=shard, client=client,
                                config_hash=config.hash, retrieve=retrieve, eedi_ranker=eedi_ranker)
-        problems = check_files([result["log"]])
+        problems = check_files([result["log"]]) if result["log"].exists() else []
         print(f"{condition}: {result['ran']} sessions run, {result['skipped']} already done; "
               f"{_shown(result['log'])}  D's checker: {'logs OK' if not problems else problems[:3]}")
+        if result["stopped"]:
+            print(f"\nStopped: the model is unavailable ({result['stopped']}).\n"
+                  "Its unfinished session was dropped. Run the same command again later to carry on.")
+            break
     if args.llm:
         print(f"LLM calls: {_shown(client.log_path)}")
+    if result["stopped"]:
+        sys.exit(2)
 
 
 def _shown(path: Path) -> Path:

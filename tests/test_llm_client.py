@@ -9,9 +9,11 @@ from matheasy.llm import (
     LLMCallError,
     LLMClient,
     LLMOutputError,
+    LLMUnavailable,
     load_config,
 )
-from matheasy.llm.backends import BackendError, Message, to_gemini_contents
+from matheasy.llm import client as client_module
+from matheasy.llm.backends import BackendError, Message, rate_limit, to_gemini_contents
 from matheasy.llm.config import DEFAULT_CONFIG_PATH
 
 
@@ -27,9 +29,12 @@ def config_path(tmp_path):
     return path
 
 
-def make_client(config_path, reply=None):
+def make_client(config_path, reply=None, sleep=None):
     backend = FakeBackend(reply)
-    return LLMClient(load_config(config_path), backend=backend, run_id="test"), backend
+    waited = [] if sleep is None else sleep
+    client = LLMClient(load_config(config_path), backend=backend, run_id="test", sleep=waited.append)
+    client.waited = waited
+    return client, backend
 
 
 def read_log(client):
@@ -81,7 +86,7 @@ def test_budget_caps_output_then_refuses(config_path):
     session.call("hinter", user("a " * 10))  # 10 in + 20 out = 30
     assert session.remaining_tokens == 20
     session.call("hinter", user("b"))
-    assert backend.requests[-1].max_output_tokens == 20  # capped to what is left
+    assert backend.requests[-1].max_output_tokens == 19  # capped to what is left after the prompt
 
     assert session.remaining_tokens == 0
     with pytest.raises(BudgetExceeded):
@@ -149,14 +154,75 @@ def test_empty_reply_raises_after_charging(config_path):
 
 def test_backend_error_is_logged_and_wrapped(config_path):
     def fail(request):
-        raise BackendError("quota", code=429)
+        raise BackendError("bad request", code=400)
 
     client, _ = make_client(config_path, reply=fail)
-    with pytest.raises(LLMCallError, match="quota"):
+    with pytest.raises(LLMCallError, match="bad request"):
         client.session("s1", "full").call("hinter", user("hi"))
     [record] = read_log(client)
     assert record["event"] == "error"
-    assert "quota" in record["error"]
+    assert "bad request" in record["error"]
+    assert client.waited == []  # a rejected request is not tried again
+
+
+def failing(errors, then="ok"):
+    """A reply that raises each error in turn, then answers."""
+    queue = list(errors)
+
+    def reply(request):
+        if queue:
+            raise queue.pop(0)
+        return then
+    return reply
+
+
+def test_rate_limit_waits_as_asked_then_succeeds(config_path):
+    client, backend = make_client(config_path, reply=failing([
+        BackendError("slow down", code=429, retry_after=31.0),
+        BackendError("slow down", code=429),  # no delay given
+        BackendError("connection reset"),  # no answer at all
+        BackendError("unavailable", code=503),
+    ]))
+    result = client.session("s1", "full", budget_tokens=None).call("hinter", user("hi"))
+    assert result.text == "ok" and len(backend.requests) == 5
+    assert client.waited == [32.0, client_module.RATE_LIMIT_WAIT_S + 1, 40.0, 80.0]  # back-off doubles each wait
+    events = [r["event"] for r in read_log(client)]
+    assert events == ["error"] * 4 + ["call"]
+    assert "waiting 32s" in read_log(client)[0]["error"]
+
+
+@pytest.mark.parametrize("error, waits", [
+    (BackendError("daily quota", code=429, daily=True), 0),  # waiting minutes won't help
+    (BackendError("slow down", code=429, retry_after=5.0), client_module.MAX_WAITS),
+    (BackendError("down", code=503), client_module.MAX_WAITS),
+])
+def test_a_quota_or_outage_that_does_not_clear_is_unavailable(config_path, error, waits):
+    client, _ = make_client(config_path, reply=failing([error] * 10))
+    with pytest.raises(LLMUnavailable):
+        client.session("s1", "full", budget_tokens=None).call("hinter", user("hi"))
+    assert len(client.waited) == waits
+    assert not issubclass(LLMUnavailable, LLMCallError)  # the tutor's fallbacks must not catch it
+
+
+def test_rate_limit_reads_gemini_error_bodies():
+    body = {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "details": [
+        {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+         "violations": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]},
+        {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "31s"}]}}
+    assert rate_limit(body) == (31.0, False)
+    body["error"]["details"][0]["violations"][0]["quotaId"] = "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+    assert rate_limit(body) == (31.0, True)
+    assert rate_limit({}, "Quota exceeded. Please retry in 12.5s.") == (12.5, False)
+    assert rate_limit(None, "server error") == (None, False)
+
+
+def test_a_call_the_budget_cannot_cover_is_not_started(config_path):
+    client, backend = make_client(config_path, reply=lambda r: "x")
+    session = client.session("s1", condition="full")  # budget 50
+    with pytest.raises(BudgetExceeded):
+        session.call("hinter", user("word " * 40))  # about 67 tokens by estimate: over the whole budget
+    assert backend.requests == [] and session.used_tokens == 0
+    assert read_log(client)[-1]["event"] == "budget_exceeded"
 
 
 @pytest.mark.parametrize("messages, match", [

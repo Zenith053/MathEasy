@@ -40,7 +40,8 @@ except BudgetExceeded:
     ...                                                 # fall back to the safe template
 ```
 
-- **Budget:** a tutor session gets `budget.session_tokens` from the config. Calls outside the tutor (simulated students, LLM judges) use `llm.session(..., budget_tokens=None)` so they don't eat the tutor's budget.
+- **Budget:** a tutor session gets `budget.session_tokens` from the config. Before each call the client estimates the prompt's size, caps the reply to what is left after it, and does not start a call there is no room for, so a session stays within its budget. Calls outside the tutor (simulated students, LLM judges) use `llm.session(..., budget_tokens=None)` so they don't eat the tutor's budget.
+- **Rate limits and outages:** the client waits and tries again on its own: as long as Gemini asks after a 429, and with growing waits when the service can't be reached. If that doesn't help, or a daily quota is used up, it raises `LLMUnavailable`. Don't catch it in tutor code: it is not a tutor failure, and the experiment runner stops on it (exit status 2) so the run can carry on later instead of filling sessions with fallback messages.
 - **JSON replies:** pass `json_schema={...}` and read `result.parsed`.
 - **Other models:** `model="large"` picks the H3 comparison model. Names refer to entries under `models:` in `config/llm.yaml`.
 - **No API key:** set `provider: fake` in your local copy of the config, or pass `backend=FakeBackend(...)` in tests.

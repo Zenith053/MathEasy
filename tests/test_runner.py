@@ -119,3 +119,33 @@ def test_students_relapse_between_sessions_by_default(runs):
     runner.main(["t", "--students", "1", "--per-attack", "0", "--sessions", "1", "--conditions", "full"])
     [path] = (runs / "t" / "students" / "full").glob("*.json")
     assert json.loads(path.read_text())["relapse_rate"] == runner.RELAPSE_RATE
+
+
+def test_an_unavailable_model_stops_the_run_and_the_next_run_carries_on(runs):
+    from matheasy.llm.backends import BackendError
+    down = {"now": True}
+
+    def reply(request):
+        prompt = " ".join(m.content for m in request.messages)
+        if down["now"] and "0." in prompt:  # the decimals student's session
+            raise BackendError("daily quota used up", code=429, daily=True)
+        if request.system and "research study" in request.system:  # D's feedback judge
+            return json.dumps({"targets": False, "reason": "no"})
+        return json.dumps({"message": "Check each step again.", "student_is_correct": False,
+                           "student_misconception": ""})
+
+    config = dataclasses.replace(load_config(), log_dir=runs / "llm", cache_dir=runs / "cache")
+    rules = ["fractions.add_numerators_denominators", "decimals.ignore_decimal_point"]
+    run = lambda: runner.run_condition(
+        "b0", [SimStudent(f"{r}#0", r, judge=keyword_judge) for r in rules], runs / "t", sessions=1,
+        shard="0of1", client=LLMClient(config, backend=FakeBackend(reply), run_id="t", sleep=lambda s: None),
+        config_hash=config.hash, retrieve=None)
+
+    stopped = run()
+    assert stopped["ran"] == 1 and "daily quota" in stopped["stopped"]
+    starts = [r for r in read(stopped["log"]) if r["event"] == "session_start"]
+    assert len(starts) == 1 and check_files([stopped["log"]]) == []  # the unfinished session is gone
+
+    down["now"] = False
+    again = run()
+    assert (again["ran"], again["skipped"], again["stopped"]) == (1, 1, None)

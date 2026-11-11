@@ -8,6 +8,7 @@ whichever backend is in use.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol, Sequence
 
@@ -42,11 +43,19 @@ class BackendResponse:
 
 
 class BackendError(Exception):
-    """A call failed after the backend's own retries."""
+    """A call failed after the backend's own retries.
 
-    def __init__(self, message: str, code: Optional[int] = None):
+    code         the HTTP status, or None when no answer came back (a dropped connection)
+    retry_after  seconds the provider asked us to wait, when it said
+    daily        a daily quota is used up: waiting minutes will not help
+    """
+
+    def __init__(self, message: str, code: Optional[int] = None, *, retry_after: Optional[float] = None,
+                 daily: bool = False):
         super().__init__(message)
         self.code = code
+        self.retry_after = retry_after
+        self.daily = daily
 
 
 class Backend(Protocol):
@@ -79,6 +88,7 @@ class GeminiBackend:
         return self._client
 
     def generate(self, request: Request) -> BackendResponse:
+        import httpx
         from google.genai import errors, types
 
         config = types.GenerateContentConfig(
@@ -98,7 +108,11 @@ class GeminiBackend:
                 model=request.model, contents=to_gemini_contents(request.messages), config=config,
             )
         except errors.APIError as e:
-            raise BackendError(f"Gemini API error {e.code}: {e.message}", code=e.code) from e
+            retry_after, daily = rate_limit(e.details, e.message)
+            raise BackendError(f"Gemini API error {e.code}: {e.message}", code=e.code,
+                               retry_after=retry_after, daily=daily) from e
+        except (httpx.TransportError, OSError) as e:  # a dropped connection or timeout, after the SDK's retries
+            raise BackendError(f"Gemini connection failed: {type(e).__name__}: {e}") from e
 
         usage = response.usage_metadata
         finish = response.candidates[0].finish_reason if response.candidates else None
@@ -109,6 +123,28 @@ class GeminiBackend:
             output_tokens=(usage.candidates_token_count or 0) if usage else 0,
             thought_tokens=(usage.thoughts_token_count or 0) if usage else 0,
         )
+
+
+def rate_limit(details, message: Optional[str] = None) -> tuple[Optional[float], bool]:
+    """From a Gemini error: (seconds to wait, if it says, and whether a daily quota ran out).
+
+    A 429's body lists the quotas hit (QuotaFailure, e.g. quotaId
+    "GenerateRequestsPerDayPerProjectPerModel-FreeTier") and how long to wait
+    (RetryInfo, retryDelay "31s"); older messages say "Please retry in 31.2s"."""
+    error = details.get("error", details) if isinstance(details, dict) else {}
+    retry_after, daily = None, False
+    for item in error.get("details") or []:
+        if not isinstance(item, dict):
+            continue
+        delay = re.fullmatch(r"([\d.]+)s", str(item.get("retryDelay", "")))
+        if delay:
+            retry_after = float(delay.group(1))
+        for violation in item.get("violations") or []:
+            daily |= "PerDay" in str(violation.get("quotaId", ""))
+    said = re.search(r"retry in ([\d.]+)\s*s", message or "")
+    if retry_after is None and said:
+        retry_after = float(said.group(1))
+    return retry_after, daily
 
 
 def to_gemini_contents(messages: Sequence[Message]):
