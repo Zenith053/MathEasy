@@ -247,7 +247,7 @@ The model only works well on queries shaped like the ones it was trained on. Tod
 | Considered | Outcome |
 |---|---|
 | Live queries copy the training format | Possible, but it throws away the sharper wrong-term signal |
-| **Training converts the LaTeX of plain-expression Eedi rows to our notation and runs `locate()`. The text diff is kept only for rows we cannot read, and used the same way live** | **Proposed**, not done yet. The count: 527 of 1,472 Eedi rows (36%) fit the live format (`shortlister/live_queries.py`) |
+| **Training converts the LaTeX of plain-expression Eedi rows to our notation and runs `locate()`. The text diff is kept only for rows we cannot read, and used the same way live** | **Done in v2 (B, 9 November), in a variant.** Each training row that fits the live format (`shortlister/live_queries.py`; 527 of all 1,472 Eedi rows fit) is kept in Eedi's format *and* added as a tutor-format copy, 294 copies in all. So the model learns both. In the tutor's format, the right name is in the top 25 for 78% of steps, against 62% for run 3 (`docs/diagnosis_fallback.md`) |
 
 **The construct name in Topic.** It was the training queries' extra clue, and nothing provides it live.
 
@@ -299,7 +299,7 @@ MalruleLib's code was read, never copied or run. Rules that give the same answer
 | Clarification questions logged separately, so they do not count as diagnostic follow-ups in H1 metrics | C and D |
 | Human review of `quantity_words.txt` before the final runs | B |
 | D's `item_key()` handles the new `Word` and `Mixed` nodes | D |
-| Training and live shortlister queries in one format (7.4), including where the topic comes from | A and B |
+| ~~Training and live shortlister queries in one format (7.4), including where the topic comes from~~ **Settled, 9 November.** v2 trains on both formats (7.4). The topic stays as it is: our topic from Eedi's subject in training, `topic_of()` live, and the two agree on 83% of rows | A and B |
 
 ## To do
 
@@ -456,12 +456,14 @@ Merging by a similarity threshold would merge different misconceptions, which is
 
 Time: about 1 to 1.5 hours.
 
-**Status, 11 November (A): steps 1 and 2 done, waiting for a second check.**
+**Status, 11 November (A): steps 1 and 2 done. B to check the 14 groups as part of step 3.**
 - **The tool.** `shortlister/name_groups.py` lists the candidate pairs, builds the groups and provides `group_of()`.
 - **Candidate pairs.** The search used model2vec vectors, the CPU model `retrieve()` uses, because the v2 vectors need a GPU. A pair needs cosine ≥ 0.90 *and* word overlap ≥ 0.5, which gives 156 pairs among the 972 in-topic names.
-- **Judged by A: 14 pairs are the same mistake, so 14 groups of 2.** On a second pass, A changed the ratio pair 312 / 372 ("uses the difference as the total for one side" / "…as the total") to *not* the same, because the two predict different wrong answers; T7's table above lists it as the same. Three groups are borderline and need a person's decision: 373 / 969 and 214 / 1828 (one name is a narrower case), and 2175 / 2316 (2175's extra words "and not square rooted" are unclear). The other 142 are opposites ("rounds up" / "rounds down"), the same mistake in a different operation (lining up digits when adding / when subtracting), or different mistakes in one topic.
+- **Judged by A: 14 pairs are the same mistake, so 14 groups of 2.** On a second pass, A changed the ratio pair 312 / 372 ("uses the difference as the total for one side" / "…as the total") to *not* the same, because the two predict different wrong answers; T7's table above lists it as the same. Three groups were borderline and are kept, by the subset rule below:
+- 373 / 969 and 214 / 1828: one name is a narrower case of the other.
+- 2175 / 2316: both confuse squaring with doubling, and 2175 adds "and not square rooted", a wider case. The other 142 are opposites ("rounds up" / "rounds down"), the same mistake in a different operation (lining up digits when adding / when subtracting), or different mistakes in one topic.
 - **Rule for subsets.** When one name is a narrower case of the other ("adds or subtracts from inside brackets" / "subtracts from inside brackets"), the pair is counted as the same.
-- **Not done.** The second check, step 3 (using the groups in `eedi.options()`, scoring and `bank.for_eedi()`, which is B's code), and step 4.
+- **Not done.** B's check, step 3 (using the groups in `eedi.options()`, scoring and `bank.for_eedi()`, which is B's code), and step 4.
 - **What it is likely to change.** Some near-duplicates have little wording in common and are missed by this search, so B's v2-based count of 113 similar pairs is not comparable. With only 14 groups, the effect on the pick test is likely to be small.
 
 ### T8. The LLM's own "slip" verdict becomes a slip diagnosis

@@ -48,6 +48,47 @@ except BudgetExceeded:
 
 `config/llm.yaml` is shared. Change it only by team agreement.
 
+## Textbook search and the Eedi shortlister
+
+Everything in `matheasy/retrieval` and `matheasy/shortlister` (owner: A). Results are in `docs/report_A_draft.md`.
+
+### Textbook search: build it before any run
+
+The hinter cites OpenStax *Prealgebra 2e* and *Elementary Algebra 2e* (CC BY 4.0) through `retrieve()`. The passages are not in git. **Each machine builds them once:**
+
+```bash
+.venv/bin/python -m matheasy.retrieval.openstax                    # -> data/openstax/passages.jsonl (1,272 passages)
+.venv/bin/python -m matheasy.retrieval.retrieve "adds the numerators and the denominators"   # check: prints passages
+```
+
+**If the file is missing, nothing fails, but hints quietly lose their citations.**
+- The runner and the page check only whether the file exists (`textbook_retrieve()` returns `None` without it), so a missing file shows no error.
+- In the final runs, build it on every machine first, or that shard is not comparable with the others.
+- The book versions are pinned in `openstax.py`, so every machine gets the same passages.
+- The page's status line shows `"textbook": true` when the file is found.
+
+`retrieve(query, k=3)` returns passages with their reference, score and `similarity`. `is_weak(passages)` flags a match that is probably off-topic. `python -m matheasy.retrieval.retrieve --eval` prints the right-section rate (hybrid: 70% first, 97% in the top 3, on 30 queries).
+
+### Eedi data and the shortlister: only for `--eedi`
+
+The tutor runs without them. They are needed only to link a step no rule explains to an Eedi misconception (`--eedi` in the page and the runner), or to retrain or score the shortlister.
+
+**Eedi data.** Accept the competition rules on your own Kaggle account, then:
+
+```bash
+kaggle competitions download -c eedi-mining-misconceptions-in-mathematics -p data/eedi/raw   # unzip it there
+.venv/bin/python -m matheasy.shortlister.prepare_eedi    # subset and split (1,038 / 145 / 289 wrong answers)
+.venv/bin/python -m matheasy.shortlister.query           # training queries
+```
+
+**The trained shortlister (v2).** Put the adapter folder at `data/shortlister/adapter-3B-v2/`. It is shared privately in the team, never in git, because it is built from Eedi data.
+- `--eedi` needs a CUDA GPU (about 2 GB) and PyTorch. Without them, `load_ranker()` returns `None`, and diagnosis runs without Eedi names.
+- The first start embeds the candidate names, which takes about 8 minutes on a 4 GB GPU. Later starts reuse them (`docs/design_decisions.md` 7.5).
+
+**Never commit or re-upload Eedi-derived files:** raw data, `data/eedi/*`, adapters, name vectors or name groups. `data/` is git-ignored. Only Eedi question IDs (`eedi_split.json`) and misconception IDs (`candidates.json`, `bank.yaml`) are in the repo.
+
+Training and scoring run on Kaggle GPUs: `shortlister/train_shortlister.ipynb` trains, `score_test.py` and `score_live.py` score.
+
 ## Maths tools, rules and diagnosis
 
 Everything in `matheasy/diagnosis` (owner: B). These signatures are fixed; later versions keep the same calls.
