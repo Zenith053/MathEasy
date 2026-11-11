@@ -71,7 +71,15 @@ def test_certainty_of_each_kind_of_diagnosis():
 def test_right_steps_come_only_from_a_verified_working():
     d = eedi_diagnosis(explanation("verified"))
     assert right_steps(d) == ("1/2 + 1/3 + 1/6 + 2^2 → 1/2 + 1/3 + 1/6 + 4", "1/2 + 1/3 + 1/6 + 4 → 1 + 4")
+    # Unverified: the working is only the model's guess at what the student did (the student wrote just
+    # "1"), so none of it is passed on as the student's own right work. Tried and reverted 2026-11-11:
+    # passing code-checked steps of an unverified guess told the hinter the student had worked out
+    # 2^2 = 4, and its hints then gave that away.
     assert right_steps(eedi_diagnosis(explanation())) == ()
+
+
+def test_the_critic_may_let_a_hint_ask_the_student_to_work_something_out():
+    assert "a question is not an answer" in critic_module.SYSTEM
 
 
 # --- the T6 case ---------------------------------------------------------------------------------

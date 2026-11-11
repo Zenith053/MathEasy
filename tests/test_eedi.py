@@ -38,9 +38,10 @@ def model(tmp_path):
     backend = FakeBackend(lambda request: queue.pop(0))
     client = LLMClient(load_config(path), backend=backend, run_id="test")
 
-    def say(eedi, kind="misconception", fit="exact"):
-        queue.append(json.dumps({"steps": [{"line": "2x = 11 + 3", "mistake": True}, {"line": "2x = 14", "mistake": False},
-                                           {"line": "x = 7", "mistake": False}],
+    def say(eedi, kind="misconception", fit="exact", steps=None):
+        steps = steps or [{"line": "2x = 11 + 3", "mistake": True}, {"line": "2x = 14", "mistake": False},
+                          {"line": "x = 7", "mistake": False}]
+        queue.append(json.dumps({"steps": steps,
                                  "mistake": "kept the sign", "explanation": "...", "topics": ["solving_equations"],
                                  "eedi": eedi, "eedi_fit": fit, "kind": kind}))
 
@@ -68,6 +69,20 @@ def test_a_close_pick_is_still_the_diagnosis_and_says_so(model):
     say(1, fit="close")
     d = diagnose(*STEP, session=session, eedi_ranker=ranker)
     assert d.misconception == f"eedi:{IN[0]}" and d.explanation.eedi_fit == "close"
+
+
+def test_a_pick_from_an_unverified_reading_is_not_the_diagnosis(model):
+    """T6 (docs/design_decisions.md): the student dropped 2^2 (answer 1, not 5). The model marked the
+    right step (... + 4 -> 1 + 4) as the mistake and the real one (1 + 4 -> 1) as right, and picked an
+    Eedi name for a mistake the student never made. Code finds the reading wrong, so no Eedi diagnosis."""
+    session, _, say = model
+    say(1, steps=[{"line": "1 + 4", "mistake": True}, {"line": "1", "mistake": False}])
+    question = "1/2 + 1/3 + 1/6 + 2^2"
+    d = diagnose(question, "1", question=question, session=session, eedi_ranker=ranker)
+    assert d.explanation.status == "unverified" and d.explanation.eedi == f"eedi:{IN[0]}"
+    assert d.status == "unknown" and d.misconception is None and d.beliefs == {}
+    assert not any(t.get("stage") == "decide" and t.get("eedi") for t in d.trace)
+    assert d.topics == d.explanation.topics  # the topics are still the model's, for memory and practice
 
 
 @pytest.mark.parametrize("pick", [0, 99, -1, True, "2"])

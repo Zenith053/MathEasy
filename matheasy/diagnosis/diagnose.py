@@ -181,7 +181,9 @@ def diagnose(
             if top == SLIP:
                 trace.append({"stage": "slip", "reason": "; and ".join(w.slip for w in explanation.wrong_steps)})
             trace.append({"stage": "decide", "status": status, "misconception": top, "from": "working"})
-        elif explanation.eedi is not None and explanation.kind == "misconception":
+        elif explanation.eedi is not None and explanation.kind == "misconception" and explanation.status == "verified":
+            # Only from a verified reading (T6): when code found the model's working wrong (it called a right
+            # step the mistake, say), its Eedi pick was made for a mistake the student did not make.
             # One ID per mistake: an Eedi name that belongs to exactly one of our rules is that rule,
             # so memory counts it with the rule's own diagnoses and the rule can re-check it later.
             owners = load_bank().for_eedi(int(split_id(explanation.eedi)[1]))

@@ -42,8 +42,9 @@ Approve the hint only if all of these hold:
 1. Every mathematical statement in it is correct.
 2. It does not give the final answer, and it does not work out the corrected result of the part \
 that went wrong or do that step for the student. It may restate what the student already worked \
-out correctly, explain an idea or a method, and say what a notation means (for example that 2^2 \
-means 2 × 2) without giving its value.
+out correctly, explain an idea or a method, say what a notation means (for example that 2^2 \
+means 2 × 2) without giving its value, and ask the student to work a part out themselves: a \
+question is not an answer.
 3. If the diagnosis is certain or likely, the hint is aimed at that misconception. If it is only \
 possible, or none is given, the hint helps the student check the part that went wrong, without \
 insisting on a cause.
