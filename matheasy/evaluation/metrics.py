@@ -116,7 +116,8 @@ def accepted(planted: str, group: str) -> set[str]:
         return {rule_id(stands_for)} | {rule_id(t) for t, r in twins.items() if r == stands_for} | {planted}
     if group == "known_as_text":  # one Eedi MisconceptionId, or a list when the rule covers several
         status = _eedi_status()[name]
-        return {eedi_id(int(m)) for m in (status if isinstance(status, list) else [status])}
+        from ..shortlister.name_groups import members  # a near-duplicate name of the right one is right (T7)
+        return {eedi_id(g) for m in (status if isinstance(status, list) else [status]) for g in members(int(m))}
     return set()  # never_seen, unchecked: no diagnosis can be right
 
 

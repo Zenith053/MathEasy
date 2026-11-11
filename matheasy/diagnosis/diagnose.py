@@ -35,7 +35,7 @@ from .eedi import EediRanker
 from .eedi import options as eedi_options
 from .explain import Explanation, explain, rule_topic
 from .bank import load_bank
-from .ids import split_id
+from .ids import eedi_id, split_id
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
 from .maths import LocatedError, Node, equivalent, locate
 from .probes import Probe, choose_probe
@@ -186,8 +186,11 @@ def diagnose(
             # step the mistake, say), its Eedi pick was made for a mistake the student did not make.
             # One ID per mistake: an Eedi name that belongs to exactly one of our rules is that rule,
             # so memory counts it with the rule's own diagnoses and the rule can re-check it later.
-            owners = load_bank().for_eedi(int(split_id(explanation.eedi)[1]))
-            top = owners[0] if len(owners) == 1 else explanation.eedi
+            # A near-duplicate Eedi name is recorded as its group (T7), so memory counts one mistake once.
+            from matheasy.shortlister.name_groups import canonical
+            picked = canonical(int(split_id(explanation.eedi)[1]))
+            owners = load_bank().for_eedi(picked)
+            top = owners[0] if len(owners) == 1 else eedi_id(picked)
             status, beliefs = "clear", {top: 1.0}
             trace.append({"stage": "decide", "status": status, "misconception": top, "eedi": explanation.eedi})
     topics = (explanation.topics if explanation is not None

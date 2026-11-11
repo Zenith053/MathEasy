@@ -17,6 +17,13 @@ beliefs. So pairs are found by code and judged by a person:
 Both files hold Eedi names or IDs, so they stay out of git like all Eedi-derived files.
 
   group_of()   -> {MisconceptionId: group key}, the smallest ID in its group; {} without the file
+  canonical()  -> the group key of one ID (the ID itself when it is in no group)
+  members()    -> every ID in that ID's group
+
+Used (T7 step 3) by diagnosis/eedi.options() (one name per group in the LLM's list),
+diagnose() (a pick is recorded as its group), bank.for_eedi() (a rule mapped to one member
+owns the group), evaluation.metrics.accepted() and eval/eedi_pick.py (a pick in the right
+group counts as right). Without the group file, all of these behave as before.
 """
 
 import argparse
@@ -74,6 +81,17 @@ def group_of() -> dict:
     if not GROUPS.exists():
         return {}
     return {int(k): v for k, v in json.loads(GROUPS.read_text(encoding="utf-8"))["group_of"].items()}
+
+
+def canonical(misconception_id: int) -> int:
+    """The group key (its smallest ID) of a grouped name, else the ID itself: one ID per mistake."""
+    return group_of().get(int(misconception_id), int(misconception_id))
+
+
+def members(misconception_id: int) -> set:
+    """Every name in the same group as this one, itself included."""
+    key = canonical(misconception_id)
+    return {m for m, g in group_of().items() if g == key} | {int(misconception_id)}
 
 
 def write_pairs(out=PAIRS):

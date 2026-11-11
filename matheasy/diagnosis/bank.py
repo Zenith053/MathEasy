@@ -56,7 +56,11 @@ class Bank:
         return [m.id for m in self if m.rule]
 
     def for_eedi(self, misconception_id: int) -> list[str]:
-        return [m.id for m in self if misconception_id in m.eedi]
+        """The misconceptions mapped to this Eedi ID or to a near-duplicate of it (T7: a rule mapped to
+        one member of a group of names owns the group)."""
+        from matheasy.shortlister.name_groups import members
+        group = members(misconception_id)
+        return [m.id for m in self if group & set(m.eedi)]
 
 
 def load_bank(path: Optional[Path] = None) -> Bank:

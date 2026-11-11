@@ -37,13 +37,25 @@ class EediRanker(Protocol):
 
 
 def options(located: LocatedError, ranker: EediRanker, k: int = EEDI_K) -> list[tuple[str, str]]:
-    """The k best in-topic Eedi names for this step, as [(eedi ID, name)], best first."""
+    """The k best in-topic Eedi names for this step, as [(eedi ID, name)], best first.
+
+    One name per group of near-duplicates (T7, shortlister/name_groups.py): the best-ranked
+    member stands for its group, and the places the others would take go to the next names."""
+    from matheasy.shortlister import name_groups
     from matheasy.shortlister.candidates import candidate_ids
 
     from .interfaces import query
 
     keep = candidate_ids()
-    found = [(eedi_id(int(mid)), name) for mid, name, _score in ranker(query(located), k=RANK_DEPTH) if int(mid) in keep]
+    found, groups = [], set()
+    for mid, name, _score in ranker(query(located), k=RANK_DEPTH):
+        if int(mid) not in keep:
+            continue
+        group = name_groups.canonical(int(mid))
+        if group in groups:
+            continue
+        groups.add(group)
+        found.append((eedi_id(int(mid)), name))
     return found[:k]
 
 

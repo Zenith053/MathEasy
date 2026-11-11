@@ -12,6 +12,11 @@ For each: the shortlister (v2, local GPU) gives EEDI_K names, then one LLM call 
 
     PYTHONPATH=. .venv/bin/python eval/eedi_pick.py --dry-run     # the cases, no GPU, no LLM
     GEMINI_API_KEY=... PYTHONPATH=. .venv/bin/python eval/eedi_pick.py [--limit 24]
+    PYTHONPATH=. .venv/bin/python eval/eedi_pick.py --rescore eedi_pick_results.json   # T7 step 4: no API calls
+
+A pick is right when it names the true misconception or a near-duplicate of it (the same group
+in data/eedi/name_groups.json, to-do T7). --rescore re-scores a saved run that way and reports
+exact and group matches side by side, so the effect of the groups is visible.
 """
 
 import argparse
@@ -60,6 +65,47 @@ def held_back_cases():
                 break
 
 
+def right(pick, truth) -> bool:
+    """The pick names the truth, or a name in the same group as one of the truths (T7)."""
+    from matheasy.shortlister.name_groups import canonical
+    if not pick:
+        return False
+    picked = canonical(int(str(pick).split(":")[1]))
+    return any(canonical(int(str(t).split(":")[1])) == picked for t in truth)
+
+
+def report_for(cases) -> dict:
+    n = len(cases)
+    in_list = [c for c in cases if c["in_list"]]
+    picked = [c for c in cases if c["pick"]]
+    return {
+        "cases": n, "llm_calls": n,
+        "truth in the shortlister's list": f"{len(in_list)}/{n}",
+        "right pick overall": f"{sum(c['right'] for c in cases)}/{n}",
+        "right pick when the truth was in the list": f"{sum(c['right'] for c in in_list)}/{len(in_list)}",
+        "no pick (slip or unclear)": f"{n - len(picked)}/{n}",
+        "exact picks right": f"{sum(c['right'] for c in picked if c['fit'] == 'exact')}/{sum(c['fit'] == 'exact' for c in picked)}",
+        "close picks right": f"{sum(c['right'] for c in picked if c['fit'] == 'close')}/{sum(c['fit'] == 'close' for c in picked)}",
+        "by kind": {k: f"{sum(c['right'] for c in cases if c['kind'] == k)}/{sum(c['kind'] == k for c in cases)}"
+                    for k in ("held-back", "mapped")},
+    }
+
+
+def rescore(path: str) -> dict:
+    """T7 step 4: score a saved run again, counting a pick in the right group as right."""
+    from matheasy.shortlister.name_groups import group_of
+    cases = json.loads(Path(path).read_text())["cases"]
+    exact = report_for([{**c, "right": bool(c["pick"]) and c["pick"] in c["truth"]} for c in cases])
+    grouped = report_for([{**c, "right": right(c["pick"], c["truth"]),
+                           "in_list": any(right(m, c["truth"]) for m in c.get("offered", []))} for c in cases])
+    print(f"{len(set(group_of().values()))} groups of names loaded")
+    print(f"{'':44}{'exact':>10}{'with groups':>14}")
+    for key in ("truth in the shortlister's list", "right pick overall", "right pick when the truth was in the list",
+                "exact picks right", "close picks right"):
+        print(f"{key:44}{exact[key]:>10}{grouped[key]:>14}")
+    return {"exact": exact, "with groups": grouped}
+
+
 def mapped_cases():
     bank = load_bank()
     for name in MAPPED:
@@ -75,7 +121,11 @@ def main():
     ap.add_argument("--limit", type=int, default=24, help="at most this many LLM calls")
     ap.add_argument("--dry-run", action="store_true", help="list the cases only")
     ap.add_argument("--out", default="eedi_pick_results.json")
+    ap.add_argument("--rescore", metavar="RESULTS", help="re-score a saved run with the name groups; no API calls")
     args = ap.parse_args()
+    if args.rescore:
+        rescore(args.rescore)
+        return
     cases = (list(held_back_cases()) + list(mapped_cases()))[:args.limit]
     for c in cases:
         print(f"{c['kind']:9} {c['source'][:42]:42} {c['before']:>18} -> {c['after']:<14} truth {c['truth']}")
@@ -95,25 +145,12 @@ def main():
         e = explain(located, question=f"Work out {c['before']}", session=session,
                     pieces=solve_back(c["before"], c["after"]), options=offered)
         c.update(offered=[m for m, _ in offered], in_list=any(m in c["truth"] for m, _ in offered),
-                 pick=e.eedi, fit=e.eedi_fit, kind_said=e.kind, right=e.eedi in c["truth"], working=e.status)
+                 pick=e.eedi, fit=e.eedi_fit, kind_said=e.kind, right=right(e.eedi, c["truth"]), working=e.status)
         print(f"  {c['source'][:40]:40} in list {c['in_list']!s:5} pick {e.eedi} ({e.eedi_fit}) "
               f"{'RIGHT' if c['right'] else 'wrong'}  [{e.kind}, {e.status}]")
         time.sleep(SPACING_S)
 
-    n = len(cases)
-    in_list = [c for c in cases if c["in_list"]]
-    picked = [c for c in cases if c["pick"]]
-    report = {
-        "cases": n, "llm_calls": n,
-        "truth in the shortlister's list": f"{len(in_list)}/{n}",
-        "right pick overall": f"{sum(c['right'] for c in cases)}/{n}",
-        "right pick when the truth was in the list": f"{sum(c['right'] for c in in_list)}/{len(in_list)}",
-        "no pick (slip or unclear)": f"{n - len(picked)}/{n}",
-        "exact picks right": f"{sum(c['right'] for c in picked if c['fit'] == 'exact')}/{sum(c['fit'] == 'exact' for c in picked)}",
-        "close picks right": f"{sum(c['right'] for c in picked if c['fit'] == 'close')}/{sum(c['fit'] == 'close' for c in picked)}",
-        "by kind": {k: f"{sum(c['right'] for c in cases if c['kind'] == k)}/{sum(c['kind'] == k for c in cases)}"
-                    for k in ("held-back", "mapped")},
-    }
+    report = report_for(cases)
     print(json.dumps(report, indent=1))
     Path(args.out).write_text(json.dumps({"report": report, "cases": cases}, indent=1))
 

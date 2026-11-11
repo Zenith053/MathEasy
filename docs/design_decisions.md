@@ -466,6 +466,17 @@ Time: about 1 to 1.5 hours.
 - **Not done.** B's check, step 3 (using the groups in `eedi.options()`, scoring and `bank.for_eedi()`, which is B's code), and step 4.
 - **What it is likely to change.** Some near-duplicates have little wording in common and are missed by this search, so B's v2-based count of 113 similar pairs is not comparable. With only 14 groups, the effect on the pick test is likely to be small.
 
+
+**Status, 11 November (D, Rahul): step 3 in code; steps 2's check and 4 wait on two files.**
+- **Step 3, done.** Every use reads `name_groups.group_of()`, so it switches on once `data/eedi/name_groups.json` exists, and behaves as before without it:
+  - `eedi.options()` shows one name per group (the best-ranked member), and the freed places go to the next names;
+  - `diagnose()` records a pick as its group key, so memory counts one mistake once;
+  - `bank.for_eedi()` matches a rule mapped to any member of the group;
+  - `evaluation.metrics.accepted()` and `eval/eedi_pick.py` count a pick in the right group as right.
+  Tests use stand-in groups (`tests/test_eedi.py`, "T7").
+- **Step 4, ready.** `eval/eedi_pick.py --rescore <results.json>` re-scores a saved pick run with the groups, exact and grouped side by side, with no API calls.
+- **Waiting on:** A's judged `data/eedi/name_pairs.csv` (or `name_groups.json`), to check the 14 groups and switch them on, and B's `eedi_pick_results.json` from the 22-case run, to re-score it. Both are Eedi-derived, so they are not in git.
+
 ### T8. The LLM's own "slip" verdict becomes a slip diagnosis
 
 **Why.** The explainer returns `kind`: `misconception` or `slip`. Today a verified explanation with `kind == "slip"` gives *no* misconception at all. The diagnosis is `unknown`, so the tutor treats the mistake as unexplained, rather than as a careless slip. Example: `7 × 8 + 6 → 60` (a times-table slip, 7 × 8 taken as 54). Code already turns two kinds of evidence into a slip:

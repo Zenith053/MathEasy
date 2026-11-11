@@ -131,3 +131,69 @@ def test_the_analysis_shows_the_eedi_name(model):
     if not names:
         pytest.skip("no Eedi data on this machine")
     assert mistake(d, Problem("p1", "expressions", "2x + 3 = 11", "x = 4")) == names[IN[0]]
+
+
+# --- T7: near-duplicate Eedi names count as one -------------------------------------------------
+
+@pytest.fixture
+def groups(monkeypatch):
+    """Stand-in name groups (the real file, data/eedi/name_groups.json, is Eedi-derived and not in git):
+    IN[0] and IN[1] are one mistake, keyed by the smaller ID."""
+    from matheasy.shortlister import name_groups
+    grouped = {IN[0]: IN[0], IN[1]: IN[0]}
+    monkeypatch.setattr(name_groups, "group_of", lambda: grouped)
+    return grouped
+
+
+def test_options_show_one_name_per_group_and_give_its_place_to_the_next(groups):
+    assert options(locate(*STEP), ranker) == [(f"eedi:{IN[0]}", f"name {IN[0]}"), (f"eedi:{IN[2]}", f"name {IN[2]}")]
+
+
+def test_a_pick_is_recorded_as_its_group(model, groups):
+    session, _, say = model
+
+    def second_first(query, k=25):  # the group's other member ranks best, so it is the one shown
+        return [(IN[1], f"name {IN[1]}", 0.9), (IN[0], f"name {IN[0]}", 0.8), (IN[2], f"name {IN[2]}", 0.7)]
+
+    say(1)  # picks the first option: IN[1]
+    d = diagnose(*STEP, session=session, eedi_ranker=second_first)
+    assert d.explanation.eedi == f"eedi:{IN[1]}"   # what the model picked
+    assert d.misconception == f"eedi:{IN[0]}"      # recorded as its group, so memory counts it once
+
+
+def test_a_rule_mapped_to_one_member_owns_the_group(monkeypatch):
+    from matheasy.diagnosis import load_bank
+    from matheasy.shortlister import name_groups
+    bank = load_bank()
+    rule = "rule:fractions.add_numerators_denominators"
+    mapped = bank[rule].eedi[0]
+    monkeypatch.setattr(name_groups, "group_of", lambda: {mapped: mapped, 999999: mapped})
+    assert rule in bank.for_eedi(999999)
+    assert bank.for_eedi(999998) == []
+
+
+def test_evaluation_accepts_a_near_duplicate_of_the_right_name(monkeypatch):
+    from matheasy.evaluation.metrics import accepted
+    from matheasy.shortlister import name_groups
+    monkeypatch.setattr(name_groups, "group_of", lambda: {172: 172, 999999: 172})
+    assert accepted("rule:fractions.subtract_across", "known_as_text") == {"eedi:172", "eedi:999999"}
+
+
+def test_the_pick_test_rescores_with_groups(monkeypatch, tmp_path, capsys):
+    import importlib.util
+    from pathlib import Path
+    from matheasy.shortlister import name_groups
+    spec = importlib.util.spec_from_file_location("eedi_pick", Path(__file__).parents[1] / "eval" / "eedi_pick.py")
+    pick_test = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pick_test)
+    monkeypatch.setattr(name_groups, "group_of", lambda: {5: 5, 6: 5})
+    case = {"kind": "mapped", "fit": "exact", "in_list": True, "offered": ["eedi:6"]}
+    saved = {"cases": [{**case, "pick": "eedi:6", "truth": ["eedi:5"], "right": False},   # a near-duplicate
+                       {**case, "pick": "eedi:7", "truth": ["eedi:5"], "right": False},   # a different mistake
+                       {**case, "pick": None, "truth": ["eedi:5"], "right": False, "fit": None}]}
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(saved))
+    result = pick_test.rescore(str(path))
+    assert result["exact"]["right pick overall"] == "0/3"
+    assert result["with groups"]["right pick overall"] == "1/3"
+    assert pick_test.right("eedi:6", ["eedi:5"]) and not pick_test.right("eedi:7", ["eedi:5"])
