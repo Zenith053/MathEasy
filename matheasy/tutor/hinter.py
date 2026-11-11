@@ -11,18 +11,22 @@ from __future__ import annotations
 from typing import Callable, Optional, Sequence
 
 from ..llm import LLMOutputError, Session
-from .state import Hint, HintRequest
+from .state import CERTAINTY, Hint, HintRequest
 
 SYSTEM = """\
 You write hints for a maths tutor used by students aged 11 to 14.
 
 You are told the question, the student's wrong answer, which part of their work went wrong, \
-and, when it is known, the misconception that explains the mistake. Write one hint that helps \
-the student see why their method does not work and try again.
+what they already did right (when known) and, when it is known, the misconception that explains \
+the mistake and how sure that is. Write one hint that helps the student see why their method \
+does not work and try again.
 
 Rules:
-- Aim the hint at the misconception you are given. If no misconception is given, help the \
-student find and check the step that went wrong, without guessing a cause.
+- If the misconception is certain or likely, aim the hint at it. If it is only possible, aim the \
+hint at the part that went wrong, and mention the misconception at most as one thing to check. \
+If no misconception is given, help the student find and check the step that went wrong, without \
+guessing a cause.
+- You may build on what the student already did right.
 - Never state the final answer, never work out the correct result of the step, and never \
 do the step for the student.
 - Use at most three short sentences in plain words, and end with one question the student \
@@ -78,6 +82,10 @@ def _prompt(request: HintRequest, passages: list[dict], feedback: Optional[Seque
         f"What went wrong: {request.wrong_part or 'not located'}",
         f"Misconception: {request.misconception or 'not known'}",
     ]
+    if request.misconception and request.certainty:
+        lines.append(f"How sure: {CERTAINTY[request.certainty]}")
+    if request.right:
+        lines.append(f"Already right: {'; '.join(request.right)}")
     if passages:
         lines.append("\nTextbook sections:")
         lines += [f"[{p['ref']}]\n{p['text'][:PASSAGE_CHARS]}" for p in passages]

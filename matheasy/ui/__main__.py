@@ -44,9 +44,10 @@ from ..tutor.analysis import analyse, mistake, topic_name
 from ..tutor.critic import TutorCritic
 from ..tutor.describe import misconception_text
 from ..tutor.hinter import LLMHinter
-from ..tutor.orchestrator import MAX_REWRITES, SAFE_TEMPLATE, read_answer
+from ..tutor.hinting import hint_request, write_hint
+from ..tutor.orchestrator import SAFE_TEMPLATE, read_answer
 from ..tutor.placeholders import TemplateHinter
-from ..tutor.state import HintRequest, Problem
+from ..tutor.state import Problem
 from ..tutor.store import InMemoryStore
 from .db import Database
 
@@ -198,7 +199,10 @@ class Tutor:
             self.store.record(memory, d.misconception, topics=d.topics)
         analysis = analyse(d, problem, memory.worked)
         words = None if slip else mistake(d, problem)
-        hint, citation, rejected = self._hint(problem, after, words, d)
+        right = tuple(f"{a} → {b}" for a, b in zip(chain[:k], chain[1:k + 1]))  # the lines before the wrong one
+        hint, citation, rejected, dropped = self._hint(problem, after, d, slip, right)
+        if dropped:  # the critic said the student's work rules this misconception out
+            words = None
 
         e = d.explanation
         practice = list(analysis.practice) or similar_items(d.topics, seen=[question], n=3)
@@ -216,26 +220,19 @@ class Tutor:
             "seconds": round(time.time() - start, 1),
         }
 
-    def _hint(self, problem: Problem, answer: str, words: Optional[str], d) -> tuple[str, Optional[str], list]:
-        """A hint that passed the critic, as in the orchestrator; else the safe template.
-        Also every rejected attempt and the critic's reasons, so the page can show them."""
-        located = d.located
-        request = HintRequest(problem.topic, problem.question, answer, words,
-                              f"{located.source} became {located.wrong}" if located else None)
-        feedback: list[str] = []
-        rejected: list[dict] = []
-        for _ in range(MAX_REWRITES + 1):
-            try:
-                hint = self.hinter.hint(request, feedback or None, llm=self.session)
-                verdict = self.critic.review(hint.text, "hint", problem, request=request, llm=self.session)
-            except LLM_ERRORS as e:
-                rejected.append({"hint": None, "reasons": [f"LLM call failed: {e}"]})
-                break
-            if verdict.passed:
-                return hint.text, hint.citations[0] if hint.citations else None, rejected
-            feedback = list(verdict.reasons)
-            rejected.append({"hint": hint.text, "reasons": feedback})
-        return SAFE_TEMPLATE, None, rejected
+    def _hint(self, problem: Problem, answer: str, d, slip: bool, right: tuple[str, ...]):
+        """A hint that passed the critic, written as in the orchestrator (tutor/hinting.py); else the
+        safe template. Also every rejected attempt and the critic's reasons, so the page can show
+        them, and whether the critic ruled the misconception out."""
+        written = write_hint(self.hinter, self.critic, hint_request(problem, answer, d, slip=slip, right=right),
+                             problem, llm=self.session)
+        rejected = list(written.attempts)
+        if written.error is not None:
+            rejected.append({"hint": None, "reasons": [f"LLM call failed: {written.error}"]})
+        if written.hint is None:
+            return SAFE_TEMPLATE, None, rejected, written.dropped
+        hint = written.hint
+        return hint.text, hint.citations[0] if hint.citations else None, rejected, written.dropped
 
     def _revise(self, words: Optional[str], d, topic: str, citation: Optional[str]) -> list[dict]:
         """Textbook passages to read, the hint's citation first. Searched with the mistake's words

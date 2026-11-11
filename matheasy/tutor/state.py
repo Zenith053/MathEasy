@@ -23,6 +23,15 @@ class Problem:
     correct_answer: str  # for the critic's leak check; never given to the hinter
 
 
+# How sure a misconception is, as the hinter and the critic are told (hinting.certainty()).
+CERTAINTY = {
+    "certain": "certain: a rule reproduces the student's step exactly",
+    "likely": "likely: the model's reading of the working was checked by code, or it matched an Eedi "
+              "misconception exactly",
+    "possible": "only possible: the nearest match found, not confirmed by the student's work",
+}
+
+
 @dataclass(frozen=True)
 class HintRequest:
     """Everything the hinter may see. No correct answer, by construction."""
@@ -32,6 +41,8 @@ class HintRequest:
     student_answer: str
     misconception: Optional[str]  # the misconception in words; None means give a general hint
     wrong_part: Optional[str]  # e.g. "1/2 + 1/3 became 2/5"; never what it should have been
+    certainty: Optional[str] = None  # how sure the misconception is: hinting.CERTAINTY
+    right: tuple[str, ...] = ()  # steps the student already did right, e.g. "1/2 + 1/3 + 1/6 → 1"
 
 
 @dataclass(frozen=True)
@@ -44,6 +55,7 @@ class Hint:
 class Verdict:
     passed: bool
     reasons: tuple[str, ...] = ()
+    misconception_fits: bool = True  # False: the critic says the student's work rules the misconception out
 
 
 @dataclass

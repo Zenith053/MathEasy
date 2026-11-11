@@ -25,7 +25,7 @@ from typing import Mapping, Optional
 from ..diagnosis import ParseError, equivalent
 from ..llm import Session
 from .mathtext import maths_runs
-from .state import HintRequest, MessageKind, Problem, Verdict
+from .state import CERTAINTY, HintRequest, MessageKind, Problem, Verdict
 
 MAX_HINT_CHARS = 600
 
@@ -34,16 +34,23 @@ _MATHS = re.compile(r"-?\d+(?:\.\d+)?(?:\s*/\s*\d+)?%?")
 
 SYSTEM = """\
 You review hints written by a maths tutor for students aged 11 to 14, before the student sees them.
-You are given the question, its correct answer, the student's wrong answer, the misconception \
-the tutor diagnosed (if any), and the hint.
+You are given the question, its correct answer, the student's wrong answer, which part of their \
+work went wrong, what they already did right (when known), the misconception the tutor diagnosed \
+(if any) and how sure that diagnosis is, and the hint.
 
 Approve the hint only if all of these hold:
 1. Every mathematical statement in it is correct.
-2. It does not give the final answer, work out the correct result of the step, or do the step \
-for the student. It may explain an idea or a method.
-3. It is aimed at the diagnosed misconception. If none is given, it helps the student check \
-their own work without guessing a cause.
+2. It does not give the final answer, and it does not work out the corrected result of the part \
+that went wrong or do that step for the student. It may restate what the student already worked \
+out correctly, explain an idea or a method, and say what a notation means (for example that 2^2 \
+means 2 × 2) without giving its value.
+3. If the diagnosis is certain or likely, the hint is aimed at that misconception. If it is only \
+possible, or none is given, the hint helps the student check the part that went wrong, without \
+insisting on a cause.
 4. Its wording suits a student aged 11 to 14.
+
+Also say whether the diagnosed misconception fits: misconception_fits is false only if the \
+student's work shows that it does not explain this mistake, and true otherwise (true when none is given).
 
 If you reject it, list each problem as one short sentence the writer can act on."""
 
@@ -52,8 +59,9 @@ SCHEMA = {
     "properties": {
         "approved": {"type": "boolean"},
         "problems": {"type": "array", "items": {"type": "string"}},
+        "misconception_fits": {"type": "boolean"},
     },
-    "required": ["approved", "problems"],
+    "required": ["approved", "problems", "misconception_fits"],
 }
 
 
@@ -150,15 +158,22 @@ class TutorCritic:
         return reasons
 
     def llm_review(self, text: str, problem: Problem, request: Optional[HintRequest], llm: Session) -> Verdict:
-        prompt = "\n".join([
+        lines = [
             f"Question: {problem.question}",
             f"Correct answer: {problem.correct_answer}",
             f"Student's answer: {request.student_answer if request else 'unknown'}",
-            f"Diagnosed misconception: {(request.misconception if request else None) or 'none'}",
-            f"Hint:\n{text}",
-        ])
-        result = llm.call(self.role, [{"role": "user", "content": prompt}], system=SYSTEM, json_schema=SCHEMA)
+            f"What went wrong: {(request.wrong_part if request else None) or 'not located'}",
+        ]
+        if request and request.right:
+            lines.append(f"Already right: {'; '.join(request.right)}")
+        lines.append(f"Diagnosed misconception: {(request.misconception if request else None) or 'none'}")
+        if request and request.misconception and request.certainty:
+            lines.append(f"How sure: {CERTAINTY[request.certainty]}")
+        lines.append(f"Hint:\n{text}")
+        result = llm.call(self.role, [{"role": "user", "content": "\n".join(lines)}], system=SYSTEM,
+                          json_schema=SCHEMA)
+        fits = result.parsed.get("misconception_fits") is not False
         if result.parsed.get("approved") is True:
-            return Verdict(True)
+            return Verdict(True, misconception_fits=fits)
         problems = tuple(str(p) for p in result.parsed.get("problems") or ()) or ("The reviewer rejected the hint.",)
-        return Verdict(False, problems)
+        return Verdict(False, problems, misconception_fits=fits)

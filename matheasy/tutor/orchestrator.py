@@ -26,6 +26,7 @@ reading of a misconception is the mistake shown and what the hinter aims at.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Callable, Optional
 
 from ..diagnosis import (
@@ -35,14 +36,14 @@ from ..diagnosis import Diagnosis
 from ..evaluation import correct_answer
 from ..llm import BudgetExceeded, LLMCallError, LLMOutputError
 from . import planner
-from .analysis import analyse, mistake
+from .analysis import analyse
+from .hinting import MAX_REWRITES, hint_request, write_hint
 from .mathtext import EDGE_WORDS, maths_runs
 from .parts import Critic, Hinter, StudentStore
-from .state import Hint, HintRequest, MessageKind, Problem, TutorReply, TutorState, Utterance
+from .state import Hint, MessageKind, Problem, TutorReply, TutorState, Utterance
 from .turnlog import TurnLogger
 
 MAX_FOLLOWUPS = 2
-MAX_REWRITES = 2
 
 # Pre-approved fallbacks. They never contain an answer, so they skip the critic.
 SAFE_TEMPLATE = (
@@ -253,39 +254,27 @@ class Orchestrator:
     def _hint(self, state: TutorState, diagnosis: Optional[Diagnosis], slip: bool = False) -> TutorReply:
         # A clear diagnosis, or a verified LLM reading of an unknown step, gets a targeted
         # hint. Ambiguous after the follow-up limit, unexplained, or no diagnosis gets a general one.
-        located = diagnosis.located if diagnosis is not None else None
         analysis = analyse(diagnosis, state.problem, state.memory.worked, _open(state))
-        request = HintRequest(
-            topic=state.problem.topic,
-            question=state.problem.question,
-            student_answer=state.wrong_answer,
-            misconception=mistake(diagnosis, state.problem) if diagnosis is not None and not slip else None,
-            wrong_part=f"{located.source} became {located.wrong}" if located else None,
-        )
+        request = hint_request(state.problem, state.wrong_answer, diagnosis, slip=slip)
         state.probe = None
         state.hints_given += 1
 
-        feedback: list[str] = []
-        reasons: list[list[str]] = []
-        for attempt in range(MAX_REWRITES + 1):
-            try:
-                hint = self.hinter.hint(request, feedback or None, llm=state.llm)
-                verdict = self.critic.review(hint.text, "hint", state.problem, request=request, llm=state.llm,
-                                             unsolved=_open(state))
-            except LLM_ERRORS as e:
-                return self._fallback(state, e, rewrites=attempt, critic_reasons=reasons)
-            if verdict.passed:
-                # Every part of the analysis passed the leak check when it was built.
-                text = "\n".join(part for part in (analysis.text(), with_citation(hint), analysis.practice_text())
-                                  if part)
-                reply = self._deliver(state, "hint", text)
-                self.log.log(state, "hint", turn=state.turn, text=text, citations=list(hint.citations),
-                             rewrites=attempt, safe_template=False, critic_reasons=reasons,
-                             analysis=analysis.to_log())
-                return reply
-            feedback = list(verdict.reasons)
-            reasons.append(feedback)
-        return self._fallback(state, None, rewrites=MAX_REWRITES, critic_reasons=reasons)
+        written = write_hint(self.hinter, self.critic, request, state.problem, llm=state.llm,
+                             unsolved=_open(state))
+        reasons = [a["reasons"] for a in written.attempts]
+        if written.hint is None:
+            return self._fallback(state, written.error, rewrites=len(reasons), critic_reasons=reasons)
+        if written.dropped:  # the critic ruled the misconception out: don't show it as the mistake either
+            analysis = dataclasses.replace(analysis, mistake=None)
+        # Every part of the analysis passed the leak check when it was built.
+        text = "\n".join(part for part in (analysis.text(), with_citation(written.hint), analysis.practice_text())
+                         if part)
+        reply = self._deliver(state, "hint", text)
+        self.log.log(state, "hint", turn=state.turn, text=text, citations=list(written.hint.citations),
+                     rewrites=len(reasons), safe_template=False, critic_reasons=reasons,
+                     analysis=analysis.to_log(), certainty=request.certainty,
+                     dropped_misconception=written.dropped)
+        return reply
 
     def _send(self, state: TutorState, kind: MessageKind, text: str) -> TutorReply:
         """Send a message that is not rewritten: question, probe or feedback."""
