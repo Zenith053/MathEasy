@@ -78,7 +78,7 @@ class ModelShortlister:
         vectors = self._embed(self.names, MAX_M, batch)
         try:
             torch.save({"ids": self.ids, "vectors": vectors.cpu()}, path)
-        except OSError:
+        except (OSError, RuntimeError):  # torch.save raises RuntimeError on a read-only file system
             pass  # a read-only folder: just compute them again next time
         return vectors
 

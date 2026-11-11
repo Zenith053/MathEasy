@@ -38,6 +38,18 @@ def test_vectors_are_computed_once_then_read_back(adapter):
     assert torch.equal(first.vectors, second.vectors) and second.ids == first.ids
 
 
+def test_a_read_only_adapter_folder_still_gives_vectors(adapter, monkeypatch):
+    path, calls = adapter
+
+    def read_only(*args, **kwargs):  # what torch.save raises on Kaggle's read-only input folders
+        raise RuntimeError("open file failed with strerror: Read-only file system")
+
+    monkeypatch.setattr(model.torch, "save", read_only)
+    ranker = model.ModelShortlister(path, candidates={1, 4, 6})
+    assert calls == [3] and ranker.vectors.shape == (3, 4)
+    assert not list(path.glob("name_vectors_*.pt"))
+
+
 def test_a_different_name_list_or_adapter_recomputes(adapter):
     path, calls = adapter
     model.ModelShortlister(path, candidates={1, 4, 6})
