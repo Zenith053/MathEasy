@@ -10,3 +10,7 @@ rank_bm25>=0.2.2
 model2vec>=0.10.0
 beautifulsoup4>=4.12
 kaggle>=1.6
+
+# Role C: baselines B0 and B1 as LangGraph graphs (pinned: every member runs the same control flow)
+langgraph==1.2.20
+langchain-core==1.7.7

@@ -118,3 +118,14 @@ def test_too_many_tool_calls_end_in_the_safe_template(run):
 def test_budget_exhausted_sends_safe_template(run):
     result, records, _ = run([tool("check_step", {"before": "1/2", "after": "1/2"})] * 20, session_tokens=10)
     assert result.ended_by == "budget" and result.state.transcript[-1].text == SAFE_TEMPLATE
+
+
+def test_b0_and_b1_are_langgraph_graphs(tmp_path):
+    from matheasy.tutor import B0Tutor
+    log = TurnLogger("t", "h", tmp_path)
+    b0 = B0Tutor(log).graph.get_graph()
+    b1 = B1Agent(log, ToolBox(standard_tools(), log)).graph.get_graph()
+    assert set(b0.nodes) == {"__start__", "read", "tutor", "deliver", "__end__"}
+    assert set(b1.nodes) == {"__start__", "read", "agent", "tool", "deliver", "__end__"}
+    edges = {(e.source, e.target) for e in b1.edges}
+    assert {("agent", "tool"), ("tool", "agent"), ("agent", "deliver")} <= edges
