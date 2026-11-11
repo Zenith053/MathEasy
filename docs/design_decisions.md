@@ -33,7 +33,7 @@ See `docs/diagnosis_fallback.md` for the fallback and its results, and `docs/dia
 **Not settled yet.**
 
 - Whether the baselines (B0, B1, B2) and the experiment runner stay.
-- Whether the Eedi shortlister stays. 33 of B's rules are mapped to Eedi misconceptions (`bank.yaml`), and the trained model and its cache are built (section 7). Neither is connected to `diagnose()` yet. Until one is, students "known only as text" score 0 (`docs/trial_week3.md`).
+- ~~Whether the Eedi shortlister stays.~~ Settled on 9 November: it stays. The retrained model (v2) is connected to `diagnose()` (`diagnosis/eedi.py`). When no rule fits, it gives the LLM fallback 20 in-topic Eedi names to pick from (`docs/diagnosis_fallback.md`). 37 of the 58 rules are mapped to Eedi misconceptions (`bank.yaml`).
 
 Sections below written before this decision still mention the hypotheses and baselines.
 
@@ -206,7 +206,7 @@ The model (A, `train_shortlister.ipynb`) is a **bi-encoder**: one fine-tuned lan
 
 The shortlister does **not** look for similar Eedi questions. What it learned from them is stored in the model's weights, and live it searches only the names. So it can rank a misconception that never appeared in training, because it scores the name's text. That is how held-back misconceptions can still be found.
 
-The model is trained but not connected yet: `shortlist()` still uses BM25 word matching over the names, and `diagnose()` uses `RuleShortlister` (every rule is run, and the ones that reproduce the student's answer are kept). `ModelShortlister` (`shortlister/model.py`) and `CachedShortlist` (`shortlister/cache.py`) both plug into `EediShortlister`, if the team keeps the shortlister.
+The model is connected (9 November). `load_ranker()` (`diagnosis/eedi.py`) loads v2 through `ModelShortlister` (`shortlister/model.py`) when the machine has a GPU and the adapter. Without them, `diagnose()` runs without Eedi names, as before. `shortlist()` is still BM25, kept for comparison. `CachedShortlist` (`shortlister/cache.py`) was built from run 3 and is not used live.
 
 **Test scores of the four runs** (`shortlister/score_test.py`): 289 test rows, 91 of them with a misconception that has no training question ("unseen"). The 95% intervals come from resampling rows 2,000 times.
 
@@ -459,10 +459,10 @@ Time: about 1 to 1.5 hours.
 **Status, 11 November (A): steps 1 and 2 done, waiting for a second check.**
 - **The tool.** `shortlister/name_groups.py` lists the candidate pairs, builds the groups and provides `group_of()`.
 - **Candidate pairs.** The search used model2vec vectors, the CPU model `retrieve()` uses, because the v2 vectors need a GPU. A pair needs cosine ≥ 0.90 *and* word overlap ≥ 0.5, which gives 156 pairs among the 972 in-topic names.
-- **Judged by A: 15 pairs are the same mistake, so 15 groups of 2.** The other 141 are opposites ("rounds up" / "rounds down"), the same mistake in a different operation (lining up digits when adding / when subtracting), or different mistakes in one topic.
+- **Judged by A: 14 pairs are the same mistake, so 14 groups of 2.** On a second pass, A changed the ratio pair 312 / 372 ("uses the difference as the total for one side" / "…as the total") to *not* the same, because the two predict different wrong answers; T7's table above lists it as the same. Three groups are borderline and need a person's decision: 373 / 969 and 214 / 1828 (one name is a narrower case), and 2175 / 2316 (2175's extra words "and not square rooted" are unclear). The other 142 are opposites ("rounds up" / "rounds down"), the same mistake in a different operation (lining up digits when adding / when subtracting), or different mistakes in one topic.
 - **Rule for subsets.** When one name is a narrower case of the other ("adds or subtracts from inside brackets" / "subtracts from inside brackets"), the pair is counted as the same.
 - **Not done.** The second check, step 3 (using the groups in `eedi.options()`, scoring and `bank.for_eedi()`, which is B's code), and step 4.
-- **What it is likely to change.** Some near-duplicates have little wording in common and are missed by this search, so B's v2-based count of 113 similar pairs is not comparable. With only 15 groups, the effect on the pick test is likely to be small.
+- **What it is likely to change.** Some near-duplicates have little wording in common and are missed by this search, so B's v2-based count of 113 similar pairs is not comparable. With only 14 groups, the effect on the pick test is likely to be small.
 
 ### T8. The LLM's own "slip" verdict becomes a slip diagnosis
 

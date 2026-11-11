@@ -1,6 +1,6 @@
 # Report draft: fine-tuning and retrieval (Role A)
 
-Draft for the final report, written by A, for B and C to fit into the final version. Every number comes from the repo and the private Kaggle runs named in each section. The team plan also gives A the H3 comparison, which the pivot of 30 October dropped. **Open question for the team:** does the report still need it? See the last section.
+Draft for the final report, written by A, for B and C to fit into the final version. Every number comes from the repo and the private Kaggle runs named in each section. It follows `docs/design_decisions.md`, so H3, which the team plan gave A, is left out (section 3).
 
 ## 1. The misconception shortlister
 
@@ -133,11 +133,9 @@ The "right section retrieved" metric: 30 misconception queries, each with a hand
 - The one hybrid miss is "keeps the common denominator when multiplying fractions".
 - **In the tutor:** in the LLM trial (7–8 November), 34 of the full tutor's 48 hints cited a section. The other 14 were the critic's safe template, which carries no citation.
 
-## 3. H3: to decide
+## 3. H3 is not reported
 
-The team plan's H3 asks whether a small fine-tuned model ranks misconceptions nearly as well as a much larger prompted model, at lower cost. It was dropped on 30 October with the other hypotheses, and no large-model comparison was run. The options are:
-- **Leave it out.** Sections 1.4–1.8 then report the fine-tuning on its own terms.
-- **Run a small version.** For example, a large model ranks the same test rows from a shortlist, about 300 calls. That needs the API quota the final runs are already short of.
+The team plan's H3 compared the fine-tuned shortlister with a much larger prompted model. It was dropped on 30 October with the other hypotheses (`docs/design_decisions.md`, "What we are trying to build"), and no large-model comparison was run. Sections 1.4–1.8 report the fine-tuning on its own terms.
 
 ## 4. Limitations
 
