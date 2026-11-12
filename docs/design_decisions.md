@@ -486,7 +486,7 @@ Time: about 1 to 1.5 hours.
 - **What it is likely to change.** Some near-duplicates have little wording in common and are missed by this search, so B's v2-based count of 113 similar pairs is not comparable. With only 14 groups, the effect on the pick test is likely to be small.
 
 
-**Status, 11 November (D, Rahul): step 3 in code; steps 2's check and 4 wait on two files.**
+**Status, 12 November (D, Rahul): steps 1 to 3 done and switched on; step 4 waits on B's pick results.**
 - **Step 3, done.** Every use reads `name_groups.group_of()`, so it switches on once `data/eedi/name_groups.json` exists, and behaves as before without it:
   - `eedi.options()` shows one name per group (the best-ranked member), and the freed places go to the next names;
   - `diagnose()` records a pick as its group key, so memory counts one mistake once;
@@ -494,7 +494,13 @@ Time: about 1 to 1.5 hours.
   - `evaluation.metrics.accepted()` and `eval/eedi_pick.py` count a pick in the right group as right.
   Tests use stand-in groups (`tests/test_eedi.py`, "T7").
 - **Step 4, ready.** `eval/eedi_pick.py --rescore <results.json>` re-scores a saved pick run with the groups, exact and grouped side by side, with no API calls.
-- **Waiting on:** A's judged `data/eedi/name_pairs.csv` (or `name_groups.json`), to check the 14 groups and switch them on, and B's `eedi_pick_results.json` from the 22-case run, to re-score it. Both are Eedi-derived, so they are not in git.
+- **Step 2's check, done (D, 12 Nov).** A's `data/eedi/name_groups.json` is in place, so the groups are on. Checked against `misconception_mapping.csv`: 28 names in 14 groups of 2, each keyed by its smallest ID, all in the in-topic candidate set. D agrees with all 14 and with leaving 312 / 372 apart. 1259 / 2359 ("division is sometimes commutative" / "…is commutative") is a fourth subset pair and is kept.
+- **What changes now.**
+  - In the LLM's list, 1749, 2359, 1730 and the other second members give their places to the next names (checked with a stand-in ranker).
+  - Two rules now own a whole group. `divide_larger_by_smaller_always` owns 1259 / 2359, and `forget_to_add_carried_number` owns 1403 / 2431, so a pick of either member becomes that rule.
+  - Two held-back students accept one more name: `denominator_comparison_error` (2030) also accepts 1667, and `right_align_decimals` (1730, 2346) also accepts 587.
+  - The suite passes with the real groups (1237).
+- **Waiting on:** B's `eedi_pick_results.json` from the 22-case run, to re-score it (`eval/eedi_pick.py --rescore`). It is Eedi-derived, so not in git.
 
 ### T8. The LLM's own "slip" verdict becomes a slip diagnosis
 
