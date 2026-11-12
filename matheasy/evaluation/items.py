@@ -33,6 +33,8 @@ SAMPLE_ITEMS = [
     "68 × 46", "23 × 14", "23 × 4",
     "(x^2)^3", "(2x^3)^2", "2^3", "x^3 × x^5", "2^-2", "5^0",
     "(3 × 10^4) × (2 × 10^5)", "45000", "0.0032",
+    # Our own bracket and like-term rules (T2): their docstring examples, with numbers to vary
+    "5 - (x - 2)", "-2(x - 3)", "2x + 3x",
     # Held-back rules: MalruleLib examples the sample above does not already cover
     "1/3 > 1/4", "0.4 < 0.45", "30% of 50", "x - 3 = 7", "5 + (-3)", "5 - (-3)",
 ]

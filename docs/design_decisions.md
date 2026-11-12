@@ -217,6 +217,10 @@ The model is connected (9 November). `load_ranker()` (`diagnosis/eedi.py`) loads
 | 2 | Qwen2.5 1.5B, Eedi rows | 0.275 [0.239, 0.312] | 0.578 [0.519, 0.633] | 0.318 | 0.180 |
 | 3 | 3B, plus 512 LLM-written examples | 0.323 [0.283, 0.363] | 0.644 [0.592, 0.696] | 0.335 | 0.295 [0.218, 0.373] |
 | 4 | 3B, plus LLM examples and 939 rule pairs | 0.329 [0.288, 0.372] | 0.630 [0.578, 0.682] | 0.381 | 0.216 [0.157, 0.281] |
+| v2 | 3B, calculation rows in both query formats, plus LLM examples (B, 9 November) | 0.303 [0.261, 0.347] | 0.595 [0.540, 0.651] | 0.317 | 0.272 [0.202, 0.345] |
+
+- **v2 against run 3, on these Eedi-format rows:** −0.020 MAP@25 [−0.057, 0.021], not clearly different.
+- **On the tutor's format, v2 nearly doubles run 3:** MAP@25 0.306 against 0.160 on the 156 rows of 7.4, and 0.292 against 0.152 on their 96 test rows. The cost of the tutor's format falls from 0.20 to 0.08 [0.03, 0.13].
 
 Each change compared on the same rows (paired), MAP@25:
 
@@ -288,6 +292,8 @@ Embedding all the misconception names (927 in the live candidate list) with the 
 | **Write our own rules, keeping MalruleLib's names and wrong answers** | **Chosen**: each rule follows MalruleLib's `calculate_expected_answer()`, but runs on any expression the student writes and returns `None` where the misconception says nothing. The names keep IDs shared with the literature and with D's held-back list, and the held-back rules can be refused in code. The column-arithmetic rules were checked against the 120 worked cases in MalruleLib's own tests |
 
 MalruleLib's code was read, never copied or run. Rules that give the same answer on every problem (twins) are merged into one rule, so that a diagnosis is never permanently ambiguous. Coverage and conventions are in `docs/diagnosis_rules.md`.
+
+**Our own rules (T2, 11 November).** Mistakes MalruleLib has no rule for get rules of our own. They use groups MalruleLib does not use (`brackets.` and `like_terms.`), so the name shows the rule is ours. They follow the same contract: the student's expression in, the predicted answer or `None` out.
 
 ## Open questions
 
@@ -368,6 +374,14 @@ Decided, but not started. Anyone in the team can pick an item up.
 
 **What "done" means.** The first two steps in the first table are diagnosed `clear` by a rule, with no LLM call, and the full suite passes. The third has two mistakes in one line, so no single rule fits it (multiple misconceptions are future work). With the LLM on, though, each step of the model's reconstructed working is then matched by a rule.
 
+**Status, 11 November (A): done.**
+- **The rules.** The five rules are in `rules/brackets.py` and `rules/like_terms.py`, with tests in `tests/test_bracket_rules.py`. The table's first two steps, and every example above, are diagnosed `clear` by a rule with no LLM call. The two-mistake line stays `unknown`, and the inconsistent bracket stays a slip.
+- **Eedi IDs.** 220 for first term only, 583 for minus on the first term (the closest name), 1644 for x + x = x², and 2422 then 436 for unlike terms. No Eedi name fits the negative multiplier.
+- **One change outside the rules.** `locate()` multiplies out a minus before it pairs terms, so `-(x + 1) → -x + 1` narrows to `-1 → 1` and the bracket is gone. When no rule reproduces the narrowed part, `RuleShortlister` now also tries the whole line. This only affects steps that would otherwise be `unknown`.
+- **Like-term rules skip powers** (`(x + 3)^2` is a bracket to expand, not 4x squared), through a new optional `enter` argument to `rewrite()`.
+- **Probe bank.** Rebuilt with eight new shapes, added at the end of the list so the seeded draws of the old shapes do not change. All 83 old items are kept, and new items cover the new rules and every new tie.
+- **Not done.** T3's on-and-off measurement before and after T2.
+
 ### T3. Testing with only the diagnoser's LLM off
 
 **Why.** One switch (`--llm` in the page and the runner) turns the LLM on or off for everything: reading the student's lines, diagnosis (the explainer, and through it the Eedi pick), the hinter and the critic. To learn what the LLM adds *to diagnosis alone*, turn off only the diagnoser and keep everything else the same. This comparison is rules, solve back and the slip check, against all of those plus the LLM.
@@ -384,6 +398,11 @@ Decided, but not started. Anyone in the team can pick an item up.
 - LLM calls and tokens per session.
 
 Run it before and after T2, since the bracket rules should move many `unknown` steps to `clear`.
+
+**Status, 11 November (A): the switch and the fix are done; the measurement is not.**
+- **The switch.** `--no-llm-diagnosis` in the runner and the page (`runner.without_llm()`). It drops the session and the Eedi ranker from `diagnose()` only, and is refused together with `--eedi`.
+- **The gap.** When nothing names a topic, `diagnose()` now takes them from the wrong part (`step_topics()`): `question_topics()` on `locate()`'s part, or on solve back's pieces for a line of numbers, with whole-number pieces named `whole_number_arithmetic`. A `topics` stage in the trace marks it. This applies whenever the LLM did not run, not only with the switch.
+- **Not done: the on-and-off numbers.** They need API calls, so they wait for the team's quota decision. T2 is already in, so a "before T2" run would have to use the commit before it.
 
 ### T4. B0 on LangChain/LangGraph
 

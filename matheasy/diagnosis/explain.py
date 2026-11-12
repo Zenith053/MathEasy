@@ -70,7 +70,8 @@ TOPICS = {
 
 # Rules whose topic is not their group's name. Every other rule's group is its topic.
 _GROUP_TOPIC = {"buggy_addition": "whole_number_arithmetic", "buggy_subtraction": "whole_number_arithmetic",
-                "buggy_multiplication": "whole_number_arithmetic", "subtraction": "whole_number_arithmetic"}
+                "buggy_multiplication": "whole_number_arithmetic", "subtraction": "whole_number_arithmetic",
+                "brackets": "expanding_brackets", "like_terms": "collecting_like_terms"}
 _RULE_TOPIC = {"algebra.cancel_across_equals": "solving_equations",
                "algebra.divide_one_term_only": "solving_equations",
                "algebra.variable_letter_has_value": "algebraic_notation",

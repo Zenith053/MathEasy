@@ -5,6 +5,7 @@
     python -m matheasy.ui                 # code only: rules, solve back, probes; template hints
     python -m matheasy.ui --llm           # + the LLM fallback, LLM hints and the critic's review (GEMINI_API_KEY)
     python -m matheasy.ui --llm --eedi    # + Eedi misconceptions from the shortlister (GPU; loads for minutes)
+    python -m matheasy.ui --llm --no-llm-diagnosis   # the LLM everywhere except diagnosis (T3)
     -> http://localhost:8000
 
 Each Analyze runs what the tutor runs: every line of the working is read (transcribe) and
@@ -88,7 +89,8 @@ class DbStore(InMemoryStore):
 class Tutor:
     """The pieces the page uses, built once: the database, the LLM session, the Eedi ranker, the textbook search."""
 
-    def __init__(self, llm: bool, eedi: bool, db: Optional[Database] = None):
+    def __init__(self, llm: bool, eedi: bool, db: Optional[Database] = None, llm_diagnosis: bool = True):
+        self.llm_diagnosis = llm_diagnosis  # False: only the diagnoser's LLM is off (T3)
         self.db = db or Database()
         self.store = DbStore(self.db)
         self.lock = threading.Lock()  # one analysis at a time: memory updates must not interleave
@@ -103,7 +105,8 @@ class Tutor:
             print("Eedi shortlister:", "ready" if self.ranker else "did not load (needs torch, a GPU and data/)")
 
     def status(self) -> dict:
-        return {"llm": self.session is not None, "eedi": self.ranker is not None, "textbook": self.retrieve is not None}
+        return {"llm": self.session is not None, "eedi": self.ranker is not None, "textbook": self.retrieve is not None,
+                "llm_diagnosis": self.session is not None and self.llm_diagnosis}
 
     def memory(self, student: str):
         memory = self.store.load(student)
@@ -186,7 +189,8 @@ class Tutor:
         k = ok.index(False)  # the first wrong step: chain[k] -> chain[k + 1]
         before, after = chain[k], chain[k + 1]
         try:
-            d = diagnose(before, after, question=question, session=self.session, eedi_ranker=self.ranker)
+            d = diagnose(before, after, question=question, session=self.session if self.llm_diagnosis else None,
+                         eedi_ranker=self.ranker if self.llm_diagnosis else None)
         except StepIsCorrect:
             return {"kind": "correct", "answer": lines[-1], "steps": steps}
         except LLM_ERRORS as e:
@@ -390,11 +394,15 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--llm", action="store_true", help="LLM fallback, hints and critic (needs GEMINI_API_KEY)")
     ap.add_argument("--eedi", action="store_true", help="Eedi misconceptions (needs --llm, a GPU and data/)")
+    ap.add_argument("--no-llm-diagnosis", dest="llm_diagnosis", action="store_false",
+                    help="with --llm, turn off only the diagnoser's LLM (T3); reading, hints and the critic keep it")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     if args.eedi and not args.llm:
         ap.error("--eedi needs --llm: the LLM fallback picks the Eedi misconception")
-    tutor = Tutor(args.llm, args.eedi)
+    if args.eedi and not args.llm_diagnosis:
+        ap.error("--eedi needs the diagnoser's LLM: drop --no-llm-diagnosis")
+    tutor = Tutor(args.llm, args.eedi and args.llm_diagnosis, llm_diagnosis=args.llm_diagnosis)
     if not tutor.db.users():
         print("No accounts yet. Create one first:  python -m matheasy.ui.db add-user <name> --role teacher")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(tutor))

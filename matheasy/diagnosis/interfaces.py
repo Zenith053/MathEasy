@@ -18,7 +18,7 @@ import sympy
 
 from .bank import Bank, load_bank
 from .ids import eedi_id
-from .maths import UNDEFINED, LocatedError, Rel, equivalent, topic_of, undefined
+from .maths import UNDEFINED, LocatedError, Node, Rel, equivalent, parse, topic_of, undefined
 from .rules import RuleError, run_rule
 
 
@@ -49,16 +49,25 @@ class RuleShortlister:
         self.failed: list[str] = []
 
     def __call__(self, error: LocatedError, k: int = 25) -> list[Candidate]:
-        hits, self.failed = [], []
+        self.failed = []
+        hits = self._hits(error.source_node, error.wrong_node)
+        if not hits and error.source != error.before:
+            # Narrowing can strip what a rule needs: it pairs off terms after multiplying out a
+            # minus, so -(x + 1) -> -x + 1 becomes -1 -> 1. Then try the whole line as well.
+            hits = self._hits(parse(error.before), parse(error.after))
+        return hits[:k]
+
+    def _hits(self, source: Node, wrong: Node) -> list[Candidate]:
+        hits = []
         for mid in self.bank.rules():
             try:
-                predicted = run_rule(mid, error.source_node)
+                predicted = run_rule(mid, source)
             except RuleError as e:
                 self.failed.append(str(e))
                 continue
-            if predicted is not None and equivalent(predicted, error.wrong_node):
+            if predicted is not None and equivalent(predicted, wrong):
                 hits.append(Candidate(mid, 1.0))
-        return hits[:k]
+        return hits
 
 
 class EediShortlister:

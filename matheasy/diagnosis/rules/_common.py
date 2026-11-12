@@ -153,14 +153,18 @@ def solved(letter: Sym, value: Node) -> Rel:
     return Rel("=", letter, value)
 
 
-def rewrite(node: Node, change: Callable[[Node], Optional[Node]]) -> Node:
-    """The tree with `change` applied bottom-up wherever it gives a replacement."""
+def rewrite(node: Node, change: Callable[[Node], Optional[Node]],
+            enter: Callable[[Node], bool] = lambda node: True) -> Node:
+    """The tree with `change` applied bottom-up wherever it gives a replacement. A node for
+    which `enter` is False is left as it is, with everything inside it."""
+    if not enter(node):
+        return node
     if isinstance(node, BinOp) and not node.typed_fraction:
-        node = BinOp(node.op, rewrite(node.left, change), rewrite(node.right, change))
+        node = BinOp(node.op, rewrite(node.left, change, enter), rewrite(node.right, change, enter))
     elif isinstance(node, Rel):
-        node = Rel(node.op, rewrite(node.left, change), rewrite(node.right, change))
+        node = Rel(node.op, rewrite(node.left, change, enter), rewrite(node.right, change, enter))
     elif isinstance(node, Neg):
-        node = Neg(rewrite(node.operand, change))
+        node = Neg(rewrite(node.operand, change, enter))
     return change(node) or node
 
 
@@ -175,10 +179,11 @@ def simplified(node: Node) -> Node:
         return node
 
 
-def changed_answer(node: Node, change: Callable[[Node], Optional[Node]]) -> Optional[Node]:
-    """The student's answer if they apply `change` wherever it fits; None if it fits nowhere
-    or does not change the value."""
-    wrong = rewrite(node, change)
+def changed_answer(node: Node, change: Callable[[Node], Optional[Node]],
+                   enter: Callable[[Node], bool] = lambda node: True) -> Optional[Node]:
+    """The student's answer if they apply `change` wherever it fits (but not inside a node
+    `enter` refuses); None if it fits nowhere or does not change the value."""
+    wrong = rewrite(node, change, enter)
     if wrong == node:
         return None
     try:

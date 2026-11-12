@@ -44,6 +44,7 @@ Scored on the 289 test rows (`shortlister/score_test.py`). The 95% intervals com
 | 2 | 1.5B, Eedi rows | 0.275 [0.239, 0.312] | 0.578 | 0.318 | 0.180 |
 | 3 | 3B, plus LLM-written examples | 0.323 [0.283, 0.363] | 0.644 | 0.335 | **0.295** |
 | 4 | 3B, plus LLM examples and rule pairs | 0.329 [0.288, 0.372] | 0.630 | **0.381** | 0.216 |
+| v2 | 3B, calculation rows in both formats, plus LLM examples (section 1.6) | 0.303 [0.261, 0.347] | 0.595 | 0.317 | 0.272 |
 
 What each change did, measured on the same rows (paired, MAP@25):
 
@@ -53,6 +54,7 @@ What each change did, measured on the same rows (paired, MAP@25):
 | 3B against 1.5B | +0.017 [−0.015, 0.049] | +0.020 | +0.010 |
 | LLM-written examples (run 3 against run 1) | +0.031 [−0.001, 0.061] | −0.003 | **+0.105 [0.055, 0.157]** |
 | Rule pairs (run 4 against run 3) | +0.006 [−0.031, 0.043] | +0.046 [0.001, 0.091] | **−0.080 [−0.141, −0.017]** |
+| v2 against run 3, Eedi-format queries | −0.020 [−0.057, 0.021] | −0.018 | −0.024 |
 
 - **Fine-tuning is what matters.** A fine-tuned 3B model puts the right misconception in the top 10 for 61% of wrong answers. Word matching manages 6%.
 - **Size did not matter much.** 1.5B is not clearly worse than 3B.
@@ -64,12 +66,13 @@ What each change did, measured on the same rows (paired, MAP@25):
 
 The tutor writes queries from its own step locator (plain notation such as `2/5`, the exact wrong term). Eedi's are LaTeX with a text diff. The same 156 validation and test rows were scored in both formats (`shortlister/score_live.py`):
 
-| Model | Eedi format: MAP@25 / Recall@10 | Tutor format: MAP@25 / Recall@10 |
-|---|---|---|
-| Run 3 | 0.360 / 0.718 | 0.160 / 0.436 |
-| Run 4 | 0.371 / 0.679 | 0.186 / 0.397 |
+| Model | Eedi format: MAP@25 / Recall@10 | Tutor format: MAP@25 / Recall@10 | Cost of the tutor's format |
+|---|---|---|---|
+| Run 3 | 0.360 / 0.718 | 0.160 / 0.436 | −0.200 [−0.252, −0.150] |
+| Run 4 | 0.371 / 0.679 | 0.186 / 0.397 | – |
+| **v2** | 0.386 / 0.712 | **0.306 / 0.558** | **−0.080 [−0.128, −0.033]** |
 
-The tutor's format costs about 0.2 MAP@25 (run 3: 95% interval 0.15 to 0.25). So scores in Eedi's format overstate how well the model works inside the tutor.
+Before v2, the tutor's format cost about 0.2 MAP@25, so scores in Eedi's format overstated how well the model works inside the tutor. v2 (section 1.6) cuts that cost to 0.08.
 
 ### 1.6 v2: retrained for the tutor's queries (by B, 9 November)
 
@@ -89,6 +92,10 @@ On 137 validation and test steps in the tutor's format, ranking all names:
 - Eedi-format recall did not drop: top 25 went from 0.87 to 0.90.
 - With 137 rows, these figures carry roughly ±7 points of uncertainty.
 - v2 is the model the tutor uses.
+
+**Scored by A the same way as runs 1–4** (`score_test.py`, `score_live.py`, Kaggle, 11 November):
+- **On the tutor's format, v2 nearly doubles run 3.** On the 96 test rows (val played a part in choosing v2's epoch), MAP@25 rises from 0.152 to 0.292 and Recall@10 from 0.41 to 0.54.
+- **On all 289 test rows in Eedi's format, v2 is not clearly different from run 3** (−0.020 MAP@25, 95% interval −0.057 to 0.021), although it trained on fewer rows (only calculations). It traded nothing measurable in Eedi's format for a large gain in the format the tutor uses.
 
 ### 1.7 How the shortlist is used live
 

@@ -112,6 +112,16 @@ SHAPES = [
     lambda r: f"({r.choice([4, 6, 8])} × 10^{r.randint(5, 9)}) ÷ (2 × 10^{r.randint(2, 4)})",
     lambda r: f"{r.randint(11, 99)}000",
     lambda r: f"0.00{r.randint(11, 99)}",  # beyond two decimal places: standard form needs it
+    # brackets and like terms (our own rules, to-do T2). Kept last: a new shape anywhere
+    # earlier would change the seeded draws of every shape after it, and so the whole bank.
+    lambda r: f"{r.randint(2, 6)}(x + {small(r)})",
+    lambda r: f"{r.randint(2, 6)}(x - {small(r)})",
+    lambda r: f"-(x + {small(r)})",
+    lambda r: f"{r.randint(13, 20)} - (x - {small(r)})",
+    lambda r: f"-{r.randint(2, 6)}(x - {small(r)})",
+    lambda r: f"{r.randint(2, 6)}x + {r.randint(2, 6)}x",
+    lambda r: f"{r.randint(2, 6)}x + {small(r)}",
+    lambda r: f"{r.randint(2, 6)}a + {r.randint(2, 6)}b",
 ]
 
 

@@ -122,6 +122,12 @@ PREDICTS = [
     ("scientific_notation.count_all_zeros_for_exponent", "3050", "3.05 × 10^2"),
     ("scientific_notation.wrong_exponent_sign", "45000", "4.5 × 10^-4"),
     ("scientific_notation.wrong_exponent_sign", "0.0032", "3.2 × 10^3"),
+    # ---- our own rules (T2); more cases in test_bracket_rules.py
+    ("brackets.multiply_first_term_only", "2(x + 3)", "2x + 3"),
+    ("brackets.minus_first_term_only", "-(x + 1)", "1 - x"),
+    ("brackets.negative_multiplier_first_term_only", "-2(x - 3)", "-2x - 6"),
+    ("like_terms.add_letters_as_powers", "x + x", "x^2"),
+    ("like_terms.combine_unlike_terms", "3x + 2", "5x"),
 ]
 
 # (rule, a problem its misconception says nothing about)

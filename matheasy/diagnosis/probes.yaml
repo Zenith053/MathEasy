@@ -73,6 +73,24 @@
   - expanding_brackets
   predictions:
     rule:algebra.distribute_over_non_distributive: x^2 + 64
+- question: -6(x - 11)
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:brackets.multiply_first_term_only: -6x - 11
+    rule:brackets.negative_multiplier_first_term_only: -6x - 66
+- question: -6(x - 12)
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:brackets.multiply_first_term_only: -6x - 12
+    rule:brackets.negative_multiplier_first_term_only: -6x - 72
+- question: -6(x - 7)
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:brackets.multiply_first_term_only: -6x - 7
+    rule:brackets.negative_multiplier_first_term_only: -6x - 42
 - question: -8 ÷ -11
   topics:
   - negative_numbers
@@ -91,6 +109,11 @@
   predictions:
     rule:negative_numbers.larger_absolute_value_always_wins: '-3'
     rule:negative_numbers.negative_times_negative_negative: '-3'
+- question: 19 - (x - 8)
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:brackets.minus_first_term_only: 11 - x
 - question: 19 - 10 × 3 + 9
   topics:
   - order_of_operations
@@ -126,6 +149,16 @@
     rule:buggy_addition.single_digit_linked: '592'
     rule:buggy_addition.write_carry_forget_units: '51'
     rule:subtraction.no_column_limit: '511'
+- question: 20 - (x - 12)
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:brackets.minus_first_term_only: 8 - x
+- question: 20 - (x - 9)
+  topics:
+  - expanding_brackets
+  predictions:
+    rule:brackets.minus_first_term_only: 11 - x
 - question: 20 - 5 + 4
   topics:
   - order_of_operations
@@ -260,6 +293,16 @@
   predictions:
     rule:exponents.multiply_base_by_exponent: '-15'
     rule:exponents.negative_exponent_makes_negative: '-125'
+- question: 5x + 2x
+  topics:
+  - collecting_like_terms
+  predictions:
+    rule:like_terms.add_letters_as_powers: 7x^2
+- question: 5x + 4x
+  topics:
+  - collecting_like_terms
+  predictions:
+    rule:like_terms.add_letters_as_powers: 9x^2
 - question: 6.8 - 8.7
   topics:
   - decimals
@@ -290,6 +333,11 @@
     rule:buggy_multiplication.column_mimics_addition: '67'
     rule:multiplication_division.alignment_error_in_multi_digit: '621'
     rule:multiplication_division.forget_to_add_carried_number: '1172'
+- question: 6x + 4x
+  topics:
+  - collecting_like_terms
+  predictions:
+    rule:like_terms.add_letters_as_powers: 10x^2
 - question: 6x + 6 = 12
   topics:
   - algebraic_notation
@@ -300,10 +348,12 @@
 - question: 6x + 9 = 10
   topics:
   - algebraic_notation
+  - collecting_like_terms
   - solving_equations
   predictions:
     rule:algebra.divide_one_term_only: x = -22/3
     rule:algebra.variable_letter_has_value: x = 10
+    rule:like_terms.combine_unlike_terms: 15x = 10
 - question: 6x - 6 = 9
   topics:
   - algebraic_notation
@@ -445,10 +495,12 @@
 - question: 8x = 2x + 10
   topics:
   - algebraic_notation
+  - collecting_like_terms
   - solving_equations
   predictions:
     rule:algebra.cancel_across_equals: x = 1.25
     rule:algebra.variable_letter_has_value: x = 10
+    rule:like_terms.combine_unlike_terms: 8x = 12x
 - question: 9 × (5 + 8)
   topics:
   - order_of_operations
@@ -528,17 +580,21 @@
 - question: 9x + 8 = 4x + 11
   topics:
   - algebraic_notation
+  - collecting_like_terms
   - solving_equations
   predictions:
     rule:algebra.cancel_across_equals: x = 1/3
     rule:algebra.variable_letter_has_value: x = 10
+    rule:like_terms.combine_unlike_terms: 17x = 15x
 - question: 9x = 2x + 12
   topics:
   - algebraic_notation
+  - collecting_like_terms
   - solving_equations
   predictions:
     rule:algebra.cancel_across_equals: x = 4/3
     rule:algebra.variable_letter_has_value: x = 10
+    rule:like_terms.combine_unlike_terms: 9x = 14x
 - question: 9x^0
   topics:
   - exponents

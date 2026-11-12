@@ -87,4 +87,6 @@ def test_similar_items_by_topic_skip_what_was_seen():
     items = similar_items(["fractions"], n=3)
     assert len(items) == 3
     assert items[0] not in similar_items(["fractions"], seen=items[:1])
-    assert similar_items(["collecting_like_terms"]) == []  # no rule yet, so no items
+    like_terms = similar_items(["collecting_like_terms"])  # our own rules since T2
+    assert like_terms and all(not item.startswith("(") for item in like_terms)  # no (x + 3)^2: that is brackets
+    assert similar_items(["other"]) == []  # no rule, so no items

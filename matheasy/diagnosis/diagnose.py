@@ -37,11 +37,12 @@ from .explain import Explanation, explain, rule_topic
 from .bank import load_bank
 from .ids import eedi_id, split_id
 from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
-from .maths import LocatedError, Node, equivalent, locate
+from .maths import BinOp, LocatedError, Node, Num, equivalent, locate
 from .probes import Probe, choose_probe
 from .ids import SLIP
 from .slips import bracket_slip
 from .solve_back import rules_for, solve_back
+from .topics import question_topics
 
 MAX_FOLLOW_UPS = 2
 
@@ -196,7 +197,35 @@ def diagnose(
     topics = (explanation.topics if explanation is not None
               else ("expanding_brackets",) if slipped
               else tuple(sorted({rule_topic(m) for m in beliefs if m.startswith("rule:")})))
+    if not topics and status == "unknown":
+        # Nothing named the mistake, so name what it was made on (T3): otherwise the wrong answer
+        # leaves no trace in the student's memory.
+        topics = step_topics(located, [p for p, _ in pieces])
+        trace.append({"stage": "topics", "from": "solve_back" if pieces else "located", "topics": list(topics)})
     return Diagnosis(status, top, beliefs, probe, located, mode, tuple(trace), explanation, topics)
+
+
+def step_topics(located: LocatedError, pieces: Sequence[LocatedError] = ()) -> tuple[str, ...]:
+    """The topics of the wrong part of a step, read from its form, for a step nothing explains.
+    2(x + 3) -> 2x + 3 gives expanding_brackets and algebraic_notation. For a line turned into one
+    number, solve back's pieces are used: 5 × 6 -> 26 gives whole_number_arithmetic."""
+    if not pieces:
+        return question_topics(located.source_node)
+    found: set[str] = set()
+    for piece in pieces:
+        topics = question_topics(piece.source_node)
+        if not topics and _whole_numbers_only(piece.source_node):
+            topics = ("whole_number_arithmetic",)  # 5 × 6: a number fact, below question_topics' 10 + 10
+        found.update(topics)
+    return tuple(sorted(found))
+
+
+def _whole_numbers_only(node: Node) -> bool:
+    if isinstance(node, Num):
+        return node.text.isdigit()
+    if isinstance(node, BinOp) and not node.typed_fraction:
+        return _whole_numbers_only(node.left) and _whole_numbers_only(node.right)
+    return False
 
 
 def _from_working(explanation: Explanation) -> list[str]:

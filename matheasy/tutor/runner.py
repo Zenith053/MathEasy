@@ -2,6 +2,7 @@
 
     python -m matheasy.tutor.runner trial --conditions full,b2 --sessions 2            # offline
     python -m matheasy.tutor.runner final --llm --shard 0/4 --conditions full,b0,b1,b2  # one member's shard
+    python -m matheasy.tutor.runner t3-off --llm --no-llm-diagnosis --conditions full   # only the diagnoser's LLM off (T3)
     python -m matheasy.evaluation runs/final                                            # D's checker
     python -m matheasy.evaluation.metrics runs/final/turns                              # D's metrics
 
@@ -116,8 +117,18 @@ def b2_diagnose(*args, **kwargs):
     return dataclasses.replace(d, status="clear", misconception=shortlist[0][0])
 
 
+def without_llm(diagnose_fn: Callable) -> Callable:
+    """diagnose_fn with only the diagnoser's LLM off (T3): rules, solve back and the slip check
+    still run, while reading the student's line, the hinter and the critic keep the LLM."""
+    def diagnose_without_llm(*args, **kwargs):
+        kwargs["session"] = None
+        kwargs.pop("eedi_ranker", None)  # the Eedi ranker only supplies the LLM's options
+        return diagnose_fn(*args, **kwargs)
+    return diagnose_without_llm
+
+
 def make_tutor(condition: str, log: TurnLogger, store, *, llm: bool, retrieve: Optional[Callable],
-               eedi_ranker: Optional[EediRanker] = None):
+               eedi_ranker: Optional[EediRanker] = None, llm_diagnosis: bool = True):
     if condition == "b0":
         return B0Tutor(log)
     if condition == "b1":
@@ -126,6 +137,8 @@ def make_tutor(condition: str, log: TurnLogger, store, *, llm: bool, retrieve: O
     diagnose_fn = diagnose if condition == "full" else b2_diagnose
     if eedi_ranker is not None:  # B's Eedi link: a step no rule explains may get an eedi: misconception
         diagnose_fn = functools.partial(diagnose_fn, eedi_ranker=eedi_ranker)
+    if not llm_diagnosis:
+        diagnose_fn = without_llm(diagnose_fn)
     return Orchestrator(hinter, TutorCritic(), store, log, mode=condition, diagnose_fn=diagnose_fn)
 
 
@@ -143,12 +156,13 @@ def finished_sessions(path: Path) -> set[str]:
 
 def run_condition(condition: str, students: Sequence[SimStudent], out: Path, *, sessions: int, shard: str,
                   client: Optional[LLMClient], config_hash: str, retrieve: Optional[Callable],
-                  eedi_ranker: Optional[EediRanker] = None) -> dict:
+                  eedi_ranker: Optional[EediRanker] = None, llm_diagnosis: bool = True) -> dict:
     log = TurnLogger(f"{condition}-shard{shard}", config_hash, out / "turns")
     done = finished_sessions(log.path)
     store = JsonStudentStore(out / "memory" / f"{condition}-shard{shard}.json", autosave=False) \
         if condition in WITH_MEMORY else NoMemoryStore()
-    tutor = make_tutor(condition, log, store, llm=client is not None, retrieve=retrieve, eedi_ranker=eedi_ranker)
+    tutor = make_tutor(condition, log, store, llm=client is not None, retrieve=retrieve, eedi_ranker=eedi_ranker,
+                       llm_diagnosis=llm_diagnosis)
     state_dir = out / "students" / condition
     ran = skipped = 0
     for fresh in students:
@@ -208,7 +222,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--llm", action="store_true", help="LLM hinter, critic and judge (needs GEMINI_API_KEY)")
     parser.add_argument("--eedi", action="store_true",
                         help="name Eedi misconceptions with A's shortlister (needs --llm, a GPU and data/)")
+    parser.add_argument("--no-llm-diagnosis", dest="llm_diagnosis", action="store_false",
+                        help="with --llm, turn off only the diagnoser's LLM (T3): use a separate run name")
     args = parser.parse_args(argv)
+    if not args.llm_diagnosis and args.eedi:
+        parser.error("--eedi needs the diagnoser's LLM: drop --no-llm-diagnosis")
 
     conditions = args.conditions.split(",")
     unknown = [c for c in conditions if c not in CONDITIONS]
@@ -235,11 +253,14 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     if args.per_attack:
         students += adversarial_roster(keyword_judge, per_attack=args.per_attack)[i::n][:args.students]
 
+    if args.llm and not args.llm_diagnosis:
+        print("The diagnoser's LLM is off: rules, solve back and the slip check only (T3).")
     for condition in conditions:
         # A fresh copy of each student per condition: no condition sees another's effect on it.
         copies = [type(s).from_state(s.to_state(), judge=keyword_judge) for s in students]
         result = run_condition(condition, copies, out, sessions=args.sessions, shard=shard, client=client,
-                               config_hash=config.hash, retrieve=retrieve, eedi_ranker=eedi_ranker)
+                               config_hash=config.hash, retrieve=retrieve, eedi_ranker=eedi_ranker,
+                               llm_diagnosis=args.llm_diagnosis)
         problems = check_files([result["log"]]) if result["log"].exists() else []
         print(f"{condition}: {result['ran']} sessions run, {result['skipped']} already done; "
               f"{_shown(result['log'])}  D's checker: {'logs OK' if not problems else problems[:3]}")

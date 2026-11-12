@@ -123,6 +123,15 @@ d.to_log()                          # JSON-safe record for the run logs
 - **What `diagnose()` needs from A and C** (`matheasy/diagnosis/interfaces.py`): a shortlister `shortlist(error: LocatedError, k) -> list[Candidate]`, and a student store with `misconception_prior(student_id, misconception_id) -> float | None`. Pass them as `diagnose(..., shortlister=..., store=...)`. `EediShortlister()` wraps A's `shortlist()`: it builds the query with A's `build_query()` from `locate()`'s output and returns `eedi:` IDs. It needs A's Eedi data. Without a shortlister, a stand-in ranks the bank's rules that reproduce the answer.
 - **Call order:** `check_step()` first; `diagnose()` only on a wrong step (it raises `StepIsCorrect` otherwise). When it returns a probe, ask it and call `diagnose()` again with `follow_ups=[FollowUp(probe, answer)]`; at most 2.
 - **Rules list and probe number ranges:** [docs/diagnosis_rules.md](docs/diagnosis_rules.md).
+- **Our own rules (T2):** MalruleLib has no rule for the common bracket and like-term mistakes, so `rules/brackets.py` and `rules/like_terms.py` add five of our own, named in groups MalruleLib does not use:
+  - `brackets.multiply_first_term_only`: `2(x + 3)` → `2x + 3`;
+  - `brackets.minus_first_term_only`: `-(x + 1)` → `-x + 1`;
+  - `brackets.negative_multiplier_first_term_only`: `-2(x - 3)` → `-2x - 6`;
+  - `like_terms.add_letters_as_powers`: `x + x` → `x^2`;
+  - `like_terms.combine_unlike_terms`: `3x + 2` → `5x`.
+
+  They need a letter, so `2 × (3 + 4)` is left to the order-of-operations rules. When no rule reproduces the narrowed part of a step, the rules also run on the whole line, because narrowing multiplies out a minus before a bracket. After adding a rule, rebuild the probe bank with `PYTHONPATH=. .venv/bin/python eval/build_probes.py`, and add new shapes at the end of its list so the old items stay.
+- **A step nothing explains still gets topics (T3):** they are read from the wrong part of the step (`2(x + 3)`: expanding brackets and algebraic notation), or from solve back's pieces for a line of numbers (`5 × 6 → 26`: whole-number arithmetic). So the wrong answer still updates the student's memory. The trace shows a `topics` stage when this happens.
 - **Standard notation:** [docs/input_notation.md](docs/input_notation.md). Everything passed to `parse()` (student answers after `transcribe()`, test items, probes) should be written this way; ambiguous forms such as `a^bc` or `x/2y` must use brackets.
 - **Reading a student's line:** `transcribe(line, question=..., session=...)` returns it in standard notation, calling the LLM only for lines that are not already standard. Why it works this way: [docs/design_decisions.md](docs/design_decisions.md).
 
@@ -178,6 +187,13 @@ Experiments go through the runner: any conditions, on one shard of students, ove
 .venv/bin/python -m matheasy.tutor.runner final --llm --shard 0/4 --conditions full,b0,b1,b2      # one member's shard
 .venv/bin/python -m matheasy.evaluation runs/final && .venv/bin/python -m matheasy.evaluation.metrics runs/final/turns
 .venv/bin/python -m matheasy.evaluation.stats runs/final/turns                                      # D's intervals and comparisons
+```
+
+**Only the diagnoser's LLM off (T3).** `--no-llm-diagnosis`, with `--llm`, calls `diagnose()` without the LLM. Rules, solve back and the slip check still run, and reading the student's line, the hinter and the critic keep the LLM. Comparing it with an ordinary `--llm` run measures what the LLM adds to diagnosis alone. Give it its own run name, and run it before and after a rules change such as T2. It cannot be combined with `--eedi`, because the Eedi names are the LLM's options. The page takes the same switch: `python -m matheasy.ui --llm --no-llm-diagnosis`.
+
+```bash
+.venv/bin/python -m matheasy.tutor.runner t3-on  --llm --conditions full --students 10
+.venv/bin/python -m matheasy.tutor.runner t3-off --llm --no-llm-diagnosis --conditions full --students 10
 ```
 
 ```python

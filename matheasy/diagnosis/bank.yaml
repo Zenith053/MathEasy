@@ -114,6 +114,27 @@ misconceptions:
     text: Squares a bracket term by term, e.g. (x + 3)^2 = x^2 + 9.
     eedi: [729]
 
+  # Our own rules (no MalruleLib counterpart; to-do T2). Groups brackets. and like_terms.
+  rule:brackets.multiply_first_term_only:
+    text: Multiplies only the first term inside the bracket, e.g. 2(x + 3) = 2x + 3.
+    eedi: [220]
+
+  rule:brackets.minus_first_term_only:
+    text: Changes the sign of only the first term after a minus in front of a bracket, e.g. -(x + 1) = -x + 1.
+    eedi: [583]
+
+  rule:brackets.negative_multiplier_first_term_only:
+    text: Multiplies by the size of a negative number but gives its sign only to the first term, e.g. -2(x - 3) = -2x - 6.
+    eedi: []
+
+  rule:like_terms.add_letters_as_powers:
+    text: Adds like terms by multiplying the letters, e.g. x + x = x^2 and 2x + 3x = 5x^2.
+    eedi: [1644]
+
+  rule:like_terms.combine_unlike_terms:
+    text: Adds terms that are not alike, e.g. 3x + 2 = 5x and 4a + 3b = 7ab.
+    eedi: [2422, 436]
+
   rule:exponents.multiply_base_by_exponent:
     text: Multiplies the base by the exponent, e.g. 2^3 = 6.
     eedi: [1072, 438]
