@@ -412,6 +412,14 @@ B0 (`tutor/baselines.py`, `B0Tutor`) is one prompted tutor: each turn it reads t
 - **Same outputs as now.** Keep B0's prompt, schema and log records (`diagnosis` with `stated_misconception`, and `hint`), so the evaluation metrics read it unchanged. Port B0's tests and re-run the B0 baseline.
 - Pin the `langchain-core` and `langgraph` versions in `requirements.txt`.
 
+**Status, 11 November (C, Shubham): done.**
+- **The graph.** `B0Tutor` is a `StateGraph` with three nodes, `read → tutor → deliver`. Its state is a small `Turn` dict that carries the `TutorState`, the student's line and the reply.
+- **Every call is still on our client.** The tutor node calls `state.llm.call`, so the budget, cache and run logs are unchanged. LangChain's own Gemini wrapper is not used.
+- **Same outputs.** B0's prompt, schema and log records are unchanged.
+- **Versions pinned.** `langgraph==1.2.20` and `langchain-core==1.7.7` are in `requirements.txt`. Everyone needs to run `pip install -r requirements.txt` before running B0 or B1.
+- **Checked.** B0's tests pass unchanged. A test checks the graph's nodes. One trial run through the runner on Gemini passed D's checker.
+- **Not done.** The full B0 baseline run, which waits for the quota decision.
+
 ### T5. B1 on LangGraph
 
 Rebuild `B1Agent`'s tool loop as a LangGraph `StateGraph`: an agent node (the LLM call), a tool node, and the message step, joined by a conditional edge on the reply's `action`, with at most `MAX_TOOL_CALLS` tool calls. The same rules as T4 apply:
@@ -420,6 +428,25 @@ Rebuild `B1Agent`'s tool loop as a LangGraph `StateGraph`: an agent node (the LL
 - the versions are pinned.
 
 Port `tests/test_b1.py` and re-run the B1 baseline. Only the baselines use LangGraph; the full tutor and diagnosis stay as plain code.
+
+**Status, 11 November (C, Shubham): done.**
+- **The graph.**
+  - `B1Agent` is a `StateGraph` with the nodes `read → agent → tool → agent … → deliver`.
+  - A conditional edge on the reply's `action` decides whether the agent calls a tool or sends a message.
+  - After `MAX_TOOL_CALLS` (4) tool calls, the agent is told it has one call left. If it still asks for a tool, the student gets the safe template.
+- **The same rules as T4.**
+  - Model calls go through the `LLMClient` session.
+  - Tool calls go through `ToolBox.call`, so the tool-call metric reads them as before.
+  - The prompt, schema and logs are unchanged, including the `diagnosis` record's `stated_rule`.
+- **Checked.**
+  - All of `tests/test_b1.py` passes unchanged.
+  - A new test checks the graph's nodes and edges.
+  - One trial student on Gemini ran end to end, and the run passed D's checker.
+- **What the trial showed (B1's behaviour, not the port).**
+  - On Gemini, B1 never named a bank rule.
+  - Once it said "That is correct!" while its own record marked the answer wrong.
+  - Both need a fuller run to see how often they happen.
+- **Not done.** The full B1 baseline run, which waits for the quota decision.
 
 ### T6. Every hint rejected: wrong misconception given to the hinter, and a critic that is too strict
 
@@ -447,6 +474,36 @@ The critic rejected it with "gives away the result of the fraction addition", "g
 - attempt 2's hint must pass a critic given the new inputs.
 
 Then check it once on the real model, which costs at most about 6 calls.
+
+**Status, 11 November (C, Shubham; fix 1 by D, Rahul): done.**
+- **Fix 1 (D).** In `diagnose()`, an Eedi pick becomes the diagnosis only when its reading is `verified`.
+  - In the T6 case the step therefore stays `unknown`, and the pick stays in the trace.
+  - Close picks from a verified reading are still used, as already decided.
+- **Fix 2.** The critic is now told:
+  - what went wrong;
+  - the steps the student already did right;
+  - how sure the diagnosis is.
+
+  Rule 2 is reworded as in the doc above. D later added "a question is not an answer" to it, because the live critic had rejected hints that asked "what is 2^2?".
+- **Fix 3.** `HintRequest` now has `certainty` and `right` fields. `hinting.certainty()` grades a diagnosis:
+  - `certain`: a rule reproduces the step exactly;
+  - `likely`: the reading was verified and the Eedi pick is exact, or a verified reading explains an unknown step;
+  - `possible`: anything else.
+
+  The hinter and critic prompts say how sure the diagnosis is. Rule 3 only requires the hint to aim at the misconception when it is `certain` or `likely`.
+- **Fix 4.** The critic's verdict now has `misconception_fits`.
+  - When the critic says the misconception does not fit, the next rewrite is written without it, and the page and tutor do not show "The mistake".
+  - The hint log records `certainty` and `dropped_misconception`.
+  - A `certain` misconception is never dropped.
+- **Already-right steps.** These come only from a verified working.
+  - Passing the code-checked steps of an unverified working was tried and reverted.
+  - The working is the model's guess, so it can credit the student with steps they never wrote.
+- **One shared path.** `hinting.write_hint()` now does the write-and-review loop for both the orchestrator and the page.
+- **Tests.** `tests/test_hinting.py` has the T6 regression case with scripted replies, for both requirements of the test above.
+- **Checked on the real model.** These checks used `gemini-3.1-flash-lite`.
+  - Before fix 1, one run passed, with the hint written on the third attempt, and one failed.
+  - After fix 1, D's live check on the page got an approved hint on the third attempt.
+  - The flash-lite critic is still not consistent from run to run.
 
 ### T7. Group near-duplicate Eedi names
 
