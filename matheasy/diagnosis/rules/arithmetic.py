@@ -97,7 +97,16 @@ def _no_column_limit(a: int, b: int) -> int:
     return _join([x + y for x, y in zip(_digits(a, width), _digits(b, width))])
 
 
+def _forget_carry(a: int, b: int) -> int:
+    """Forgets to add the carried 1: 47 + 38 gives 7 + 8 = 15, writes 5 and drops the 1, then 4 + 3 = 7, so 75.
+    The leftmost column is written in full, as students do: 95 + 18 = 103."""
+    width = max(len(str(a)), len(str(b)))
+    columns = [x + y for x, y in zip(_digits(a, width), _digits(b, width))]
+    return _join([columns[0]] + [c % 10 for c in columns[1:]])
+
+
 _column_rule("buggy_addition.add_all_digits", "+", _add_all_digits)
+_column_rule("buggy_addition.forget_carry", "+", _forget_carry)
 _column_rule("buggy_addition.carry_adds_to_same_column", "+", _carry_adds_to_same_column)
 _column_rule("buggy_addition.carry_not_reset", "+", _carry_not_reset)
 _column_rule("buggy_addition.left_justify", "+", _left_justify, lambda a, b: len(str(a)) != len(str(b)))

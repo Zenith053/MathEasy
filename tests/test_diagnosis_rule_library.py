@@ -97,6 +97,8 @@ PREDICTS = [
     ("buggy_addition.left_justify", "8 + 12", "92"),
     ("buggy_addition.single_digit_linked", "8 + 12", "128"),
     ("buggy_addition.write_carry_forget_units", "87 + 93", "11"),
+    ("buggy_addition.forget_carry", "47 + 38", "75"),                  # ours: no MalruleLib rule drops the carry
+    ("buggy_addition.forget_carry", "95 + 18", "103"),                 # the leftmost column written in full
     ("subtraction.no_column_limit", "47 + 38", "715"),
     ("buggy_subtraction.borrow_into_1_equals_10", "321 - 89", "231"),
     ("buggy_subtraction.borrow_writes_10", "403 - 168", "245"),
@@ -162,6 +164,7 @@ SILENT = [
     ("exponents.forget_exponent_on_coefficient", "(x^3)^2"),             # no number in front
     ("exponents.distribute_exponent_over_addition", "(x - 3)^2"),        # MalruleLib: sums only
     ("buggy_addition.carry_not_reset", "23 + 14"),                       # no carry: the bug gives the right answer
+    ("buggy_addition.forget_carry", "23 + 14"),                          # no carry to forget
     ("buggy_subtraction.borrow_writes_10", "89 - 54"),                   # no borrow
     ("subtraction.smaller_from_larger", "37 - 62"),                      # top number smaller
     ("buggy_subtraction.forget_borrow_over_blanks", "127 - 85"),         # no blank columns on top

@@ -36,3 +36,6 @@ __all__ = [
 
 from .slips import RuleUse, rule_uses, uses_slip  # noqa: E402  T9: slips from each rule's right and wrong uses
 __all__ += ["RuleUse", "rule_uses", "uses_slip"]
+from .facts import Fact, fact_of, number_fact  # noqa: E402  wrong basic number facts, found by code
+from .ids import fact_id  # noqa: E402
+__all__ += ["Fact", "fact_of", "number_fact", "fact_id"]

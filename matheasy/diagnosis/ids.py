@@ -4,6 +4,8 @@
                               e.g. rule:fractions.add_numerators_denominators
     eedi:<MisconceptionId>    an Eedi misconception known only as text, e.g. eedi:1287
     slip                      a careless mistake with no misconception behind it
+    fact:<a><op><b>           a weak number fact: one basic fact (facts.py) got wrong in two or
+                              more answers, e.g. fact:3+6 (+ and × written smaller number first)
 
 The bank (bank.yaml) maps each rule to the Eedi misconceptions it matches, so a
 shortlist ranked over Eedi labels can be turned into runnable suspects.
@@ -18,6 +20,16 @@ SLIP = "slip"
 
 _RULE_NAME = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 _EEDI_NUMBER = re.compile(r"^(0|[1-9][0-9]*)$")  # one spelling per number: no leading zeros
+_FACT = re.compile(r"^(0|[1-9][0-9]*)[-+*/](0|[1-9][0-9]*)$")
+
+
+def fact_id(a: int, op: str, b: int) -> str:
+    """(6, '+', 3) -> 'fact:3+6'. + and × are written smaller number first, so 6 + 3 and 3 + 6 are one fact."""
+    if op not in "+-*/" or len(op) != 1 or a < 0 or b < 0:
+        raise ValueError(f"not a number fact: {a} {op} {b}")
+    if op in "+*" and a > b:
+        a, b = b, a
+    return f"fact:{a}{op}{b}"
 
 
 def rule_id(name: str) -> str:
@@ -44,4 +56,6 @@ def split_id(mid: str) -> tuple[str, str]:
         return kind, value
     if sep and kind == "eedi" and _EEDI_NUMBER.match(value):
         return kind, value
-    raise ValueError(f"not a misconception ID: {mid!r} (expected rule:..., eedi:<n> or slip)")
+    if sep and kind == "fact" and _FACT.match(value):
+        return kind, value
+    raise ValueError(f"not a misconception ID: {mid!r} (expected rule:..., eedi:<n>, fact:<a><op><b> or slip)")

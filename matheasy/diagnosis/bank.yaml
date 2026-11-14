@@ -167,6 +167,10 @@ misconceptions:
     text: Adds every digit regardless of place value, e.g. 23 + 45 = 14.
     eedi: []
 
+  rule:buggy_addition.forget_carry:
+    text: Forgets to add the carried digit, e.g. 47 + 38 = 75.
+    eedi: []
+
   rule:buggy_addition.carry_adds_to_same_column:
     text: Adds the carry into the same column instead of the next, e.g. 37 + 25 = 53.
     eedi: [1383]

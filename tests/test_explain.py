@@ -134,11 +134,12 @@ def test_the_model_may_say_it_cannot_tell(model):
 
 def test_the_model_is_given_the_pieces(model):
     session, backend, say = model
-    say([("54 + 6", True), ("60", False)], kind="slip")
-    d = diagnose("7 × 8 + 6", "60", session=session)
-    assert "7 × 8 gave 54 (should be 56)" in backend.requests[0].messages[-1].content
+    # 17 × 8 is beyond the times tables, so it is not a basic fact (facts.py) and the model is asked
+    say([("134 + 6", True), ("140", False)], kind="slip")
+    d = diagnose("17 × 8 + 6", "140", session=session)
+    assert "17 × 8 gave 134 (should be 136)" in backend.requests[0].messages[-1].content
     assert d.explanation.status == "verified"
-    assert [(w.before, w.after) for w in d.explanation.wrong_steps] == [("7 × 8 + 6", "54 + 6")]
+    assert [(w.before, w.after) for w in d.explanation.wrong_steps] == [("17 × 8 + 6", "134 + 6")]
 
 
 def test_diagnose_calls_the_model_only_for_unknown_steps(model):

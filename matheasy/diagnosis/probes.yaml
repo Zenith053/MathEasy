@@ -149,6 +149,7 @@
     rule:buggy_addition.single_digit_linked: '592'
     rule:buggy_addition.write_carry_forget_units: '51'
     rule:subtraction.no_column_limit: '511'
+    rule:buggy_addition.forget_carry: '51'
 - question: 20 - (x - 12)
   topics:
   - expanding_brackets
@@ -200,6 +201,7 @@
     rule:buggy_addition.single_digit_linked: '583'
     rule:buggy_addition.write_carry_forget_units: '51'
     rule:subtraction.no_column_limit: '511'
+    rule:buggy_addition.forget_carry: '51'
 - question: 4 - 11
   topics:
   - negative_numbers
@@ -372,6 +374,7 @@
     rule:buggy_addition.single_digit_linked: '567'
     rule:buggy_addition.write_carry_forget_units: '51'
     rule:subtraction.no_column_limit: '513'
+    rule:buggy_addition.forget_carry: '53'
 - question: 7 ÷ 0.2
   topics:
   - decimals

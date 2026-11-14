@@ -37,6 +37,7 @@ evidence than a rule's exact prediction, so it takes several.
 
 from __future__ import annotations
 
+import dataclasses
 from functools import lru_cache
 from typing import Optional, Sequence
 
@@ -62,6 +63,7 @@ FIXED_BELOW = 0.5  # P(holds) under this counts as fixed
 # An Eedi misconception shows only on some items in its topic, so a student holding it still
 # answers many of them right: a right answer is weak evidence against it.
 SLIP_WEIGHT = 0.25  # a slip moves mastery a quarter as far as a mistake
+FACT_REPEATS = 2  # a number fact wrong in this many answers is a weak fact, not a slip (raise_fact)
 EEDI_RIGHT_IF_HELD = 0.6
 EEDI_RIGHT_IF_NOT = 0.95
 
@@ -87,9 +89,29 @@ def diagnosed(memory: StudentMemory, misconception_id: str, topics: Sequence[str
     _note(memory, "diagnosed", misconception=misconception_id)
 
 
+def raise_fact(memory: StudentMemory, diagnosis):
+    """A wrong number fact (diagnosis/facts.py) is a slip the first time. The FACT_REPEATS-th time the
+    same fact goes wrong across this student's answers, it is a weak number fact: the diagnosis is
+    returned with the fact's ID (fact:3+6) as its misconception, so it is recorded and re-checked like
+    one. Every wrong fact is noted in the memory's history. Call once per fresh answer."""
+    from ..diagnosis import fact_of
+    fact = fact_of(diagnosis) if diagnosis is not None else None
+    if fact is None:
+        return diagnosis
+    times = 1 + sum(h.get("event") == "fact_wrong" and h.get("fact") == fact for h in memory.history)
+    _note(memory, "fact_wrong", fact=fact)
+    if times < FACT_REPEATS:
+        return diagnosis
+    return dataclasses.replace(diagnosis, misconception=fact, beliefs={fact: 1.0},
+                               trace=(*diagnosis.trace, {"stage": "fact", "raised": fact, "times": times}))
+
+
 def is_slip(memory: StudentMemory, topics: Sequence[str], misconception: Optional[str]) -> bool:
     """A wrong answer on concepts the student has mastered, with no misconception they are
-    suspected of holding: a careless mistake, not a gap."""
+    suspected of holding: a careless mistake, not a gap. A weak number fact never is: it was raised
+    from a slip because it keeps going wrong (raise_fact)."""
+    if misconception and misconception.startswith("fact:"):
+        return False
     named = [t for t in topics if t != "other"]
     if not named or not all(mastered(memory, t) for t in named):
         return False
@@ -122,6 +144,12 @@ def answered(memory: StudentMemory, problem: Problem, answer: str, correct: bool
     for mid, held in list(memory.p_holds.items()):
         predicted = exposes(mid, problem.question, problem.correct_answer)
         if predicted is None:
+            if correct and split_id(mid)[0] == "fact" and mid in question_facts(problem.question):
+                # the weak fact used right: evidence against it, as weak as for an Eedi misconception
+                memory.p_holds[mid] = held * EEDI_RIGHT_IF_HELD / (
+                    held * EEDI_RIGHT_IF_HELD + (1 - held) * EEDI_RIGHT_IF_NOT)
+                _note(memory, "rechecked", misconception=mid, item=problem.question, passed=True)
+                continue
             if correct and split_id(mid)[0] == "eedi" and tested & set(memory.topics_of.get(mid, ())):
                 memory.p_holds[mid] = held * EEDI_RIGHT_IF_HELD / (
                     held * EEDI_RIGHT_IF_HELD + (1 - held) * EEDI_RIGHT_IF_NOT)
@@ -196,6 +224,28 @@ def problem_topics(question: str) -> tuple[str, ...]:
         return ()
     return tuple(sorted({rule_topic(rule_id(name)) for name in rule_names()
                          if exposes(rule_id(name), question, right) is not None}))
+
+
+@lru_cache(maxsize=None)
+def question_facts(question: str) -> frozenset[str]:
+    """The basic number facts a question uses directly, as fact IDs: 7 × 8 + 6 uses fact:7*8."""
+    from ..diagnosis import fact_id, parse
+    from ..diagnosis.facts import SHOW, basic
+    from ..diagnosis.maths import BinOp
+    from ..diagnosis.rules._common import whole
+    try:
+        node = parse(question)
+    except ParseError:
+        return frozenset()
+    found, stack = set(), [node]
+    while stack:
+        n = stack.pop()
+        if isinstance(n, BinOp) and n.op in SHOW and not n.typed_fraction:
+            a, b = whole(n.left), whole(n.right)
+            if a is not None and b is not None and basic(a, n.op, b):
+                found.add(fact_id(a, n.op, b))
+        stack += [c for c in (getattr(n, k, None) for k in ("operand", "left", "right")) if c is not None]
+    return frozenset(found)
 
 
 def exposes(misconception_id: str, item: str, right: Optional[str] = None) -> Optional[str]:

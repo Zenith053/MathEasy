@@ -19,7 +19,9 @@ A step no rule reproduces goes to the LLM fallback (explain.py) if a session is 
 see docs/diagnosis_fallback.md. With an `eedi_ranker` too (eedi.py), the fallback picks
 from the closest Eedi misconceptions, and a pick becomes the diagnosis: 'eedi:<n>'. d.topics names the topics whichever found the mistake.
 A step done right on every term of a bracket but one, where a term like the wrong one came
-out right, is a slip (slips.py): d.misconception == 'slip', with no model call.
+out right, is a slip (slips.py): d.misconception == 'slip', with no model call. So is one basic
+number fact got wrong, close to the right one (6 + 3 -> 8, also inside 2x + 6 + 3 -> 2x + 8):
+facts.py, topic whole_number_arithmetic, the fact's ID in the trace for the planner.
 The LLM's reconstructed working is checked step by step: a wrong step a rule reproduces
 exactly makes that rule the diagnosis (ahead of an Eedi pick), and wrong steps that are all
 bracket slips make it a slip. Several rules, one per wrong step, are all kept in d.beliefs.
@@ -40,6 +42,7 @@ from .interfaces import NoMemory, RuleShortlister, Shortlister, StudentStore
 from .maths import BinOp, LocatedError, Node, Num, equivalent, locate
 from .probes import Probe, choose_probe
 from .ids import SLIP
+from .facts import number_fact
 from .slips import bracket_slip
 from .solve_back import rules_for, solve_back
 from .topics import question_topics
@@ -169,6 +172,15 @@ def diagnose(
             status, top, beliefs = "clear", SLIP, {SLIP: 1.0}
             trace.append({"stage": "slip", "reason": slipped})
 
+    fact = None
+    if status == "unknown":  # one basic fact wrong, close to the right one (6 + 3 -> 8): a slip, no LLM call
+        found = number_fact(before, after)
+        if found:
+            fact, located = found
+            status, top, beliefs = "clear", SLIP, {SLIP: 1.0}
+            trace.append({"stage": "slip", "reason": fact.reason, "said": fact.said, "fact": fact.id,
+                          "right": fact.right, "wrong": fact.wrong})
+
     explanation = None
     if status == "unknown" and session is not None:
         choices = eedi_options(located, eedi_ranker) if eedi_ranker is not None else []
@@ -196,6 +208,7 @@ def diagnose(
             trace.append({"stage": "decide", "status": status, "misconception": top, "eedi": explanation.eedi})
     topics = (explanation.topics if explanation is not None
               else ("expanding_brackets",) if slipped
+              else ("whole_number_arithmetic",) if fact
               else tuple(sorted({rule_topic(m) for m in beliefs if m.startswith("rule:")})))
     if not topics and status == "unknown":
         # Nothing named the mistake, so name what it was made on (T3): otherwise the wrong answer

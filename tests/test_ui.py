@@ -141,6 +141,19 @@ def test_the_page_progress_needs_sign_in_and_is_empty_when_idle(server):
     assert anna("/api/progress") == (200, {"stage": ""})          # reset after the analysis
 
 
+def test_a_number_fact_is_a_slip_then_a_weak_fact(server):
+    base, tutor = server
+    anna = client(base)
+    anna("/api/login", {"username": "anna", "password": "anna123"})
+    first = anna("/api/analyze", {"question": "6 + 3", "answer": "8"})[1]
+    assert first["slip"] and first["why_slip"] == "wrote 8 for 6 + 3" and first["topics"] == ["whole number arithmetic"]
+    assert first["where"] == "6 + 3 became 8"
+    again = anna("/api/analyze", {"question": "2x + 3 + 6", "answer": "2x + 10"})[1]   # the same fact, another answer
+    assert not again["slip"] and again["source"] == "fact" and again["misconception"] == "fact:3+6"
+    assert again["mistake"] == "Gets the number fact 3 + 6 wrong, more than once."
+    assert [m["id"] for m in again["student"]["misconceptions"]] == ["fact:3+6"]
+
+
 def test_signing_up_creates_a_student_and_signs_them_in(server, db):
     base, _ = server
     cara = client(base)

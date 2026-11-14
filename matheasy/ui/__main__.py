@@ -235,10 +235,12 @@ class Tutor:
             return {"kind": "correct", "answer": lines[-1], "steps": steps}
         except LLM_ERRORS as e:
             return {"kind": "error", "message": f"LLM call failed: {e}"}
+        d = planner.raise_fact(memory, d)  # the same number fact wrong again: a weak fact, not a slip
         # T9: the diagnosed rule's mistake made once, and the same step done right elsewhere in this answer
         uses = uses_slip(chain, d.misconception)
         slip = d.misconception == SLIP or bool(uses) or planner.is_slip(memory, d.topics, d.misconception)
-        why_slip = next((t["reason"] for t in d.trace if t.get("stage") == "slip"), None) or uses
+        # what the student is told: a number fact's "said" leaves out the right result ("wrote 8 for 6 + 3")
+        why_slip = next((t.get("said") or t["reason"] for t in d.trace if t.get("stage") == "slip"), None) or uses
         self.store.observe(memory, problem, lines[-1], False, topics=d.topics, slip=slip)
         if slip:
             self.store.record(memory, SLIP, topics=d.topics)
@@ -332,6 +334,8 @@ def _source(d) -> str:
         return "rule"
     if d.misconception and d.misconception.startswith("eedi:"):
         return "eedi"
+    if d.misconception and d.misconception.startswith("fact:"):
+        return "fact"
     if d.status == "ambiguous":
         return "ambiguous"
     if d.explanation is not None:

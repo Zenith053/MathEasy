@@ -43,7 +43,7 @@ def test_the_page_reports_the_switch(tmp_path):
 @pytest.mark.parametrize("before, after, topics", [
     ("2(x + 3) - (x + 1)", "2x + 3 - x + 1", ("algebraic_notation", "expanding_brackets")),  # two mistakes, no rule
     ("5 × 6", "26", ("whole_number_arithmetic",)),               # a number fact: solve back's piece
-    ("7 × 8 + 6", "60", ("whole_number_arithmetic",)),
+    ("17 × 8 + 6", "140", ("whole_number_arithmetic",)),     # beyond the tables: 7 × 8 + 6 -> 60 is a fact slip now
     ("x - 15 = 27", "x = 32", ("algebraic_notation", "solving_equations")),
 ])
 def test_a_step_nothing_explains_still_names_its_topics(before, after, topics):

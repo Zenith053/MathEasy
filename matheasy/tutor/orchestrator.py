@@ -198,6 +198,8 @@ class Orchestrator:
 
         # diagnose
         diagnosis = self._diagnose(state)
+        if fresh:  # the same number fact wrong again across answers: a weak fact, not a slip
+            diagnosis = planner.raise_fact(state.memory, diagnosis)
         state.diagnosis = diagnosis
         if diagnosis is not None:
             self.log.log(state, "diagnosis", turn=answered_turn, follow_ups=len(state.follow_ups),
