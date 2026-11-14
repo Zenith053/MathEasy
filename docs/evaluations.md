@@ -173,9 +173,14 @@ skipped so the pick alone is measured. One LLM call each, 9 November.
 close, and treating close picks with caution; grouping near-duplicate names (study 8);
 using a pick only from a verified reading (study 15).
 
+**Re-run, 14 November** (A, the same 22 cases, `gemini-3.1-flash-lite`, v2): right name among
+the 20 offered 16 of 22; exact right pick **6 of 22** (6 of the 16 where it was offered); picks
+the LLM marked "exact" right 6 of 15, "close" 0 of 7. So the shortlist is not the weak step: the
+right name is offered 16 times but picked 6. Improving the pick should gain more than retraining.
+
 **Read with care.** 22 cases. "Acceptable" was judged by one person. Two wrong steps appear
-under two different misconceptions each, so the LLM cannot get all 22 right. The per-case
-results file was lost; A's run of the same test for study 12 also found 5 of 22 exact.
+under two different misconceptions each, so the LLM cannot get all 22 right. The first run's
+per-case results file was lost; A's run of the same test for study 12 also found 5 of 22 exact.
 
 Source: `eval/eedi_pick.py`; results reported in this project's working notes.
 
@@ -194,6 +199,11 @@ Source: `eval/eedi_pick.py`; results reported in this project's working notes.
 
 **Supports.** Grouping by a person's judgement on each pair, never by a similarity
 threshold. With only 14 groups, the effect on the pick test is expected to be small.
+
+**Measured (T7 step 4, 14 November).** The study 7 re-run, re-scored with the groups
+(`eval/eedi_pick.py --rescore`): 6 of 22 exact and 6 of 22 with groups, every other line equal.
+None of the 14 groups touches these 22 picks. The groups stay (they make memory count one
+mistake once), but they do not change this test.
 
 Source: `docs/design_decisions.md` T7, `matheasy/shortlister/name_groups.py`.
 
@@ -395,8 +405,12 @@ Source: `docs/diagnosis_fallback.md`, `docs/design_decisions.md` section 7.5.
 ## Not measured yet
 
 - **The diagnoser's LLM on against off** (T3), before and after the bracket rules. The switch exists; the runs need API quota.
-- **The pick test re-scored with name groups** (T7 step 4). It needs a new 22-call run, because the earlier results file was lost.
 - **The final runs:** full tutor, B0 and B1 on the same simulated students.
 - **Multiple misconceptions in one answer:** no evaluation set yet (`docs/plan_multiple_misconceptions.md`).
 - **Slips on real student work:** no labelled data.
-- **Number-fact mistakes** such as `6 + 3 → 8`: measured as `unknown` today, with no fix yet.
+- **Number-fact mistakes on real student work.** Fixed in code on 14 November (`diagnosis/facts.py`,
+  commit 4750027): `6 + 3 → 8`, `7 × 8 → 54` and `2x + 6 + 3 → 2x + 8` are now slips with a reason and
+  no LLM call, a fact wrong twice becomes a weak fact (`fact:3+6`), and `47 + 38 → 75` is the new rule
+  `buggy_addition.forget_carry`. On the 230 rule-generated probe-bank steps, 13 improved and 2
+  (`2 + 59 → 51`, `3 + 58 → 51`) became a tie between two carry rules, which the probe `7 + 56` settles.
+  How often real students make fact slips is not measured: there is no labelled data.
