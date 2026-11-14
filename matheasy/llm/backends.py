@@ -159,6 +159,88 @@ def to_gemini_contents(messages: Sequence[Message]):
     ]
 
 
+class VLLMBackend:
+    """An open model on our own GPU, served by vLLM's OpenAI-compatible server:
+
+        vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ --port 8000     # then base_url: http://localhost:8000/v1
+
+    No key and no quota. JSON replies are held to the schema by vLLM's guided decoding.
+    The thinking budget is ignored: the models we serve do not think."""
+
+    provider = "vllm"
+
+    def __init__(self, config: LLMConfig):
+        self._config = config
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            import httpx
+
+            self._client = httpx.Client(base_url=self._config.base_url.rstrip("/"), timeout=self._config.timeout_s)
+        return self._client
+
+    def generate(self, request: Request) -> BackendResponse:
+        import httpx
+
+        try:
+            reply = self._get_client().post("/chat/completions", json=to_openai_body(request))
+        except httpx.TransportError as e:  # the server is down or still loading: the client backs off
+            raise BackendError(f"vLLM connection failed: {type(e).__name__}: {e}") from e
+        if reply.status_code != 200:
+            raise BackendError(f"vLLM error {reply.status_code}: {reply.text[:300]}", code=reply.status_code)
+        data = reply.json()
+        choice = (data.get("choices") or [{}])[0]
+        usage = data.get("usage") or {}
+        finish = choice.get("finish_reason")
+        text = (choice.get("message") or {}).get("content")
+        if request.json_schema is not None and text:
+            text = json_part(text)
+        return BackendResponse(
+            text=text,
+            finish_reason=OPENAI_FINISH.get(finish, str(finish).upper() if finish else "NO_CANDIDATE"),
+            input_tokens=usage.get("prompt_tokens") or 0,
+            output_tokens=usage.get("completion_tokens") or 0,
+            thought_tokens=0,
+        )
+
+
+# OpenAI's finish reasons in Gemini's words, which the client reads (e.g. "MAX_TOKENS" = truncated).
+OPENAI_FINISH = {"stop": "STOP", "length": "MAX_TOKENS", "content_filter": "SAFETY"}
+
+
+def json_part(text: str) -> str:
+    """The JSON object in a reply. Open models sometimes wrap it in ```json fences or a sentence,
+    which Gemini never does; anything that is not one object is returned unchanged, so the client
+    still rejects it."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end < start:
+        return text
+    candidate = text[start:end + 1]
+    try:
+        json.loads(candidate)
+    except json.JSONDecodeError:
+        return text
+    return candidate
+
+
+def to_openai_body(request: Request) -> dict:
+    messages = [{"role": "system", "content": request.system}] if request.system else []
+    messages += [{"role": m.role, "content": m.content} for m in request.messages]
+    body = {
+        "model": request.model,
+        "messages": messages,
+        "temperature": request.temperature,
+        "max_tokens": request.max_output_tokens,
+    }
+    if request.seed is not None:
+        body["seed"] = request.seed
+    if request.json_schema is not None:
+        body["response_format"] = {"type": "json_schema",
+                                   "json_schema": {"name": "reply", "schema": request.json_schema}}
+    return body
+
+
 class FakeBackend:
     """Offline backend for tests and for working without an API key.
 
@@ -195,4 +277,6 @@ def _default_fake_reply(request: Request) -> str:
 def make_backend(config: LLMConfig) -> Backend:
     if config.provider == "gemini":
         return GeminiBackend(config)
+    if config.provider == "vllm":
+        return VLLMBackend(config)
     return FakeBackend()

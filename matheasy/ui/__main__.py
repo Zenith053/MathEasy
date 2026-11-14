@@ -6,7 +6,13 @@
     python -m matheasy.ui --llm           # + the LLM fallback, LLM hints and the critic's review (GEMINI_API_KEY)
     python -m matheasy.ui --llm --eedi    # + Eedi misconceptions from the shortlister (GPU; loads for minutes)
     python -m matheasy.ui --llm --no-llm-diagnosis   # the LLM everywhere except diagnosis (T3)
-    -> http://localhost:8000
+    python -m matheasy.ui --vllm          # the LLM is an open model on our own GPU (config/llm_vllm.yaml)
+    -> http://localhost:8000  (8001 with --vllm, since the vLLM server uses 8000)
+
+--vllm needs a running vLLM server (Linux or WSL; the command is in config/llm_vllm.yaml).
+--vllm-url and --vllm-model point it at another server or model, e.g. a smaller one that
+fits a laptop GPU. In A's test (eval/llm_compare.py) Gemini was more accurate, so the
+project's runs use Gemini; vLLM shows the tutor working with no API key and no quota.
 
 Each Analyze runs what the tutor runs: every line of the working is read (transcribe) and
 checked against the one before; the first wrong step is diagnosed, then shown with where it
@@ -24,6 +30,7 @@ behind HTTPS before letting anyone reach it over a network.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import threading
 import time
@@ -34,12 +41,15 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
+import httpx
+
 from ..diagnosis import (
     SLIP, ParseError, StepIsCorrect, check_step, diagnose, load_ranker, parse, similar_items, topic_of, unknown_runs,
     uses_slip,
 )
 from ..evaluation.students import correct_answer
 from ..llm import BudgetExceeded, LLMCallError, LLMClient, LLMOutputError
+from ..llm.config import REPO_ROOT, LLMConfig, load_config
 from ..tutor import planner
 from ..tutor.__main__ import textbook_retrieve
 from ..tutor.analysis import analyse, mistake, topic_name
@@ -89,12 +99,14 @@ class DbStore(InMemoryStore):
 class Tutor:
     """The pieces the page uses, built once: the database, the LLM session, the Eedi ranker, the textbook search."""
 
-    def __init__(self, llm: bool, eedi: bool, db: Optional[Database] = None, llm_diagnosis: bool = True):
+    def __init__(self, llm: bool, eedi: bool, db: Optional[Database] = None, llm_diagnosis: bool = True,
+                 llm_config: Optional[LLMConfig] = None):
         self.llm_diagnosis = llm_diagnosis  # False: only the diagnoser's LLM is off (T3)
         self.db = db or Database()
         self.store = DbStore(self.db)
         self.lock = threading.Lock()  # one analysis at a time: memory updates must not interleave
-        self.session = LLMClient(run_id="ui").session("ui", "full", budget_tokens=None) if llm else None
+        self.llm_config = (llm_config or load_config()) if llm else None
+        self.session = LLMClient(self.llm_config, run_id="ui").session("ui", "full", budget_tokens=None) if llm else None
         self.retrieve = textbook_retrieve()
         self.hinter = LLMHinter(self.retrieve) if llm else TemplateHinter(self.retrieve)
         self.critic = TutorCritic()
@@ -105,8 +117,10 @@ class Tutor:
             print("Eedi shortlister:", "ready" if self.ranker else "did not load (needs torch, a GPU and data/)")
 
     def status(self) -> dict:
+        cfg = self.llm_config
         return {"llm": self.session is not None, "eedi": self.ranker is not None, "textbook": self.retrieve is not None,
-                "llm_diagnosis": self.session is not None and self.llm_diagnosis}
+                "llm_diagnosis": self.session is not None and self.llm_diagnosis,
+                "vllm": cfg is not None and cfg.provider == "vllm", "model": cfg.model() if cfg else None}
 
     def memory(self, student: str):
         memory = self.store.load(student)
@@ -390,23 +404,49 @@ def make_handler(tutor: Tutor):
     return Handler
 
 
+def vllm_config(ap: argparse.ArgumentParser, url: Optional[str], model: Optional[str]) -> LLMConfig:
+    """config/llm_vllm.yaml, with the server and model changed if asked, once the server answers."""
+    config = load_config(REPO_ROOT / "config" / "llm_vllm.yaml")
+    config = dataclasses.replace(config, base_url=url or config.base_url,
+                                 models={**config.models, "backbone": model or config.model()})
+    try:
+        served = [m["id"] for m in httpx.get(config.base_url.rstrip("/") + "/models", timeout=5).json()["data"]]
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        ap.error(f"no vLLM server answers at {config.base_url} ({type(e).__name__}). Start one first "
+                 "(see config/llm_vllm.yaml), or pass --vllm-url")
+    if config.model() not in served:
+        ap.error(f"the vLLM server serves {served}, not {config.model()}: pass --vllm-model")
+    return config
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--llm", action="store_true", help="LLM fallback, hints and critic (needs GEMINI_API_KEY)")
     ap.add_argument("--eedi", action="store_true", help="Eedi misconceptions (needs --llm, a GPU and data/)")
     ap.add_argument("--no-llm-diagnosis", dest="llm_diagnosis", action="store_false",
                     help="with --llm, turn off only the diagnoser's LLM (T3); reading, hints and the critic keep it")
-    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--vllm", action="store_true",
+                    help="like --llm, but on an open model served by vLLM (config/llm_vllm.yaml); no API key")
+    ap.add_argument("--vllm-url", help="the vLLM server, if not the one in config/llm_vllm.yaml (.../v1)")
+    ap.add_argument("--vllm-model", help="the model the vLLM server serves, if not the one in config/llm_vllm.yaml")
+    ap.add_argument("--port", type=int, default=None, help="default 8000, or 8001 with --vllm")
     args = ap.parse_args()
+    config = None
+    if args.vllm:
+        args.llm = True
+        config = vllm_config(ap, args.vllm_url, args.vllm_model)
+    elif args.vllm_url or args.vllm_model:
+        ap.error("--vllm-url and --vllm-model need --vllm")
+    port = args.port or (8001 if args.vllm else 8000)
     if args.eedi and not args.llm:
         ap.error("--eedi needs --llm: the LLM fallback picks the Eedi misconception")
     if args.eedi and not args.llm_diagnosis:
         ap.error("--eedi needs the diagnoser's LLM: drop --no-llm-diagnosis")
-    tutor = Tutor(args.llm, args.eedi and args.llm_diagnosis, llm_diagnosis=args.llm_diagnosis)
+    tutor = Tutor(args.llm, args.eedi and args.llm_diagnosis, llm_diagnosis=args.llm_diagnosis, llm_config=config)
     if not tutor.db.users():
         print("No accounts yet. Create one first:  python -m matheasy.ui.db add-user <name> --role teacher")
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(tutor))
-    print(f"MathEasy analysis page: http://localhost:{args.port}  ({tutor.status()})  Ctrl+C to stop")
+    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(tutor))
+    print(f"MathEasy analysis page: http://localhost:{port}  ({tutor.status()})  Ctrl+C to stop")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

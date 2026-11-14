@@ -1,0 +1,49 @@
+# The same settings as config/llm.yaml, but on an open model served by vLLM on our own GPU.
+# Only for comparing it with Gemini (A's test): the project's runs still use config/llm.yaml.
+#
+#   vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ --port 8000 --max-model-len 8192 --generation-config vllm
+#
+# On a T4 (Kaggle), use vllm==0.8.5: newer versions fall back to their old engine there and
+# then ignore the JSON schema, so most replies are not JSON.
+#   MATHEASY_LLM_CONFIG=config/llm_vllm.yaml python -m matheasy.ui --llm
+#
+# On a 6 GB laptop GPU (Windows + WSL Ubuntu), a 3B model fits; without the CUDA toolkit,
+# turn off FlashInfer's sampler, which wants nvcc. In WSL:
+#   VLLM_USE_FLASHINFER_SAMPLER=0 vllm serve Qwen/Qwen2.5-3B-Instruct-AWQ --port 8000 \
+#       --max-model-len 4096 --gpu-memory-utilization 0.6 --generation-config vllm
+# then in Windows:
+#   python -m matheasy.ui --vllm --vllm-model Qwen/Qwen2.5-3B-Instruct-AWQ
+#
+# Everything below except provider, base_url, models and timeout_s is copied from
+# config/llm.yaml, so a difference in results comes from the model alone.
+
+provider: vllm
+base_url: http://localhost:8000/v1
+
+models:
+  # A Hugging Face model ID, pinned like Gemini's. AWQ = 4-bit, so it fits a 16 GB T4.
+  backbone: Qwen/Qwen2.5-7B-Instruct-AWQ
+
+generation:
+  temperature: 0.0
+  max_output_tokens: 1024
+  seed: 20261016
+  thinking_budget: null   # ignored by vLLM
+
+budget:
+  session_tokens: 20000   # note: Qwen counts tokens a little differently from Gemini
+
+retry:
+  attempts: 4
+  initial_delay_s: 1.0
+  max_delay_s: 30.0
+
+timeout_s: 120            # a local GPU is slower than Google's
+
+cache:
+  enabled: true           # the cache key includes the provider and model, so no mix-ups
+  dir: .cache/llm
+
+logging:
+  dir: runs/llm_logs
+  include_text: true

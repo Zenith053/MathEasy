@@ -1,9 +1,14 @@
-"""Load and validate the shared LLM config (config/llm.yaml)."""
+"""Load and validate the shared LLM config (config/llm.yaml).
+
+MATHEASY_LLM_CONFIG=config/llm_vllm.yaml picks another config file for every
+program at once (the page, the runner, the eval scripts) without changing code.
+"""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -12,8 +17,9 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config" / "llm.yaml"
+CONFIG_ENV = "MATHEASY_LLM_CONFIG"
 
-PROVIDERS = ("gemini", "fake")
+PROVIDERS = ("gemini", "vllm", "fake")
 
 
 @dataclass(frozen=True)
@@ -35,6 +41,8 @@ class LLMConfig:
     log_include_text: bool
     # Short fingerprint of the whole config, written into every log line.
     hash: str
+    # Only for provider "vllm": the server's OpenAI-compatible address, e.g. http://localhost:8000/v1
+    base_url: Optional[str] = None
 
     def model(self, name: str = "backbone") -> str:
         if name not in self.models:
@@ -43,7 +51,10 @@ class LLMConfig:
 
 
 def load_config(path: Optional[Path | str] = None) -> LLMConfig:
-    path = Path(path) if path else DEFAULT_CONFIG_PATH
+    if not path:
+        chosen = os.environ.get(CONFIG_ENV)
+        path = (Path(chosen) if Path(chosen).is_absolute() else REPO_ROOT / chosen) if chosen else DEFAULT_CONFIG_PATH
+    path = Path(path)
     raw = yaml.safe_load(path.read_text())
     try:
         return _from_dict(raw)
@@ -70,9 +81,12 @@ def _from_dict(raw: dict) -> LLMConfig:
         log_dir=REPO_ROOT / raw["logging"]["dir"],
         log_include_text=bool(raw["logging"]["include_text"]),
         hash=hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()[:12],
+        base_url=raw.get("base_url"),
     )
     if cfg.provider not in PROVIDERS:
         raise ValueError(f"provider must be one of {PROVIDERS}, got {cfg.provider!r}")
+    if cfg.provider == "vllm" and not cfg.base_url:
+        raise ValueError("provider vllm needs base_url, e.g. http://localhost:8000/v1")
     if "backbone" not in cfg.models:
         raise ValueError("models.backbone is required")
     for name, model_id in cfg.models.items():

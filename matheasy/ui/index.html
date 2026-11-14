@@ -230,8 +230,11 @@ const SOURCE = {
 };
 
 fetch("/api/status").then((r) => r.json()).then((s) => {
-  $("badges").innerHTML = [["LLM", s.llm], ["Eedi", s.eedi], ["Textbook", s.textbook]]
-    .map(([name, on]) => `<span class="badge ${on ? "on" : ""}">${name} ${on ? "on" : "off"}</span>`).join("");
+  const model = s.model ? esc(s.model) : "";
+  // "LLM" is Gemini (Google's API); "vLLM" is an open model on our own GPU. Only one is on at a time.
+  $("badges").innerHTML = [["LLM", s.llm && !s.vllm, `${model}, Google's API`], ["vLLM", s.vllm, `${model}, served by vLLM on our own GPU`],
+                           ["Eedi", s.eedi, ""], ["Textbook", s.textbook, ""]]
+    .map(([name, on, tip]) => `<span class="badge ${on ? "on" : ""}" title="${on ? tip : ""}">${name} ${on ? "on" : "off"}</span>`).join("");
 });
 
 document.querySelectorAll(".examples a").forEach((a) => a.addEventListener("click", () => {
