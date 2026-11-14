@@ -89,6 +89,39 @@ Open **http://localhost:8001**. The badges should read **LLM off · vLLM on**. H
 
 For the Gemini version instead, run `python -m matheasy.ui --llm`. The badges then read LLM on · vLLM off.
 
+### With Eedi on as well (a 6 GB GPU)
+
+The Eedi shortlister is a second model on the same GPU, and Windows needs RAM to load it. To make both fit:
+
+1. Cap WSL's RAM. Run `notepad $env:USERPROFILE\.wslconfig`, paste the lines below, and save:
+   ```
+   [wsl2]
+   memory=5GB
+   swap=0
+
+   [experimental]
+   sparseVhd=true
+   ```
+   - `memory=5GB` leaves Windows enough RAM for the Eedi model.
+   - `swap=0` keeps WSL's swap file off C:.
+   - `sparseVhd=true` gives space freed in Ubuntu back to Windows.
+
+   Then, in PowerShell:
+   ```
+   wsl --shutdown
+   wsl --manage Ubuntu --set-sparse true --allow-unsafe
+   wsl -d Ubuntu -u root -- fstrim -v /
+   ```
+   `--allow-unsafe` is only a confirmation that WSL asks for.
+
+2. Start vLLM with **`--gpu-memory-utilization 0.55`** instead of 0.6. 0.5 is too little for 4096-token requests.
+
+3. Once the server is ready, start the page with Eedi:
+   ```
+   python -m matheasy.ui --vllm --vllm-model Qwen/Qwen2.5-3B-Instruct-AWQ --eedi
+   ```
+   Loading the Eedi model takes a few minutes. The badges then read **LLM off · vLLM on · Eedi on**. The GPU is then almost full (about 5.9 of 6.1 GB). If an Analyze fails with "CUDA out of memory", use Gemini for Eedi demos instead (`--llm --eedi`).
+
 ## 6. Stop it
 
 - Press **Ctrl+C** in each of the two windows.
@@ -108,6 +141,8 @@ After a restart, repeat only **steps 4 and 5**.
 | `No space left on device` | Use the `TMPDIR=~/tmp` command from step 3, and free space on C:. `pip cache purge` (in Windows and in Ubuntu) can free several GB. |
 | `Failed to find C compiler` | `sudo apt install -y build-essential` |
 | `Could not find nvcc` | Start the server with `VLLM_USE_FLASHINFER_SAMPLER=0`, as in step 4. |
+| `The paging file is too small` when loading Eedi | Windows is short of RAM and disk space. Cap WSL at 5 GB (see "With Eedi on as well") and free space on C:. |
+| `0.14 GiB KV cache is needed, which is larger than the available` | Raise `--gpu-memory-utilization` a little (0.55), or lower `--max-model-len`. |
 | `CUDA out of memory` | Use the 3B model, lower `--max-model-len` to 2048, and don't run `--eedi` at the same time on a 6 GB GPU. |
 | The page says "no vLLM server answers at http://localhost:8000/v1" | The server isn't ready yet (wait for `Application startup complete`), or it stopped; start step 4 again. |
 | The page says "the vLLM server serves [...], not ..." | Pass the model the server is running: `--vllm-model <that name>`. |
