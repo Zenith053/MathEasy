@@ -83,11 +83,12 @@ class Written:
 
 
 def write_hint(hinter: Hinter, critic: Critic, request: HintRequest, problem: Problem, *, llm=None,
-               unsolved: Mapping[str, str] = {}) -> Written:
-    """Up to MAX_REWRITES + 1 attempts, each rewrite with the critic's reasons."""
+               unsolved: Mapping[str, str] = {}, max_rewrites: int = MAX_REWRITES) -> Written:
+    """Up to max_rewrites + 1 attempts, each rewrite with the critic's reasons. The runner keeps
+    the default; the analysis page passes fewer so a student isn't kept waiting."""
     written = Written(None, request)
     feedback: list[str] = []
-    for _ in range(MAX_REWRITES + 1):
+    for _ in range(max_rewrites + 1):
         try:
             hint = hinter.hint(written.request, feedback or None, llm=llm)
             verdict = critic.review(hint.text, "hint", problem, request=written.request, llm=llm, unsolved=unsolved)

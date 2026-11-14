@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import re
 import threading
 import time
 import traceback
@@ -53,7 +54,7 @@ from ..llm.config import REPO_ROOT, LLMConfig, load_config
 from ..tutor import planner
 from ..tutor.__main__ import textbook_retrieve
 from ..tutor.analysis import analyse, mistake, topic_name
-from ..tutor.critic import TutorCritic
+from ..tutor.critic import TutorCritic, leaks_answer
 from ..tutor.describe import misconception_text
 from ..tutor.hinter import LLMHinter
 from ..tutor.hinting import hint_request, write_hint
@@ -66,6 +67,21 @@ from .db import Database
 PAGE = Path(__file__).with_name("index.html")
 COOKIE = "matheasy_session"
 LLM_ERRORS = (BudgetExceeded, LLMCallError, LLMOutputError)
+# Hint rewrites after the critic rejects one: the runner allows 2 (tutor/hinting.py); the page allows 1,
+# so the worst wait is two hint-and-critic rounds, not three. Then the safe template, as in the runner.
+PAGE_REWRITES = 1
+BRACED = re.compile(r"\{([^{}]*)\}")
+LETTER = re.compile(r"[A-Za-z]")
+
+
+def not_maths(line: str, question: str) -> bool:
+    """A reading that can't be an answer to `question`: a named quantity ({hello}) the question never
+    mentions, or letters when the question has none. The reader may turn any word into {word}, and a
+    small model reads 'hello' that way, so this check runs with the LLM on too."""
+    q = question.lower()
+    if any(word.strip().lower() not in q for word in BRACED.findall(line)):
+        return True
+    return bool(LETTER.search(BRACED.sub("", line))) and not LETTER.search(question)
 
 
 class DbStore(InMemoryStore):
@@ -105,6 +121,8 @@ class Tutor:
         self.db = db or Database()
         self.store = DbStore(self.db)
         self.lock = threading.Lock()  # one analysis at a time: memory updates must not interleave
+        self.stage = ""  # what the running analysis is doing, for the page's progress list (/api/progress)
+        self.max_rewrites = PAGE_REWRITES
         self.llm_config = (llm_config or load_config()) if llm else None
         self.session = LLMClient(self.llm_config, run_id="ui").session("ui", "full", budget_tokens=None) if llm else None
         self.retrieve = textbook_retrieve()
@@ -152,7 +170,10 @@ class Tutor:
 
     def analyze(self, question: str, answer_text: str, student: str) -> dict:
         with self.lock:
-            result = self._analyze(question, answer_text, student)
+            try:
+                result = self._analyze(question, answer_text, student)
+            finally:
+                self.stage = ""
             if result["kind"] in ("correct", "wrong"):
                 self.db.add_attempt(student, question.strip(), answer_text.strip(), result["kind"] == "correct",
                                     slip=result.get("slip", False), wrong_line=result.get("wrong_line"),
@@ -174,6 +195,7 @@ class Tutor:
         if not written:
             return {"kind": "unread", "message": "Type the working, one step per line.", "choices": []}
         lines = []
+        self.stage = "read"
         for i, text in enumerate(written, 1):
             if self.session is None and unknown_runs(text):
                 # Without the LLM nothing can tell a word ("hello") from letters multiplied (h × e × l × l × o).
@@ -181,6 +203,8 @@ class Tutor:
             reading = read_answer(text, question, self.session)
             if reading.status != "ok":
                 return {"kind": "unread", "message": f"Line {i}: {_unread(reading)}", "choices": list(reading.choices)}
+            if not_maths(reading.line, question):
+                return {"kind": "unread", "message": f"Line {i}: type it as maths, e.g. 5/6 or x = 4.", "choices": []}
             lines.append(reading.line)
         try:
             correct: Optional[str] = correct_answer(question)
@@ -188,6 +212,7 @@ class Tutor:
             correct = None
         memory = self.memory(student)
         chain = [question, *lines]
+        self.stage = "check"
         try:
             ok = [check_step(a, b) for a, b in zip(chain, chain[1:])]
         except ParseError as e:
@@ -202,6 +227,7 @@ class Tutor:
 
         k = ok.index(False)  # the first wrong step: chain[k] -> chain[k + 1]
         before, after = chain[k], chain[k + 1]
+        self.stage = "diagnose"
         try:
             d = diagnose(before, after, question=question, session=self.session if self.llm_diagnosis else None,
                          eedi_ranker=self.ranker if self.llm_diagnosis else None)
@@ -221,9 +247,15 @@ class Tutor:
         analysis = analyse(d, problem, memory.worked)
         words = None if slip else mistake(d, problem)
         right = tuple(f"{a} → {b}" for a, b in zip(chain[:k], chain[1:k + 1]))  # the lines before the wrong one
+        self.stage = "hint"
         hint, citation, rejected, dropped = self._hint(problem, after, d, slip, right)
+        likely = None
         if dropped:  # the critic said the student's work rules this misconception out
+            # A rule that reproduces the step exactly is checked by code, so the page still shows it,
+            # marked as likely: an LLM critic (a small model especially) can be wrong about the fit.
+            likely = words if d.status == "clear" else None
             words = None
+        self.stage = "revise"
 
         e = d.explanation
         practice = list(analysis.practice) or similar_items(d.topics, seen=[question], n=3)
@@ -231,7 +263,8 @@ class Tutor:
             "kind": "wrong", "answer": lines[-1], "steps": steps, "wrong_line": k + 1, "step": f"{before} → {after}",
             "status": d.status, "source": _source(d), "fit": e.eedi_fit if e else None, "slip": slip,
             "why_slip": why_slip,
-            "misconception": None if slip else d.misconception, "mistake": words, "where": analysis.where,
+            "misconception": None if slip else d.misconception, "mistake": words, "likely": likely,
+            "reading": None if slip or words else _reading(e, problem), "where": analysis.where,
             "topics": [topic_name(t) for t in analysis.topics],
             "hint": hint, "citation": citation, "hint_rejected": rejected, "revise": [] if slip else self._revise(words, d, topic, citation),
             "similar": practice,
@@ -246,7 +279,7 @@ class Tutor:
         safe template. Also every rejected attempt and the critic's reasons, so the page can show
         them, and whether the critic ruled the misconception out."""
         written = write_hint(self.hinter, self.critic, hint_request(problem, answer, d, slip=slip, right=right),
-                             problem, llm=self.session)
+                             problem, llm=self.session, max_rewrites=self.max_rewrites)
         rejected = list(written.attempts)
         if written.error is not None:
             rejected.append({"hint": None, "reasons": [f"LLM call failed: {written.error}"]})
@@ -266,6 +299,14 @@ class Tutor:
         passages = self.retrieve(f"{words or ''} {topics}".strip(), k=3)
         passages.sort(key=lambda p: p["ref"] != citation)
         return [{"ref": p["ref"], "text": p["text"][:700]} for p in passages[:2]]
+
+
+def _reading(e, problem: Problem) -> Optional[str]:
+    """The LLM's own reading of the mistake when code could not confirm it: for teachers only (the page
+    shows it with the technical details), and never if it gives the answer away."""
+    if e is None or not e.mistake or leaks_answer(e.mistake, problem.correct_answer, problem.question):
+        return None
+    return f"{e.mistake} ({e.status}{': ' + e.reason if e.reason else ''})"
 
 
 def _working(e) -> list[dict]:
@@ -347,6 +388,8 @@ def make_handler(tutor: Tutor):
             user = self._user()
             if user is None:
                 return self._send(401, {"error": "Please sign in."})
+            if url.path == "/api/progress":  # the running analysis's stage; "" when none is running
+                return self._send(200, {"stage": tutor.stage})
             if url.path == "/api/me":
                 return self._send(200, {"user": user[0], "role": user[1],
                                         "students": db.students() if user[1] == "teacher" else [user[0]]})

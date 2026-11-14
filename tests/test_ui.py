@@ -121,6 +121,26 @@ def test_the_page_flags_a_slip_on_a_mastered_concept(server):
     assert memory.times_diagnosed == {SLIP: 1}
 
 
+def test_a_word_or_stray_letters_are_not_an_answer():
+    from matheasy.ui.__main__ import not_maths
+    assert not_maths("{hello}", "1/2 + 1/3")              # a small model reads 'hello' as a named quantity
+    assert not_maths("abc", "1/2 + 1/3")                  # letters when the question has none
+    assert not_maths("2x + {cat}", "2(x + 3)")
+    assert not not_maths("5/6", "1/2 + 1/3")
+    assert not not_maths("x = 4", "2x + 3 = 11")
+    assert not not_maths("{rate} * 3", "{rate} * 2 + 1")  # a quantity the question names
+
+
+def test_the_page_progress_needs_sign_in_and_is_empty_when_idle(server):
+    base, tutor = server
+    anna = client(base)
+    assert anna("/api/progress")[0] == 401
+    anna("/api/login", {"username": "anna", "password": "anna123"})
+    assert anna("/api/progress") == (200, {"stage": ""})
+    anna("/api/analyze", {"question": "1/2 + 1/3", "answer": "2/5"})
+    assert anna("/api/progress") == (200, {"stage": ""})          # reset after the analysis
+
+
 def test_signing_up_creates_a_student_and_signs_them_in(server, db):
     base, _ = server
     cara = client(base)

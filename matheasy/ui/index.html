@@ -3,178 +3,480 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MathEasy Analysis</title>
+<title>MathEasy Practice</title>
 <style>
+  /* Dark by default (a practice workspace); the ☀/☾ button switches theme and is remembered. */
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d232b; --muted: #5e6875; --line: #e2e6eb;
-    --accent: #2f6fde; --accent-ink: #ffffff; --good: #1d8a4e; --good-bg: #e7f6ee;
-    --bad: #c4322b; --bad-bg: #fdecea; --warn: #9a6400; --warn-bg: #fff4dc; --chip: #eef2f8;
-    --bar: #2a78d6; --grid: #e6e9ee; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --bg: #0e1014; --panel: #171a20; --panel-2: #1d2128; --ink: #e7e9ee; --muted: #9ea6b4; --line: #282d37;
+    --accent: #f5a524; --accent-ink: #1a1203; --run: #2fb170; --run-ink: #04160c;
+    --good: #3ecf8e; --good-bg: rgba(62, 207, 142, .12); --bad: #f2645a; --bad-bg: rgba(242, 100, 90, .13);
+    --warn: #f0b73a; --warn-bg: rgba(240, 183, 58, .12); --chip: #252a33; --bar: #4c8df6; --grid: #262b34;
+    --easy: #3ecf8e; --medium: #f0b73a; --hard: #f2645a; --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    --mono: ui-monospace, "Cascadia Code", SFMono-Regular, Menlo, Consolas, monospace;
+    --lh: 24px;  /* one editor line: the gutter, the textarea and the wrong-line mark share it */
+    color-scheme: dark;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #12161b; --panel: #1b2128; --ink: #e6e9ed; --muted: #9aa4b0; --line: #2c343e;
-      --accent: #5b8ff0; --accent-ink: #0b1220; --good: #4cc786; --good-bg: #16301f;
-      --bad: #f07067; --bad-bg: #3a1b19; --warn: #e3b04b; --warn-bg: #352a12; --chip: #26303b;
-      --bar: #3987e5; --grid: #2a323c; color-scheme: dark;
-    }
+  :root[data-theme="light"] {
+    --bg: #f3f4f7; --panel: #ffffff; --panel-2: #f7f8fa; --ink: #1b1f27; --muted: #586070; --line: #e2e5ea;
+    --accent: #b86e00; --accent-ink: #ffffff; --run: #1f9d5c; --run-ink: #ffffff;
+    --good: #1d8a4e; --good-bg: #e7f6ee; --bad: #c4322b; --bad-bg: #fdecea;
+    --warn: #9a6400; --warn-bg: #fff4dc; --chip: #eef1f5; --bar: #2a78d6; --grid: #e6e9ee;
+    --easy: #1d8a4e; --medium: #9a6400; --hard: #c4322b; --shadow: 0 10px 30px rgba(20, 30, 50, .14);
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }  /* the page's own display rules must not undo hidden */
+  html, body { height: 100%; }
   body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 64px; }
-  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  h1 { font-size: 22px; margin: 0; }
-  h2.section { font-size: 17px; margin: 28px 0 10px; }
-  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
-  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+         font: 14.5px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font-size: inherit; }
+  .linkbtn:hover { text-decoration: underline; }
+  /* Technical details (rule IDs, sources, statuses) only when switched on: teachers see them by default. */
+  body:not(.tech) .tech { display: none !important; }
+
+  /* ---- top bar ---- */
+  .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); min-height: 52px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; letter-spacing: .01em; }
+  .logo { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 17px;
+          background: var(--accent); color: var(--accent-ink); font-weight: 800; flex: none; }
+  .navtabs { display: flex; gap: 4px; }
+  .navtab { position: relative; background: transparent; border: 0; color: var(--muted); padding: 6px 12px; border-radius: 8px;
+            cursor: pointer; font-weight: 600; }
+  .navtab:hover, .navtab.active { color: var(--ink); background: var(--chip); }
+  .navtab .dot { position: absolute; top: 5px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .spacer { flex: 1; }
+  .who { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  select { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--ink);
+           font: 13.5px system-ui, sans-serif; }
+  .icon-btn { background: var(--chip); border: 0; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 16px; }
+  .icon-btn:hover { filter: brightness(1.15); }
+  .menu-wrap { position: relative; }
+  .avatar-btn { display: flex; align-items: center; gap: 8px; background: transparent; border: 0; cursor: pointer; padding: 3px 6px 3px 3px;
+                border-radius: 999px; color: var(--muted); font-size: 13px; }
+  .avatar-btn:hover { background: var(--chip); }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px;
+            background: var(--chip); color: var(--accent); text-transform: uppercase; }
+  .menu { position: absolute; right: 0; top: calc(100% + 8px); width: 270px; background: var(--panel); border: 1px solid var(--line);
+          border-radius: 12px; box-shadow: var(--shadow); padding: 8px; z-index: 30; }
+  .menu .head { padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+  .menu .head b { display: block; font-size: 14.5px; }
+  .menu h4 { margin: 8px 10px 6px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .menu .item { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px;
+                border: 0; background: transparent; border-radius: 8px; cursor: pointer; text-align: left; font-size: 13.5px; }
+  .menu .item:hover { background: var(--chip); }
+  .menu .item input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 10px 8px; }
+  .badge { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+  .badge::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+                   margin-right: 6px; vertical-align: 1px; opacity: .8; }
   .badge.on { color: var(--good); background: var(--good-bg); }
-  #form { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
-          display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
-  .full { grid-column: 1 / -1; }
-  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-  input, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
-          color: var(--ink); font: 16px/1.45 var(--mono); }
-  textarea { resize: vertical; min-height: 92px; }
-  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .actions .who { display: flex; gap: 8px; align-items: center; }
-  .actions .who input { width: 160px; font: 14px system-ui, sans-serif; padding: 7px 9px; }
-  button { padding: 10px 18px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink);
-           font-weight: 600; cursor: pointer; font-size: 15px; }
-  button.quiet { background: var(--chip); color: var(--ink); font-weight: 500; padding: 7px 12px; font-size: 13px; }
-  button:disabled { opacity: .6; cursor: wait; }
+
+  /* ---- practice workspace: problem on the left, working and result on the right ---- */
+  .mtabs { display: none; gap: 4px; padding: 8px 10px 0; }
+  .mtab { flex: 1; padding: 8px; border: 1px solid var(--line); background: var(--panel); border-radius: 9px; cursor: pointer;
+          font-weight: 600; color: var(--muted); }
+  .mtab.active { color: var(--ink); border-color: var(--accent); }
+  .workspace { display: grid; grid-template-columns: minmax(330px, 2fr) minmax(0, 3fr); gap: 10px; padding: 10px;
+               height: calc(100vh - 53px); }
+  .pane { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column;
+          min-height: 0; min-width: 0; overflow: hidden; }
+  .pane-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel-2);
+               border-bottom: 1px solid var(--line); min-height: 46px; flex-wrap: wrap; }
+  .pane-title { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 7px; }
+  .pane-title .ic { color: var(--accent); }
+  .pane-body { padding: 16px; overflow: auto; min-height: 0; flex: 1; }
+  #result-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .scroll { overflow: auto; min-height: 0; flex: 1; }
+
+  .field-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  .q-wrap { position: relative; }
+  .q-input { width: 100%; padding: 12px 40px 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2);
+             color: var(--ink); font: 600 20px/1.35 var(--mono); }
+  .q-wrap .pen { position: absolute; right: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .q-input:focus, textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .lead { color: var(--muted); font-size: 13.5px; margin: 10px 0 0; }
+  .examples { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .ex-btn { border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); border-radius: 8px; padding: 5px 10px;
+            cursor: pointer; font-size: 13px; }
+  .ex-btn:hover { border-color: var(--accent); }
+
+  .mini { margin-top: 18px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+  .mini-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .mini b { font-size: 21px; font-variant-numeric: tabular-nums; }
+  .mini .chips { margin-top: 8px; }
+  .mini .cap { font-size: 12px; color: var(--muted); margin-top: 10px; }
+
+  .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 8px; flex-wrap: wrap; }
+  .list-head h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0; font-weight: 600; }
+  .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .filter { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 3px 11px;
+            cursor: pointer; font-size: 12.5px; }
+  .filter.active { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .problem-list { display: grid; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .prob { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; width: 100%;
+          padding: 10px 12px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+  .prob:nth-child(odd) { background: var(--panel-2); }
+  .prob:hover { background: var(--chip); }
+  .prob.active { box-shadow: inset 3px 0 0 var(--accent); background: var(--chip); }
+  .prob .st { font-size: 13px; text-align: center; color: var(--muted); }
+  .prob .st.solved { color: var(--good); } .prob .st.tried { color: var(--warn); }
+  .prob .pq { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prob .topic { font-size: 12px; color: var(--muted); }
+  .diff { font-size: 12px; font-weight: 600; min-width: 52px; text-align: right; }
+  .diff.easy { color: var(--easy); } .diff.medium { color: var(--medium); } .diff.hard { color: var(--hard); }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* the editor: line numbers, the working, and a mark behind the first wrong line */
+  #form { display: flex; flex-direction: column; flex: none; }
+  .editor { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); background: var(--panel);
+            border-bottom: 1px solid var(--line); height: calc(var(--lh) * 5 + 24px); overflow: hidden; }
+  .gutter { padding: 12px 8px 12px 0; text-align: right; color: var(--muted); font: 15px/var(--lh) var(--mono); user-select: none;
+            overflow: hidden; background: var(--panel-2); border-right: 1px solid var(--line); }
+  .gutter span { display: block; }
+  .gutter span.bad { color: var(--bad); font-weight: 700; }
+  .gutter span.ok { color: var(--good); }
+  .linemark { position: absolute; left: 44px; right: 0; height: var(--lh); background: var(--bad-bg);
+              box-shadow: inset 3px 0 0 var(--bad); pointer-events: none; }
+  .linemark .why { position: absolute; right: 12px; top: 0; font-size: 12px; color: var(--bad); line-height: var(--lh); font-weight: 600; }
+  textarea#a { position: relative; border: 0; resize: none; padding: 12px 14px; background: transparent; color: var(--ink);
+               font: 15px/var(--lh) var(--mono); white-space: pre; overflow: auto; height: 100%; width: 100%; }
+  textarea#a::placeholder { color: var(--muted); opacity: .8; }
+  textarea#a:focus { outline: none; }
+  .kbd { font: 11.5px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; color: var(--muted); }
   .hintline { font-size: 12.5px; color: var(--muted); }
-  .examples { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--muted); }
-  .examples a { font-family: var(--mono); color: var(--accent); cursor: pointer; text-decoration: none;
-                background: var(--chip); padding: 2px 8px; border-radius: 6px; }
-  @media (max-width: 640px) { #form { grid-template-columns: 1fr; } }
-  #result { margin-top: 18px; display: grid; gap: 12px; }
-  .verdict { border-radius: 10px; padding: 14px 16px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-  .verdict.good { background: var(--good-bg); color: var(--good); }
-  .verdict.bad { background: var(--bad-bg); color: var(--bad); }
-  .verdict.warn { background: var(--warn-bg); color: var(--warn); }
-  .verdict small { font-weight: 400; color: var(--muted); }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
-  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px;
+  #go { margin-left: auto; padding: 7px 16px; border: 0; border-radius: 8px; background: var(--run); color: var(--run-ink);
+        font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 7px; }
+  #go:hover { filter: brightness(1.08); }
+  #go:disabled { opacity: .65; cursor: wait; }
+  .spin { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+          display: inline-block; animation: spin .7s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- result ---- */
+  #result { padding: 14px; display: grid; gap: 12px; align-content: start; }
+  .empty { color: var(--muted); text-align: center; padding: 36px 12px; border: 1px dashed var(--line); border-radius: 10px; }
+  .empty b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+  ol.stages { list-style: none; margin: 0 auto; padding: 18px 4px; display: grid; gap: 10px; max-width: 360px; }
+  ol.stages li { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+  ol.stages li .ic { width: 18px; text-align: center; }
+  ol.stages li.done { color: var(--ink); } ol.stages li.done .ic { color: var(--good); }
+  ol.stages li.now { color: var(--ink); font-weight: 600; } ol.stages li.now .ic { color: var(--accent); }
+  .verdict { border-radius: 10px; padding: 12px 14px; display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; }
+  .verdict .v { font-size: 19px; font-weight: 700; }
+  .verdict small { color: var(--muted); font-size: 13px; }
+  .verdict .time { margin-left: auto; color: var(--muted); font-size: 12.5px; }
+  .verdict.good { background: var(--good-bg); } .verdict.good .v { color: var(--good); }
+  .verdict.bad { background: var(--bad-bg); } .verdict.bad .v { color: var(--bad); }
+  .verdict.warn, .verdict.slip { background: var(--warn-bg); } .verdict.warn .v, .verdict.slip .v { color: var(--warn); }
+  .next-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 600;
              display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .tag { font-size: 11px; text-transform: none; letter-spacing: 0; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--ink); }
+  .card.hint { border-left: 3px solid var(--accent); }
+  .card.mistake { border-left: 3px solid var(--bad); }
+  .tag { font-size: 11px; text-transform: none; letter-spacing: 0; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--ink); font-weight: 500; }
   .tag.exact { background: var(--good-bg); color: var(--good); }
   .tag.close { background: var(--warn-bg); color: var(--warn); }
   .maths { font-family: var(--mono); }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-  .chip { background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
-  .cite { margin-top: 8px; font-size: 13px; color: var(--muted); }
-  ol.steps { margin: 0; padding-left: 26px; font-family: var(--mono); display: grid; gap: 3px; }
+  .chip { background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
+  .chip.weak { color: var(--bad); }
+  .cite { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+  ol.steps { margin: 0; padding-left: 28px; font-family: var(--mono); display: grid; gap: 3px; }
   ol.steps li.ok::marker { color: var(--good); } ol.steps li.bad::marker { color: var(--bad); }
   ol.steps li.bad { color: var(--bad); font-weight: 600; }
   ol.steps .mark { font-family: system-ui, sans-serif; font-size: 12px; margin-left: 8px; }
   ol.steps .read { color: var(--muted); font-size: 12px; margin-left: 6px; font-weight: 400; }
   .passage + .passage { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
   .passage b { display: block; font-size: 14px; }
-  .passage p { margin: 4px 0 0; color: var(--muted); font-size: 14px; white-space: pre-line; }
-  ul.similar { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-  ul.similar a { font-family: var(--mono); color: var(--accent); cursor: pointer; }
+  .passage p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; white-space: pre-line; }
+  ul.similar { margin: 0; padding: 0; list-style: none; display: flex; gap: 8px; flex-wrap: wrap; }
+  ul.similar button { font-family: var(--mono); cursor: pointer; padding: 5px 10px; border: 1px solid var(--line);
+                      border-radius: 8px; background: var(--panel); color: var(--accent); }
+  ul.similar button:hover { border-color: var(--accent); }
   ol.working { margin: 0; padding-left: 22px; font-family: var(--mono); }
   ol.working li.wrong { color: var(--bad); }
   ol.working .found { font-family: system-ui, sans-serif; font-size: 13px; color: var(--ink); margin: 2px 0 6px; }
   details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   .muted { color: var(--muted); font-size: 13px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
 
-  /* student memory */
+  /* ---- progress (student memory) ---- */
+  .progress { max-width: 980px; margin: 0 auto; padding: 18px 16px 64px; }
   .mem-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h2.section { font-size: 20px; margin: 4px 0 12px; }
+  button.quiet { background: var(--chip); border: 0; font-weight: 500; padding: 7px 12px; font-size: 13px; border-radius: 8px; cursor: pointer; }
+  .progress .card { background: var(--panel); padding: 16px 18px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin: 0 0 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .chart { position: relative; overflow-x: auto; }
   .chart svg { display: block; width: 100%; min-width: 520px; height: auto; color: var(--ink); }
   .chart .lbl { fill: var(--ink); font-size: 13px; }
   .chart .val { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .chart .axis { fill: var(--muted); font-size: 11px; }
   .chart .gridline { stroke: var(--grid); stroke-width: 1; }
-  .chart .goal { stroke: var(--good); stroke-width: 1.5; }
+  .chart .goal { stroke: var(--good); stroke-width: 1.5; stroke-dasharray: 4 3; }
   .chart .goal-lbl { fill: var(--good); font-size: 11px; }
-  .chart .bar { fill: var(--bar); }
+  .chart .bar-weak { fill: var(--bad); } .chart .bar-learning { fill: var(--bar); } .chart .bar-mastered { fill: var(--good); }
   .chart .hit { fill: transparent; cursor: default; }
-  .chart .hit:hover + .bar, .chart .hit:focus + .bar { opacity: .8; }
+  .chart .hit:hover + path, .chart .hit:focus + path { opacity: .8; }
   .chart .state-weak { fill: var(--bad); } .chart .state-mastered { fill: var(--good); } .chart .state-learning { fill: var(--muted); }
   #tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-         padding: 6px 9px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12); white-space: nowrap; }
+         padding: 6px 9px; font-size: 12.5px; box-shadow: var(--shadow); white-space: nowrap; }
   table.mis { width: 100%; border-collapse: collapse; font-size: 14px; }
   table.mis th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 0 10px 6px 0; }
-  table.mis td { border-top: 1px solid var(--line); padding: 7px 10px 7px 0; vertical-align: top; }
+  table.mis td { border-top: 1px solid var(--line); padding: 8px 10px 8px 0; vertical-align: top; }
   table.mis td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .who-line { font-size: 13px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
-  .who-line a { color: var(--accent); cursor: pointer; }
-  #login, #signup { max-width: 360px; margin: 60px auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-           padding: 22px; display: grid; gap: 12px; }
-  #login button, #signup button { width: 100%; }
-  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
-  #login h1, #signup h1 { font-size: 20px; }
-  a.switch { color: var(--accent); cursor: pointer; }
-  #login .err, #signup .err { color: var(--bad); font-size: 13px; min-height: 1.2em; }
-  select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: 14px system-ui, sans-serif; }
-  .verdict.slip { background: var(--warn-bg); color: var(--warn); }
   .res { font-weight: 600; } .res.ok { color: var(--good); } .res.bad { color: var(--bad); } .res.slip { color: var(--warn); }
+
+  /* ---- sign in / sign up ---- */
+  .auth { max-width: 380px; margin: 9vh auto 40px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+          padding: 26px; display: grid; gap: 14px; box-shadow: var(--shadow); }
+  .auth .brand { justify-content: center; font-size: 20px; }
+  .auth h1 { font-size: 15px; font-weight: 500; color: var(--muted); text-align: center; margin: -4px 0 4px; }
+  .auth label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; }
+  .auth input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2);
+                color: var(--ink); font: 15px system-ui, sans-serif; }
+  .auth button { width: 100%; padding: 10px 16px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
+                 font-weight: 700; cursor: pointer; }
+  .auth button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 600; }
+  .auth .err { color: var(--bad); font-size: 13px; min-height: 1.2em; }
+
+  .q-echo { display: none; padding: 10px 14px; border-bottom: 1px solid var(--line); font: 600 16px var(--mono); }
+  .q-echo .muted { font: 12px system-ui, sans-serif; margin-right: 8px; }
+
+  /* ---- small screens: one panel at a time, picked with tabs ---- */
+  @media (max-width: 960px) {
+    .mtabs { display: flex; }
+    .q-echo { display: block; }
+    .workspace { grid-template-columns: 1fr; height: calc(100vh - 106px); }
+    .workspace[data-m="problem"] #pane-right { display: none; }
+    .workspace[data-m="working"] #pane-left, .workspace[data-m="result"] #pane-left { display: none; }
+    .workspace[data-m="working"] #result-wrap { display: none; }
+    .workspace[data-m="working"] .editor { height: calc(var(--lh) * 9 + 24px) !important; }
+    .workspace[data-m="result"] #form .editor { display: none; }
+  }
+  @media (max-width: 640px) {
+    .grid2 { grid-template-columns: 1fr; }
+    .brand .name, .avatar-btn .uname, .hintline { display: none; }
+    .topbar { gap: 8px; padding: 8px 10px; }
+  }
 </style>
 </head>
 <body>
-<form id="login" hidden>
-  <h1>MathEasy · sign in</h1>
+<form id="login" class="auth" hidden>
+  <div class="brand"><span class="logo">∑</span> MathEasy</div>
+  <h1>Sign in to practise</h1>
   <div><label for="u">Username</label><input id="u" autocomplete="username"></div>
   <div><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"></div>
   <button type="submit">Sign in</button>
-  <div class="err" id="login-err"></div>
+  <div class="err" id="login-err" role="alert"></div>
   <button type="button" class="secondary" id="to-signup">Create account</button>
 </form>
-<form id="signup" hidden>
-  <h1>MathEasy · create an account</h1>
+<form id="signup" class="auth" hidden>
+  <div class="brand"><span class="logo">∑</span> MathEasy</div>
+  <h1>Create a student account</h1>
   <div><label for="nu">Username</label><input id="nu" autocomplete="username" maxlength="40"></div>
   <div><label for="npw">Password <span class="muted">(at least 6 characters)</span></label>
     <input id="npw" type="password" autocomplete="new-password"></div>
   <div><label for="npw2">Password again</label><input id="npw2" type="password" autocomplete="new-password"></div>
   <button type="submit">Create account</button>
-  <div class="err" id="signup-err"></div>
+  <div class="err" id="signup-err" role="alert"></div>
   <button type="button" class="secondary" id="to-login">Back to sign in</button>
 </form>
-<main id="app" hidden>
-  <header>
-    <h1>MathEasy · answer analysis</h1>
-    <div class="who-line"><span id="me"></span><a id="logout">Sign out</a><span class="badges" id="badges"></span></div>
-  </header>
 
-  <form id="form">
-    <div><label for="q">Question</label><input id="q" value="1/2 + 1/3 + 1/6" autocomplete="off"></div>
-    <div><label for="a">Student's working, one step per line</label>
-      <textarea id="a" rows="3" autocomplete="off">3/6 + 2/6 + 1/6
-6/18</textarea></div>
-    <div class="full actions">
-      <button id="go" type="submit">Analyze</button>
-      <span class="hintline">Ctrl + Enter to analyze. Every line is checked against the one before.</span>
-      <span class="who" id="picker" style="margin-left:auto" hidden><label for="s" style="margin:0">Student</label><select id="s"></select></span>
+<div id="app" hidden>
+  <nav class="topbar">
+    <div class="brand"><span class="logo">∑</span><span class="name">MathEasy</span></div>
+    <div class="navtabs">
+      <button class="navtab active" type="button" data-view="practice">Practice</button>
+      <button class="navtab" type="button" data-view="progress">Progress<span class="dot" id="progress-dot" hidden></span></button>
     </div>
-    <div class="full examples">Try:
-      <a data-q="1/2 + 1/3" data-a="2/5">1/2 + 1/3 → 2/5</a>
-      <a data-q="2x + 3 = 11" data-a="2x = 14&#10;x = 7">2x + 3 = 11 (two lines)</a>
-      <a data-q="2x + 3 = 11" data-a="2x = 8&#10;x = 4">… solved right</a>
-      <a data-q="(x + 3)^2 - x^2" data-a="x^2 + 9 - x^2&#10;9">(x + 3)² − x²</a>
-      <a data-q="7 × 8 + 6" data-a="60">7 × 8 + 6 → 60</a>
+    <div class="spacer"></div>
+    <span class="who" id="picker" hidden><label for="s">Student</label><select id="s"></select></span>
+    <button class="icon-btn" id="theme" type="button"></button>
+    <div class="menu-wrap">
+      <button class="avatar-btn" id="user-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu">
+        <span class="avatar" id="avatar"></span><span class="uname" id="me"></span><span aria-hidden="true">▾</span></button>
+      <div class="menu" id="user-menu" hidden>
+        <div class="head"><b id="menu-name"></b><span class="muted" id="menu-role"></span></div>
+        <label class="item" for="tech-toggle">Show technical details <input type="checkbox" id="tech-toggle"></label>
+        <h4>System</h4>
+        <div class="badges" id="badges"></div>
+        <button class="item" type="button" id="logout">Sign out <span aria-hidden="true">↪</span></button>
+      </div>
     </div>
-  </form>
+  </nav>
 
-  <section id="result"></section>
+  <div class="mtabs" id="mtabs" role="tablist">
+    <button class="mtab active" type="button" data-m="problem">Problem</button>
+    <button class="mtab" type="button" data-m="working">Working</button>
+    <button class="mtab" type="button" data-m="result">Result</button>
+  </div>
 
-  <div class="mem-head"><h2 class="section" id="mem-title">Student memory</h2>
-    <button class="quiet" id="reset" type="button" hidden>Reset this student</button></div>
-  <div class="card" id="memory"><span class="muted">Loading…</span></div>
-</main>
+  <section id="view-practice" class="workspace" data-m="problem">
+    <div class="pane" id="pane-left">
+      <div class="pane-head"><span class="pane-title"><span class="ic">▤</span> Problem</span></div>
+      <div class="pane-body">
+        <label for="q" class="field-label">Question <span style="text-transform:none;letter-spacing:0">(you can type your own)</span></label>
+        <div class="q-wrap"><input id="q" class="q-input" autocomplete="off" spellcheck="false"><span class="pen" aria-hidden="true">✎</span></div>
+        <div class="examples" id="examples" hidden></div>
+        <p class="lead">Write your working on the right, one step per line. Every line is checked against the one before.</p>
+
+        <div class="mini" id="mini" hidden></div>
+
+        <div class="list-head"><h3>Problem set</h3><span class="count" id="count"></span></div>
+        <div class="filters" id="filters"></div>
+        <div class="problem-list" id="problems"></div>
+        <p class="note">Levels are a rough guide, set by hand.</p>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-right">
+      <form id="form">
+        <div class="pane-head">
+          <span class="pane-title"><span class="ic">✎</span> Your working</span>
+          <span class="hintline"><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></span>
+          <button id="go" type="submit">▶ Analyze</button>
+        </div>
+        <div class="q-echo" id="q-echo"></div>
+        <div class="editor" id="editor">
+          <div class="gutter" id="gutter" aria-hidden="true"></div>
+          <div class="linemark" id="linemark" hidden><span class="why">first wrong step</span></div>
+          <textarea id="a" wrap="off" spellcheck="false" autocomplete="off" aria-label="Your working, one step per line"
+                    placeholder="One step per line"></textarea>
+        </div>
+      </form>
+      <div id="result-wrap">
+        <div class="pane-head"><span class="pane-title"><span class="ic">◉</span> Result</span></div>
+        <div class="scroll">
+          <section id="result" aria-live="polite"><div class="empty"><b>Nothing analysed yet</b>Pick a problem, write your working and press Analyze.</div></section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-progress" class="progress" hidden>
+    <div class="mem-head"><h2 class="section" id="mem-title">Progress</h2>
+      <button class="quiet" id="reset" type="button" hidden>Reset this student</button></div>
+    <div class="card" id="memory"><span class="muted">Loading…</span></div>
+  </section>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const plural = (n, word, many = word + "s") => `${n} ${n === 1 ? word : many}`;
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* not remembered */ } } };
 let ME = null;
 const student = () => (ME && ME.role === "teacher" ? $("s").value : ME?.user) || "";
 
+/* ---- the problem set: each problem has a topic, a rough level and sample answers to look at ---- */
+const PROBLEMS = [
+  { q: "1/2 + 1/3", topic: "Fractions", level: "easy", examples: [["a wrong answer", "2/5"]] },
+  { q: "3/4 - 1/4", show: "3/4 − 1/4", topic: "Fractions", level: "easy", examples: [["a wrong answer", "2/0"]] },
+  { q: "1/2 + 1/3 + 1/6", topic: "Fractions", level: "medium", examples: [["a wrong answer", "3/6 + 2/6 + 1/6\n6/18"]] },
+  { q: "7 × 8 + 6", topic: "Arithmetic", level: "easy", examples: [["a wrong answer", "60"]] },
+  { q: "2(x + 3)", topic: "Algebra", level: "medium", examples: [["a wrong answer", "2x + 3"]] },
+  { q: "2x + 3 = 11", topic: "Algebra", level: "medium", examples: [["a wrong answer", "2x = 14\nx = 7"], ["a right answer", "2x = 8\nx = 4"]] },
+  { q: "(x + 3)^2 - x^2", show: "(x + 3)² − x²", topic: "Algebra", level: "hard", examples: [["a wrong answer", "x^2 + 9 - x^2\n9"]] },
+];
+const LEVEL = { easy: "Easy", medium: "Medium", hard: "Hard" };
+let current = -1, filter = "All", statusOf = {};  // statusOf: question -> "solved" | "tried"
+const norm = (s) => String(s || "").replace(/\s+/g, "").replace(/−/g, "-").replace(/²/g, "^2");
+
+function renderProblems() {
+  const topics = ["All", ...new Set(PROBLEMS.map((p) => p.topic))];
+  $("filters").innerHTML = topics.map((t) => `<button type="button" class="filter ${t === filter ? "active" : ""}" data-t="${esc(t)}">${esc(t)}</button>`).join("");
+  $("filters").querySelectorAll(".filter").forEach((b) => b.addEventListener("click", () => { filter = b.dataset.t; renderProblems(); }));
+  const shown = PROBLEMS.map((p, i) => [p, i]).filter(([p]) => filter === "All" || p.topic === filter);
+  $("problems").innerHTML = shown.map(([p, i]) => {
+    const s = statusOf[norm(p.q)] || "";
+    const mark = s === "solved" ? "✓" : s === "tried" ? "●" : "○";
+    const said = s === "solved" ? "solved" : s === "tried" ? "tried, not solved yet" : "not tried";
+    return `<button type="button" class="prob ${i === current ? "active" : ""}" data-i="${i}" aria-label="${esc(p.show || p.q)}, ${LEVEL[p.level]}, ${said}">
+      <span class="st ${s}" title="${said}">${mark}</span><span class="pq">${esc(p.show || p.q)}</span>
+      <span class="topic">${esc(p.topic)}</span><span class="diff ${p.level}">${LEVEL[p.level]}</span></button>`;
+  }).join("");
+  $("problems").querySelectorAll(".prob").forEach((b) => b.addEventListener("click", () => pick(+b.dataset.i)));
+  const solved = PROBLEMS.filter((p) => statusOf[norm(p.q)] === "solved").length;
+  $("count").textContent = `${solved} / ${PROBLEMS.length} solved`;
+}
+
+function pick(i, { focus = true } = {}) {
+  current = i;
+  const p = PROBLEMS[i];
+  $("q").value = p.q; $("a").value = ""; clearMarks(); renderProblems(); renderExamples();
+  $("result").innerHTML = `<div class="empty"><b>${esc(p.show || p.q)}</b>Write your working, one step per line, then press Analyze.</div>`;
+  if (focus) { setMobile("working"); $("a").focus(); }
+}
+
+function renderExamples() {
+  // On small screens the Working tab shows the question too, so the student can see it while writing.
+  $("q-echo").innerHTML = `<span class="muted">Question</span>${esc($("q").value)}`;
+  const p = PROBLEMS[current];
+  if (!p || norm($("q").value) !== norm(p.q)) { $("examples").hidden = true; return; }
+  $("examples").hidden = false;
+  $("examples").innerHTML = `See an example: ` + p.examples.map(([label], k) => `<button type="button" class="ex-btn" data-k="${k}">${esc(label)}</button>`).join("");
+  $("examples").querySelectorAll(".ex-btn").forEach((b) => b.addEventListener("click", () => {
+    $("a").value = p.examples[+b.dataset.k][1]; updateEditor(); $("form").requestSubmit();
+  }));
+}
+
+function nextProblem() {
+  const order = PROBLEMS.map((p, i) => i).filter((i) => filter === "All" || PROBLEMS[i].topic === filter);
+  const after = order.filter((i) => i > current).concat(order.filter((i) => i <= current));
+  const next = after.find((i) => statusOf[norm(PROBLEMS[i].q)] !== "solved" && i !== current);
+  if (next === undefined) {
+    $("result").insertAdjacentHTML("afterbegin", `<div class="verdict good"><span class="v">Every problem here is solved</span><small>Type your own question, or try another topic.</small></div>`);
+    return;
+  }
+  pick(next);
+}
+
+/* ---- theme, technical details, menus ---- */
+function setTheme(t) {
+  if (t === "light") document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme;
+  const light = t === "light";
+  $("theme").textContent = light ? "☾" : "☀";
+  $("theme").title = $("theme").ariaLabel = light ? "Switch to dark theme" : "Switch to light theme";
+}
+setTheme(store.get("matheasy-theme"));
+$("theme").addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  setTheme(next); store.set("matheasy-theme", next);
+});
+function setTech(on) { document.body.classList.toggle("tech", on); $("tech-toggle").checked = on; }
+$("tech-toggle").addEventListener("change", () => { setTech($("tech-toggle").checked); store.set("matheasy-tech", $("tech-toggle").checked ? "1" : "0"); });
+
+function openMenu(open) { $("user-menu").hidden = !open; $("user-btn").setAttribute("aria-expanded", String(open)); }
+$("user-btn").addEventListener("click", (e) => { e.stopPropagation(); openMenu($("user-menu").hidden); });
+document.addEventListener("click", (e) => { if (!$("user-menu").hidden && !e.target.closest(".menu-wrap")) openMenu(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("user-menu").hidden) { openMenu(false); $("user-btn").focus(); } });
+
+/* ---- views: Practice / Progress, and on small screens Problem / Working / Result ---- */
+function showView(name) {
+  document.querySelectorAll(".navtab").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+  $("view-practice").hidden = $("mtabs").hidden = name !== "practice";
+  $("view-progress").hidden = name !== "progress";
+  if (name === "progress") $("progress-dot").hidden = true;
+}
+document.querySelectorAll(".navtab").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
+function setMobile(m) {
+  $("view-practice").dataset.m = m;
+  document.querySelectorAll(".mtab").forEach((b) => b.classList.toggle("active", b.dataset.m === m));
+}
+document.querySelectorAll(".mtab").forEach((b) => b.addEventListener("click", () => setMobile(b.dataset.m)));
+
+/* ---- sign in ---- */
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (r.status === 401) { showLogin(); throw new Error("signed out"); }
@@ -190,12 +492,20 @@ async function start() {
   if (r.status !== 200) return showLogin();
   ME = await r.json();
   $("login").hidden = true; $("app").hidden = false;
-  $("me").textContent = `Signed in as ${ME.user} (${ME.role})`;
+  $("me").textContent = ME.user;
+  $("menu-name").textContent = ME.user; $("menu-role").textContent = ME.role === "teacher" ? "Teacher" : "Student";
+  $("avatar").textContent = (ME.user || "?").slice(0, 1);
   const teacher = ME.role === "teacher";
+  const saved = store.get("matheasy-tech");
+  setTech(saved === null ? teacher : saved === "1");
   $("picker").hidden = !teacher; $("reset").hidden = !teacher;
   if (teacher) {
     $("s").innerHTML = ME.students.map((n) => `<option>${esc(n)}</option>`).join("") || "<option value=''>no students yet</option>";
   }
+  loadStatus();
+  renderProblems();
+  if (current < 0) pick(0, { focus: false });
+  updateEditor();
   loadStudent();
 }
 $("login").addEventListener("submit", async (e) => {
@@ -218,7 +528,17 @@ $("signup").addEventListener("submit", async (e) => {
   $("signup").hidden = true;
   start();
 });
-$("logout").addEventListener("click", async () => { await fetch("/api/logout", { method: "POST" }); ME = null; showLogin(); });
+$("logout").addEventListener("click", async () => { openMenu(false); await fetch("/api/logout", { method: "POST" }); ME = null; showLogin(); });
+
+function loadStatus() {
+  fetch("/api/status").then((r) => r.json()).then((s) => {
+    const model = s.model ? esc(s.model) : "";
+    // "LLM" is Gemini (Google's API); "vLLM" is an open model on our own GPU. Only one is on at a time.
+    $("badges").innerHTML = [["LLM", s.llm && !s.vllm, `${model}, Google's API`], ["vLLM", s.vllm, `${model}, served by vLLM on our own GPU`],
+                             ["Eedi", s.eedi, "misconceptions from Eedi's catalogue"], ["Textbook", s.textbook, "OpenStax passages to revise"]]
+      .map(([name, on, tip]) => `<span class="badge ${on ? "on" : ""}" title="${on ? tip : ""}">${name} ${on ? "on" : "off"}</span>`).join("");
+  }).catch(() => {});
+}
 
 const SOURCE = {
   rule: ["Rule", "a hand-written rule reproduces the step exactly"],
@@ -229,33 +549,69 @@ const SOURCE = {
   none: ["Not identified", ""],
 };
 
-fetch("/api/status").then((r) => r.json()).then((s) => {
-  const model = s.model ? esc(s.model) : "";
-  // "LLM" is Gemini (Google's API); "vLLM" is an open model on our own GPU. Only one is on at a time.
-  $("badges").innerHTML = [["LLM", s.llm && !s.vllm, `${model}, Google's API`], ["vLLM", s.vllm, `${model}, served by vLLM on our own GPU`],
-                           ["Eedi", s.eedi, ""], ["Textbook", s.textbook, ""]]
-    .map(([name, on, tip]) => `<span class="badge ${on ? "on" : ""}" title="${on ? tip : ""}">${name} ${on ? "on" : "off"}</span>`).join("");
-});
-
-document.querySelectorAll(".examples a").forEach((a) => a.addEventListener("click", () => {
-  $("q").value = a.dataset.q; $("a").value = a.dataset.a; $("form").requestSubmit();
-}));
+/* ---- the editor: grows with the working (4-12 lines), numbers its lines and marks the first wrong one ---- */
+let wrongAt = 0, okUpTo = 0;
+function updateEditor() {
+  const n = Math.max(1, $("a").value.split("\n").length);
+  if (!window.matchMedia("(max-width: 960px)").matches) $("editor").style.height = `calc(var(--lh) * ${Math.min(12, Math.max(4, n + 1))} + 24px)`;
+  let html = "";
+  for (let i = 1; i <= Math.max(n, 4); i++) html += `<span class="${i === wrongAt ? "bad" : i <= okUpTo ? "ok" : ""}">${i <= n ? i : ""}</span>`;
+  $("gutter").innerHTML = html;
+  syncScroll();
+}
+function syncScroll() {
+  const top = $("a").scrollTop;
+  $("gutter").scrollTop = top;
+  $("linemark").hidden = !wrongAt;
+  if (wrongAt) $("linemark").style.top = `calc(12px + var(--lh) * ${wrongAt - 1} - ${top}px)`;
+}
+function clearMarks() { wrongAt = 0; okUpTo = 0; updateEditor(); }
+$("a").addEventListener("input", () => { if (wrongAt || okUpTo) { wrongAt = 0; okUpTo = 0; } updateEditor(); });
+$("a").addEventListener("scroll", syncScroll);
 $("a").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $("form").requestSubmit(); } });
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("a").focus(); } });
+$("q").addEventListener("input", () => { if (current >= 0 && norm($("q").value) !== norm(PROBLEMS[current].q)) { current = -1; renderProblems(); } renderExamples(); });
 $("s").addEventListener("change", loadStudent);
 $("reset").addEventListener("click", async () => renderMemory(await api("/api/reset", { student: student() })));
 
+/* ---- Analyze, with the server's real progress shown while it works ---- */
+const STAGES = [["read", "Reading your lines"], ["check", "Checking each step"], ["diagnose", "Finding the mistake"],
+                ["hint", "Writing a hint and checking it"], ["revise", "Finding what to revise"]];
+function showStages(stage) {
+  const at = STAGES.findIndex(([k]) => k === stage);
+  $("result").innerHTML = `<ol class="stages">${STAGES.map(([k, words], i) => {
+    const cls = at < 0 ? (i === 0 ? "now" : "") : i < at ? "done" : i === at ? "now" : "";
+    const ic = cls === "done" ? "✓" : cls === "now" ? `<span class="spin"></span>` : "○";
+    return `<li class="${cls}"><span class="ic">${ic}</span>${words}</li>`;
+  }).join("")}</ol>`;
+}
+
 $("form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  $("go").disabled = true; $("go").textContent = "Analyzing…";
-  $("result").innerHTML = "";
+  if (!$("a").value.trim()) { $("a").focus(); $("result").innerHTML = `<div class="empty"><b>Nothing to check yet</b>Write your working first, one step per line.</div>`; setMobile("working"); return; }
+  $("go").disabled = true; $("go").innerHTML = `<span class="spin"></span> Analyzing…`;
+  clearMarks(); setMobile("result"); showStages("");
+  let polling = true, last = "";
+  const poll = async () => {
+    while (polling) {
+      try {
+        const p = await (await fetch("/api/progress")).json();
+        if (polling && p.stage && p.stage !== last) { last = p.stage; showStages(p.stage); }
+      } catch (e) { /* the result will still arrive */ }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  };
+  poll();
   try {
     const d = await api("/api/analyze", { question: $("q").value, answer: $("a").value, student: student() });
+    polling = false;
     render(d);
-    if (d.student) renderMemory(d.student);
+    if (d.student) { renderMemory(d.student); if ($("view-progress").hidden) $("progress-dot").hidden = false; }
   } catch (e) {
+    polling = false;
     render({ kind: "error", message: String(e) });
   } finally {
-    $("go").disabled = false; $("go").textContent = "Analyze";
+    $("go").disabled = false; $("go").textContent = "▶ Analyze";
   }
 });
 
@@ -264,10 +620,11 @@ function rejections(d) {
   if (!r.length) return "";
   const items = r.map((x, i) => `<li>${x.hint ? `<span class="muted">Attempt ${i + 1}:</span> ${esc(x.hint)}` : ""}
     <div class="muted">Rejected: ${esc(x.reasons.join(" "))}</div></li>`).join("");
-  return `<details style="margin-top:8px"><summary>${r.length} hint${r.length === 1 ? "" : "s"} rejected by the critic before this one</summary><ol>${items}</ol></details>`;
+  return `<details class="tech" style="margin-top:8px"><summary>${plural(r.length, "hint")} rejected by the critic before this one</summary><ol>${items}</ol></details>`;
 }
 
-function card(title, body, extra = "") { return `<div class="card"><h2>${title}${extra}</h2>${body}</div>`; }
+function card(title, body, extra = "", cls = "") { return `<div class="card ${cls}"><h2>${title}${extra}</h2>${body}</div>`; }
+const time = (d) => (d.seconds !== undefined ? `<span class="time">${d.seconds}s${d.status ? `<span class="tech"> · ${esc(d.status)}</span>` : ""}</span>` : "");
 
 function stepsCard(d) {
   if (!d.steps || !d.steps.length) return "";
@@ -276,7 +633,7 @@ function stepsCard(d) {
     const mark = bad ? "✗ first wrong step" : s.ok ? "✓" : "✗";
     return `<li class="${bad ? "bad" : s.ok ? "ok" : ""}">${esc(s.line)}${s.read_as ? `<span class="read">read as ${esc(s.read_as)}</span>` : ""}<span class="mark">${mark}</span></li>`;
   }).join("");
-  return card("Student's working", `<ol class="steps">${items}</ol>`);
+  return card("Your working", `<ol class="steps">${items}</ol>`);
 }
 
 function workingCard(d) {
@@ -288,101 +645,152 @@ function workingCard(d) {
                 : s.wrong ? `<div class="found muted">↳ no rule reproduces this step</div>` : "";
     return `<li class="${s.wrong ? "wrong" : ""}">${s.wrong ? "✗" : "✓"} ${esc(s.line)}${found}</li>`;
   }).join("");
-  return card("How the student probably did it", `<ol class="working">${first}${rows}</ol>`,
-    ` <span class="tag">LLM, ${esc(d.working_checked)} by code</span>`);
+  return `<div class="tech">${card("How it was probably done", `<ol class="working">${first}${rows}</ol>`,
+    ` <span class="tag">LLM, ${esc(d.working_checked)} by code</span>`)}</div>`;
 }
 
+const CRASH = /^(TypeError|Error|signed out|[A-Z]\w*(Error|Exception)\b)/;
 function render(d) {
   const out = [];
   if (d.kind === "correct") {
-    out.push(`<div class="verdict good">✓ Correct <small class="maths">${esc(d.answer)}</small></div>`);
+    wrongAt = 0; okUpTo = d.steps ? d.steps.length : 0; updateEditor();
+    out.push(`<div class="verdict good"><span class="v">✓ Correct</span><small class="maths">${esc(d.answer)}</small>${time(d)}</div>`);
+    out.push(`<div class="next-row"><button type="button" class="btn primary" id="next-btn">Next problem →</button></div>`);
     out.push(stepsCard(d));
   } else if (d.kind === "unread") {
+    clearMarks();
     const choices = (d.choices || []).map((c, i) => `${i + 1}) <span class="maths">${esc(c)}</span>`).join(" or ");
-    out.push(`<div class="verdict warn">${esc(d.message)} ${choices ? `<small>${choices}</small>` : ""}</div>`);
+    out.push(`<div class="verdict warn"><span class="v">Couldn't read that</span><small>${esc(d.message)} ${choices}</small></div>`);
   } else if (d.kind === "error") {
-    out.push(`<div class="verdict warn">${esc(d.message)}</div>`);
+    clearMarks();
+    const crash = CRASH.test(d.message || "");
+    out.push(`<div class="verdict warn"><span class="v">${crash ? "Something went wrong" : "Couldn't check that"}</span>
+      <small>${crash ? "Please try again. If it keeps happening, tell your teacher." : esc(d.message)}</small></div>`);
+    if (crash) out.push(`<details class="tech"><summary>Error details</summary><div class="muted maths">${esc(d.message)}</div></details>`);
   } else {
+    wrongAt = d.wrong_line || 0; okUpTo = Math.max(0, wrongAt - 1); updateEditor();
     const [label, about] = SOURCE[d.source] || SOURCE.none;
     const fit = d.source === "eedi" && d.fit ? ` <span class="tag ${d.fit}">${d.fit === "exact" ? "exact match" : "closest match"}</span>` : "";
+    const retry = `<div class="next-row"><button type="button" class="btn primary" id="retry-btn">Fix line ${d.wrong_line} and try again</button></div>`;
     if (d.slip) {
-      out.push(`<div class="verdict slip">⚠ Looks like a slip at line ${d.wrong_line} <small class="maths">${esc(d.step)}</small></div>`);
+      out.push(`<div class="verdict slip"><span class="v">⚠ Slip at line ${d.wrong_line}</span><small class="maths">${esc(d.step)}</small>${time(d)}</div>`);
+      out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}`, "", "hint"));
+      out.push(retry);
+      out.push(card("Why a slip", d.why_slip
+        ? `You ${esc(d.why_slip)}. A misconception would be applied the same way every time, so this looks like a
+           careless mistake: it counts only a little against mastery and is not recorded as a habit.`
+        : `You already know the ideas in this step (${esc(d.topics.join(", "))}), so this looks like a careless mistake:
+           it counts only a little against mastery and is not recorded as a habit.`));
       out.push(stepsCard(d));
       out.push(workingCard(d));
-      out.push(card("Why a slip", d.why_slip
-        ? `The student ${esc(d.why_slip)}. A misconception would be applied the same way every time, so this is treated as a
-           careless mistake: it counts only a little against mastery and is not recorded as a habit.`
-        : `The concepts in this step (${esc(d.topics.join(", "))}) are already mastered, and no misconception is suspected,
-        so this is treated as a careless mistake: it counts only a little against mastery and is not recorded as a habit.`));
-      out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}`));
-      out.push(`<div class="muted">Status: ${esc(d.status)} · ${d.seconds}s</div>`);
-      $("result").innerHTML = out.join("");
-      return;
+    } else {
+      out.push(`<div class="verdict bad"><span class="v">✗ Wrong at line ${d.wrong_line}</span><small class="maths">${esc(d.step)}</small>${time(d)}</div>`);
+      const reading = d.reading ? `<div class="muted tech" style="margin-top:6px">LLM's unconfirmed reading: ${esc(d.reading)}</div>` : "";
+      const body = d.mistake ? `${esc(d.mistake)}<div class="muted tech">${esc(about)}${d.misconception ? ` · ${esc(d.misconception)}` : ""}</div>`
+        : d.likely ? `<span class="tag" style="margin-right:6px">likely</span>${esc(d.likely)}
+            <div class="muted">A rule matches your step exactly, but the hint checker wasn't sure it fits, so treat this as likely rather than certain.</div>`
+        : `<span class="muted">${d.probe ? "A few different mistakes could explain this." : "We couldn't pin down the cause. The hint below still points at the step to check."}</span>`;
+      out.push(card("The mistake", body + reading,
+        ` <span class="tag tech">${label}</span>${fit ? `<span class="tech">${fit}</span>` : ""}`, "mistake"));
+      out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}${rejections(d)}`, "", "hint"));
+      out.push(retry);
+      if (d.probe) out.push(card("A question to think about", `<span class="maths">${esc(d.probe)}</span>`));
+      out.push(stepsCard(d));
+      out.push(workingCard(d));
+      out.push(`<div class="grid2">
+        ${card("Where it went wrong", d.where ? `<span class="maths">${esc(d.where)}</span>` : `<span class="muted">Not located.</span>`)}
+        ${card("Topics", d.topics.length ? `<div class="chips">${d.topics.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</div>`
+                                         : `<span class="muted">None named.</span>`)}
+      </div>`);
+      if (d.similar.length) out.push(card("Try a similar problem",
+        `<ul class="similar">${d.similar.map((q) => `<li><button type="button" data-q="${esc(q)}">${esc(q)}</button></li>`).join("")}</ul>`));
+      if (d.revise.length) out.push(card("Revise",
+        d.revise.map((p) => `<div class="passage"><b>${esc(p.ref)}</b><p>${esc(p.text)}…</p></div>`).join("")
+        + `<div class="cite">OpenStax Prealgebra 2e and Elementary Algebra 2e, CC BY 4.0</div>`));
     }
-    out.push(`<div class="verdict bad">✗ Wrong at line ${d.wrong_line} <small class="maths">${esc(d.step)}</small></div>`);
-    out.push(stepsCard(d));
-    out.push(workingCard(d));
-    out.push(`<div class="grid2">
-      ${card("Where it went wrong", d.where ? `<span class="maths">${esc(d.where)}</span>` : `<span class="muted">Not located.</span>`)}
-      ${card("Topics", d.topics.length ? `<div class="chips">${d.topics.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</div>`
-                                       : `<span class="muted">None named.</span>`)}
-    </div>`);
-    out.push(card("The mistake", d.mistake ? `${esc(d.mistake)}<div class="muted">${esc(about)}${d.misconception ? ` · ${esc(d.misconception)}` : ""}</div>`
-                                           : `<span class="muted">${d.probe ? "Several causes fit." : "No cause identified."} ${esc(about)}</span>`,
-      ` <span class="tag">${label}</span>${fit}`));
-    if (d.probe) out.push(card("Follow-up question", `To tell the causes apart, the tutor would ask: <span class="maths">${esc(d.probe)}</span>`));
-    out.push(card("Hint", `${esc(d.hint)}${d.citation ? `<div class="cite">See ${esc(d.citation)}</div>` : ""}${rejections(d)}`));
-    if (d.revise.length) out.push(card("Revise",
-      d.revise.map((p) => `<div class="passage"><b>${esc(p.ref)}</b><p>${esc(p.text)}…</p></div>`).join("")
-      + `<div class="cite">OpenStax Prealgebra 2e and Elementary Algebra 2e, CC BY 4.0</div>`));
-    if (d.similar.length) out.push(card("Try a similar problem",
-      `<ul class="similar">${d.similar.map((q) => `<li><a data-q="${esc(q)}">${esc(q)}</a></li>`).join("")}</ul>`));
-    out.push(`<div class="muted">Status: ${esc(d.status)} · ${d.seconds}s</div>`);
   }
   $("result").innerHTML = out.join("");
-  $("result").querySelectorAll("ul.similar a").forEach((a) => a.addEventListener("click", () => {
-    $("q").value = a.dataset.q; $("a").value = ""; $("a").focus(); window.scrollTo({ top: 0, behavior: "smooth" });
+  $("result").scrollTop = 0;
+  $("next-btn")?.addEventListener("click", nextProblem);
+  $("retry-btn")?.addEventListener("click", () => {
+    setMobile("working"); const ta = $("a"), lines = ta.value.split("\n");
+    const start = lines.slice(0, wrongAt - 1).reduce((s, l) => s + l.length + 1, 0);
+    ta.focus(); ta.setSelectionRange(start, start + (lines[wrongAt - 1] || "").length);
+  });
+  $("result").querySelectorAll("ul.similar button").forEach((b) => b.addEventListener("click", () => {
+    current = -1; renderProblems();
+    $("q").value = b.dataset.q; $("a").value = ""; renderExamples(); clearMarks();
+    $("result").innerHTML = `<div class="empty"><b class="maths">${esc(b.dataset.q)}</b>Write your working, one step per line, then press Analyze.</div>`;
+    setMobile("working"); $("a").focus();
   }));
 }
 
 async function loadStudent() {
-  if (!student()) { $("memory").innerHTML = `<span class="muted">No student accounts yet.</span>`; return; }
+  if (!student()) { $("memory").innerHTML = `<span class="muted">No student accounts yet.</span>`; $("mini").hidden = true; return; }
   renderMemory(await api(`/api/student?name=${encodeURIComponent(student())}`));
+}
+
+/* ---- solved / tried marks and the small progress box, from the student's history ---- */
+function markProblems(m) {
+  statusOf = {};
+  for (const h of m.history || []) {
+    const q = norm(h.question);
+    if (h.correct) statusOf[q] = "solved"; else if (!statusOf[q]) statusOf[q] = "tried";
+  }
+  renderProblems();
+}
+function renderMini(m) {
+  const topics = (m.topics || []).slice(0, 3);
+  const you = ME && ME.role === "student";
+  $("mini").hidden = false;
+  $("mini").innerHTML = `<div class="mini-row"><span class="muted">${you ? "Your progress" : `${esc(m.name)}'s progress`}</span>
+      <button type="button" class="linkbtn" id="to-progress" style="font-size:13px">See all →</button></div>
+    <div class="mini-row" style="margin-top:4px">
+      <span><b>${m.answered}</b> <span class="muted">${m.answered === 1 ? "answer" : "answers"}</span></span>
+      <span><b>${m.slips || 0}</b> <span class="muted">${(m.slips || 0) === 1 ? "slip" : "slips"}</span></span>
+      <span><b>${(m.misconceptions || []).length}</b> <span class="muted">${(m.misconceptions || []).length === 1 ? "misconception" : "misconceptions"}</span></span></div>
+    ${topics.length ? `<div class="cap">Weakest topics: how sure the tutor is that ${you ? "you know" : "they know"} each one</div>
+      <div class="chips">${topics.map((t) => `<span class="chip ${t.state === "weak" ? "weak" : ""}" title="${Math.round(t.mastery * 100)}% sure ${you ? "you know" : "they know"} ${esc(t.topic)}${t.state === "weak" ? ", with mistakes" : ""}">${esc(t.topic)} ${Math.round(t.mastery * 100)}%</span>`).join("")}</div>` : ""}`;
+  $("to-progress").addEventListener("click", () => showView("progress"));
 }
 
 const STATE = { weak: ["⚠", "weak"], learning: ["○", "learning"], mastered: ["✓", "mastered"] };
 
 function renderMemory(m) {
-  $("mem-title").textContent = `Student memory · ${m.name}`;
+  markProblems(m);
+  renderMini(m);
+  $("mem-title").textContent = ME && ME.role === "student" ? "Your progress" : `Progress · ${m.name}`;
   if (!m.topics.length && !m.history.length) {
     $("memory").innerHTML = `<span class="muted">Nothing recorded yet for ${esc(m.name)}. Analyze some working: correct answers credit the concepts they use, wrong ones count against the diagnosed concept.</span>`;
     return;
   }
-  // Horizontal bars: mastery 0-100% per concept, weakest first. One scale for marks, ticks and the goal line.
+  // Horizontal bars: mastery 0-100% per concept, weakest first, coloured by state. One scale for marks, ticks and the goal line.
   const rowH = 34, top = 26, labelW = 190, stateW = 120, plotW = 420, W = labelW + plotW + stateW + 16;
-  const H = top + m.topics.length * rowH + 8, x = (v) => labelW + v * plotW, barH = 16;
+  const bottom = top + m.topics.length * rowH, H = bottom + 22, x = (v) => labelW + v * plotW, barH = 16;
   const ticks = [0, 0.25, 0.5, 0.75, 1];
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mastery per concept for ${esc(m.name)}, weakest first">`;
   for (const t of ticks) {
-    svg += `<line class="gridline" x1="${x(t)}" y1="${top - 6}" x2="${x(t)}" y2="${H - 6}"/>`;
+    svg += `<line class="gridline" x1="${x(t)}" y1="${top - 6}" x2="${x(t)}" y2="${bottom}"/>`;
     svg += `<text class="axis" x="${x(t)}" y="${top - 12}" text-anchor="middle">${t * 100}%</text>`;
   }
-  svg += `<line class="goal" x1="${x(m.mastered_at)}" y1="${top - 6}" x2="${x(m.mastered_at)}" y2="${H - 6}"/>`;
-  svg += `<text class="goal-lbl" x="${x(m.mastered_at) - 4}" y="${H - 10}" text-anchor="end">mastered</text>`;
+  svg += `<line class="goal" x1="${x(m.mastered_at)}" y1="${top - 6}" x2="${x(m.mastered_at)}" y2="${bottom + 4}"/>`;
+  svg += `<text class="goal-lbl" x="${x(m.mastered_at)}" y="${bottom + 17}" text-anchor="middle">mastered at ${Math.round(m.mastered_at * 100)}%</text>`;
   m.topics.forEach((t, i) => {
     const y = top + i * rowH, w = Math.max(2, t.mastery * plotW), by = y + (rowH - barH) / 2;
     const [icon, word] = STATE[t.state];
-    const tip = `${t.topic}: ${Math.round(t.mastery * 100)}% · ${t.mistakes} mistake${t.mistakes === 1 ? "" : "s"} · ${word}`;
+    const tip = `${t.topic}: ${Math.round(t.mastery * 100)}% · ${plural(t.mistakes, "mistake")} · ${word}`;
     svg += `<text class="lbl" x="${labelW - 10}" y="${y + rowH / 2 + 4}" text-anchor="end">${esc(t.topic)}</text>`;
     svg += `<rect class="hit" x="${labelW}" y="${y}" width="${plotW}" height="${rowH}" tabindex="0" data-tip="${esc(tip)}"/>`;
-    svg += `<path class="bar" d="M${labelW} ${by} h${w - 4} a4 4 0 0 1 4 4 v${barH - 8} a4 4 0 0 1 -4 4 h-${w - 4} z"/>`;
+    svg += `<path class="bar-${t.state}" d="M${labelW} ${by} h${Math.max(0, w - 4)} a4 4 0 0 1 4 4 v${barH - 8} a4 4 0 0 1 -4 4 h-${Math.max(0, w - 4)} z"/>`;
     svg += `<text class="val" x="${labelW + w + 6}" y="${y + rowH / 2 + 4}">${Math.round(t.mastery * 100)}%</text>`;
     svg += `<text class="state-${t.state}" x="${labelW + plotW + 14}" y="${y + rowH / 2 + 4}" font-size="12.5">${icon} ${word}${t.mistakes ? ` · ${t.mistakes}✗` : ""}</text>`;
   });
   svg += `</svg>`;
+  const legend = `<div class="legend"><span><i style="background:var(--bad)"></i>weak: mistakes seen</span>
+    <span><i style="background:var(--bar)"></i>learning</span><span><i style="background:var(--good)"></i>mastered</span></div>`;
   const mis = m.misconceptions.length
     ? `<table class="mis"><thead><tr><th>Misconception seen</th><th>Times</th><th>Still suspected</th></tr></thead><tbody>${
-        m.misconceptions.map((c) => `<tr><td>${esc(c.text)}<div class="muted">${esc(c.id)}${c.topics.length ? " · " + esc(c.topics.join(", ")) : ""}</div></td>
+        m.misconceptions.map((c) => `<tr><td>${esc(c.text)}<div class="muted"><span class="tech">${esc(c.id)}${c.topics.length ? " · " : ""}</span>${esc(c.topics.join(", "))}</div></td>
           <td class="num">${c.times}</td><td class="num">${c.suspected ? Math.round(c.suspected * 100) + "%" : "—"}</td></tr>`).join("")}</tbody></table>`
     : `<span class="muted">No misconceptions recorded.</span>`;
   const hist = m.history.length
@@ -391,9 +799,9 @@ function renderMemory(m) {
           <td class="res ${h.correct ? "ok" : h.slip ? "slip" : "bad"}">${h.correct ? "✓ correct" : h.slip ? `⚠ slip, line ${h.wrong_line}` : `✗ line ${h.wrong_line}`}</td>
           <td class="num muted">${esc(h.created.replace("T", " ").slice(0, 16))}</td></tr>`).join("")}</tbody></table>`
     : "";
-  $("memory").innerHTML = `<div class="muted" style="margin-bottom:8px">${m.answered} question${m.answered === 1 ? "" : "s"} answered. Bars show how sure the tutor is that the student knows each concept; ${Math.round(m.mastered_at * 100)}% counts as mastered.</div>
-    <div class="chart">${svg}<div id="tip" hidden></div></div><div style="margin-top:14px">${mis}</div>
-    ${m.slips ? `<div class="muted" style="margin-top:8px">${m.slips} slip${m.slips === 1 ? "" : "s"} so far: mistakes on mastered concepts, not counted as habits.</div>` : ""}
+  $("memory").innerHTML = `<div class="muted" style="margin-bottom:10px">${plural(m.answered, "question")} answered. Bars show how sure the tutor is that the student knows each concept.</div>
+    ${legend}<div class="chart">${svg}<div id="tip" hidden></div></div><div style="margin-top:14px">${mis}</div>
+    ${m.slips ? `<div class="muted" style="margin-top:8px">${plural(m.slips, "slip")} so far: mistakes on mastered concepts, not counted as habits.</div>` : ""}
     <div style="margin-top:14px">${hist}</div>`;
   const tipEl = $("tip"), box = $("memory").querySelector(".chart");
   box.querySelectorAll(".hit").forEach((h) => {

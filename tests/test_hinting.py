@@ -135,3 +135,17 @@ def test_a_certain_misconception_is_kept_even_if_a_rewrite_is_needed(llm):
     assert written.hint is None and not written.dropped and len(written.attempts) == 3
     assert all("How sure: certain" in r.messages[-1].content for r in client.backend.requests
                if r.system == hinter_module.SYSTEM)
+
+
+def test_the_page_can_allow_fewer_rewrites(llm):
+    client = llm(lambda r: json.dumps({"hint": "Are the pieces the same size?"}) if r.system == hinter_module.SYSTEM
+                 else json.dumps({"approved": False, "problems": ["Too vague."], "misconception_fits": True}))
+    request = hint_request(make_problem("p", "1/2 + 1/3"), "2/5", diagnose_fraction())
+    written = write_hint(LLMHinter(), TutorCritic(), request, make_problem("p", "1/2 + 1/3"),
+                         llm=client.session("s", "full"), max_rewrites=1)
+    assert written.hint is None and len(written.attempts) == 2      # the default allows 3
+
+
+def diagnose_fraction():
+    from matheasy.diagnosis import diagnose
+    return diagnose("1/2 + 1/3", "2/5")
