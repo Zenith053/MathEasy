@@ -209,6 +209,8 @@ Known_as_text students (8) scored top-1 0.00 and learning 0.00 in every conditio
 
 **Paired comparisons:** full against B0, B1 and nodiag gives learning gain +0.88 on has_rule students (p = 0.01 each before correction). None survives the Holm correction across the comparisons in that table (lowest corrected p = 0.66). With 8 students per group, these runs show the size and direction of each difference; the offline runs (64 has_rule students) are where the significance tests have power.
 
+- **The 0.00 for known_as_text students is mostly a measurement gap.** Their rules are held back and Eedi was off in the sessions, so the tutor could not *name* their misconceptions. Its LLM fallback still described them in its own words, often correctly: "subtracted numerators and denominators separately" (subtract across), "moved +4 across the equals sign without changing its sign" (change side), "ignored the percentage sign and treated 25% as the number 25" (percentage as index). Top-1 counts only a named rule or Eedi ID, and the simulated students learn only from the keywords of their misconception's description, so neither metric sees free text. Scoring these explanations needs blind human labels or a validated judge. Without a name, the tutor also cannot record the mistake in memory or target practice at it, which is why Eedi matters.
+
 **Cost and the token budget** (20,000 tokens a session):
 
 | Condition | Median tokens per session | Ended at the budget | Solved |

@@ -349,6 +349,7 @@ nollmdiag & 1.00 [1.00, 1.00] & 0.88 [0.62, 1.00] & 0.33 & 12,008 & 13 \\
 
 \begin{itemize}
   \item \textbf{Small samples.} Full against B0, B1 and \cond{nodiag} gives learning gain $+0.88$ on \grp{has\_rule} students ($p = 0.01$ each before correction). None survives the Holm correction (lowest corrected $p = 0.66$). These runs show size and direction; the offline runs (64 \grp{has\_rule} students) are where the tests have power.
+  \item \textbf{The 0.00 for \grp{known\_as\_text} students is mostly a measurement gap.} Their rules are held back and Eedi was off, so the tutor could not \emph{name} their misconceptions. Its LLM fallback still described them in its own words, often correctly: ``subtracted numerators and denominators separately'' for subtracting across, ``moved +4 across the equals sign without changing its sign'' for changing side. Top-1 counts only a named rule or Eedi ID, and the simulated students learn only from the keywords of their misconception's description, so neither metric sees free text. Scoring these explanations needs blind human labels or a validated judge. Without a name, the tutor also cannot record the mistake in memory or target practice at it, which is why Eedi matters (\S\ref{sec:r1}).
   \item \textbf{The token budget.} The full tutor's sessions ended at the 20,000-token budget 11 times out of 27, including all 10 students the rules cannot read.
   \item \textbf{Calibration is worse with the LLM:} ECE 0.38 (Brier 0.75) for the full tutor, against 0.09 (0.18) offline.
 \end{itemize}

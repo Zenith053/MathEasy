@@ -265,6 +265,8 @@ What would settle it:
 - Eedi steps, where the mistake isn't obvious from the answer;
 - more human labels on the `nodiag` and full hints (D has labelled 30 tasks; A, B and C still to come).
 
+- **The 0.00 for known_as_text students is mostly a measurement gap.** Their rules are held back and Eedi was off in the sessions, so the tutor could not *name* their misconceptions. Its LLM fallback still described them in its own words, often correctly: "subtracted numerators and denominators separately" (subtract across), "moved +4 across the equals sign without changing its sign" (change side), "ignored the percentage sign and treated 25% as the number 25" (percentage as index). Top-1 counts only a named rule or Eedi ID, and the simulated students learn only from the keywords of their misconception's description, so neither metric sees free text. Scoring these explanations needs blind human labels or a validated judge. Without a name, the tutor also cannot record the mistake in memory or target practice at it, which is why Eedi matters.
+
 ### 4.5 Input format: `transcribe()`
 
 | Lines (author-labelled) | n | Code only: hit / miss / abstain | LLM only | As shipped |
