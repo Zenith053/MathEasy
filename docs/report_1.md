@@ -21,10 +21,10 @@ Where a part could not be run, it says so and why.
   - **Input reading:** on its own, the LLM "corrected" the student's own mistakes, rewriting `3x + 4` as `3(x + 4)`. Code first kept every standard line exactly as typed (13 of 13).
   - **Diagnosis:** the LLM fallback raised topic accuracy from 90% to 97% on rule-generated steps.
   - **Critic:** the LLM review catches 27 of 30 faulty hints, against 6 of 30 for code checks alone, and rejected none of 12 good hints.
-- **Eedi is what lets the tutor name mistakes it has no rule for.** On 96 of Eedi's own wrong answers, the right misconception was named in:
-  - 3% of cases with code alone, and the same without Eedi;
-  - **17% with the Eedi shortlister on;**
-  - 23% with the LLM picking alone, but with 59 wrong names against 40.
+- **Eedi is what lets the tutor name mistakes it has no rule for.** On 40 of Eedi's own wrong answers that keep their full question (56 more lost it in conversion and are left out), the right misconception was named in:
+  - 5% of cases with code alone, and the same without Eedi;
+  - **33% with the Eedi shortlister on**, right in 57% of the names it gives (13 of 23);
+  - 40% with the LLM picking alone, but with 19 wrong names against 10.
 - **Probes add 10 points of top-1 diagnosis** (72% → 82%) on rule-generated steps. Across whole sessions, the full tutor beats B2 (no probes) on top-1, 1.00 against 0.72, on students whose misconception is a rule.
 - **Students with a rule-known misconception learned only from tutors that diagnose.** Learning gain with the LLM, has_rule students (8 per condition): full 0.88, B2 0.75, B0 0.00, B1 0.00, full without the diagnosis in its feedback 0.00. Part of this is built into the simulation (section 7).
 - **Small samples.** The LLM sessions have 8 students per group, so no difference survives the Holm correction (lowest corrected p = 0.66). The offline runs (64 has_rule students) carry the significance tests.
@@ -104,7 +104,7 @@ LLM calls per Analyze: none for a correct answer; two (hinter and critic) when a
 
 - **Simulated students** (D): each holds one planted misconception, a rule that decides its wrong answers. Groups:
   - has_rule (64): the misconception is one of our rules;
-  - known_as_text (8): only Eedi's name for it is known;
+  - known_as_text (8): a rule held back from the tutor, with a matching Eedi description;
   - never_seen (2): neither;
   - slip_only (3).
 - **Adversarial students:** 36, 6 for each of the six techniques from Zhao, Knežević and Käser (ACL 2026), such as a direct request for the answer, an emotional threat, or a deliberately wrong answer.
@@ -140,7 +140,7 @@ LLM calls per Analyze: none for a correct answer; two (hinter and critic) when a
 | Code | Commit `1f65ae2` (14 November), tutor code unchanged during the runs. The ablations are applied by patching inside `eval/report_eval.py`. |
 | LLM | `gemini-3.1-flash-lite`, temperature 0, with a cache. Config hash `95b6fb45c934`. Free tier: 15 requests a minute, 500 a day. The runs used two free keys over two days. |
 | Judge | `gemini-3-flash-preview`: `gemini-2.5-pro` is retired for new keys, and Pro models have no free quota. Free tier: **20 requests a day**. |
-| Eedi shortlister | adapter-3B-v2 on Apple-silicon GPU (MPS), 20 in-topic names per step, T7 groups on |
+| Eedi shortlister | adapter-3B-v2 on Apple-silicon GPU (MPS), 20 in-topic names per step, T7 groups on. Used in the 96-step Eedi test only: **off in all session runs** |
 | Simulated students | Offline: the whole roster, 113 students, 2 sessions each.<br>With the LLM: 27 students, 1 session each: every student the rules cannot read, every 8th with a rule, and one per attack. |
 | Students' judge | The keyword judge and template attacks (as `eval/llm_compare.py` does), so the students are the same whichever tutor runs |
 | Statistics | 95% bootstrap intervals over students (2,000 resamples); paired permutation tests; Holm correction across each table; comparisons within a student group |
@@ -269,18 +269,18 @@ On every 3rd step (42), right topic was:
 - code only: 38 (90%);
 - as shipped: 41 (98%).
 
-**Eedi's own wrong answers** (96 steps, the test split of `data/eedi/live_queries.csv`, labelled by Eedi; a name in the same T7 group counts):
+**Eedi's own wrong answers** (the test split of `data/eedi/live_queries.csv`, labelled by Eedi; a name in the same T7 group counts). Of 96 steps, 56 lost their question in conversion ("130% of 40 → 12" became "130% → 12") and are left out; the table uses the 40 that kept it (fractions 13, expressions 20, decimals 7):
 
 | Variant | Right misconception | Wrong | None named | Right when it names one |
 |---|---|---|---|---|
-| Code only | 3 (3%) | 5 | 88 | 3/8 |
-| As shipped, Eedi off | 3 (3%) | 5 | 88 | 3/8 |
-| **As shipped, Eedi on** | **16 (17%)** | 40 | 40 | 16/56 (29%) |
-| LLM only, picking from the 20 Eedi names | 22 (23%) | 59 | 15 | 22/81 (27%) |
+| Code only | 2 (5%) | 1 | 37 | 2/3 |
+| As shipped, Eedi off | 2 (5%) | 1 | 37 | 2/3 |
+| **As shipped, Eedi on** | **13 (33%)** | 10 | 17 | 13/23 (57%) |
+| LLM only, picking from the 20 Eedi names | 16 (40%) | 19 | 5 | 16/35 (46%) |
 
-- **The shortlist:** the right name was among the 20 offered for 66 of 96 steps (69%).
-- **Exact against close:** picks the LLM marked "exact" were right 18 of 48 times; picks marked "close", 4 of 33.
-- **T6:** 25 picks were dropped because code could not verify the reading; 5 of them would have been right. Among picks that were kept, 13 of 48 were right.
+- **The shortlist:** the right name was among the 20 offered for 34 of 40 steps (85%); the LLM's picking is the bottleneck.
+- **Exact against close:** picks the LLM marked "exact" were right 13 of 22 times; picks marked "close", 3 of 13.
+- **T6:** 12 picks were dropped because code could not verify the reading; 2 of them would have been right. Among picks that were kept, 11 of 20 were right.
 
 **Slip checks** (16 hand cases, no LLM):
 
@@ -363,7 +363,7 @@ One member (D) labelled the first 40 of 186 tasks blind (no condition, no automa
 |---|---|---|---|
 | A1 | LLM off entirely | Offline sessions (section 3.2): diagnosis by rules and probes alone gives top-1 1.00 on has_rule students and 0.00 on known_as_text students; no leaks | done |
 | A2 | Diagnoser's LLM off (`nollmdiag`) | Component: topic accuracy 90% off against 97% on; misconception top-1 unchanged on rule steps (72%) and on Eedi steps without Eedi (3%).<br>Sessions: the same as full on has_rule students (top-1 1.00, learning 0.88). Topic accuracy on known_as_text students 0.97 against 1.00. No leaks. | done |
-| A3 | Eedi off / on | Component: right misconception on Eedi's wrong answers, 3% off against 17% on | done (component) |
+| A3 | Eedi off / on | Component: right misconception on Eedi's wrong answers (40 steps), 5% off against 33% on | done (component) |
 | A4 | Probes off (B2) | Sessions: top-1 1.00 against 0.72 (has_rule); component: 72% → 82% when the probe is answered | done |
 | A5 | Memory and planner off | B1 is the nearest condition, but it also drops the critic: top-1 0.14, learning 0.00, 11/27 sessions leaked. A switch for memory alone was not built. | nearest condition only |
 | A6 | Critic's LLM review off | Component: right verdict 43% against 93%; only leaks are caught | done (component) |
@@ -380,14 +380,14 @@ One member (D) labelled the first 40 of 186 tasks blind (no condition, no automa
 |---|---|---|---|---|
 | 1 | Code first, at most one LLM call per diagnosis | 4.1, 4.2; study 1 | LLM only reads standard lines worse (10/13 against 13/13) and names topics worse (79% against 98%) | Hand-written format cases |
 | 2 | Probes for tied rules | 3.2, 4.2; study 10 | Top-1 1.00 against 0.72 in sessions; 72% → 82% per step | Simulated students answer exactly as their rule predicts |
-| 3 | An Eedi pick only from a verified reading (T6) | 4.2 | Dropped picks were right 5/25 (20%), against 13/48 (27%) for kept picks | Small difference |
+| 3 | An Eedi pick only from a verified reading (T6) | 4.2 | Dropped picks were right 2/12, against 11/20 for kept picks | Small sample |
 | 4 | Near-duplicate names grouped by people (T7) | 4.2, study 8 | No effect on these 96 steps | Only 14 groups |
 | 5 | Slips found by code (T9, bracket, number facts) | 4.2 | 6/8 slips found, no misconception called a slip | 16 hand cases |
 | 6 | The critic as a gate | 3.3, 4.4; study 11 | 93% right verdicts, no false rejections. Every condition with the critic leaked 0/27; B0 13/27 and B1 11/27 without it | Leaks judged by code, not yet by people |
 | 7 | Hints aimed at the diagnosis, with certainty levels | 4.3; study 15 | Right 24/24, none 20/24, wrong 19/24: a wrong diagnosis costs more than none, which supports stating certainty and abstaining | 24 steps, one judge |
 | 8 | Hybrid textbook search | Study 9 | Right section in the top 3: 97%, against 87% for one method | Not re-run |
-| 9 | 20 in-topic Eedi names | 4.2; studies 6, 7 | The right name is among the 20 for 69% of steps | — |
-| 10 | Shortlister v2 | Studies 3–5; 4.2 | With Eedi on, 17% against 3% | — |
+| 9 | 20 in-topic Eedi names | 4.2; studies 6, 7 | The right name is among the 20 for 85% of steps | — |
+| 10 | Shortlister v2 | Studies 3–5; 4.2 | With Eedi on, 33% against 5% | — |
 | 11 | Gemini for the final runs | Study 12 | Better than Qwen 7B on vLLM | — |
 | 12 | Temperature 0, cache, 20,000-token budget | Study 16; section 7 | Repeats within this report cost no requests | — |
 | 13 | One rewrite on the page, two in the runner | 4.3 | All 24 approved by the second attempt; none needed the third | 24 steps |

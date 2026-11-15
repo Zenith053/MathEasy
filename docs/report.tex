@@ -59,7 +59,7 @@
 \noindent MathEasy is a maths tutor for students aged 11--14 that names the misconception behind a wrong step before it writes a hint. Code reads the student's working, checks every step and locates the error. Re-implemented MalruleLib rules, follow-up probes and a fine-tuned shortlister over Eedi's misconception names diagnose it. An LLM hinter then writes one hint, which an LLM critic reviews before the student sees it.
 We compare the tutor with three baselines and two ablations, using simulated and adversarial students, and test each stage on its own. Three results were named as the main ones before the runs:
 \begin{enumerate}[label=(\arabic*), leftmargin=2em]
-  \item On 96 held-out Eedi wrong answers, the shipped design names the right misconception in 17\% of cases (29\% of the names it gives). Code alone manages 3\%; an LLM picking alone manages 23\%, but only 27\% of its names are right.
+  \item On 40 held-out Eedi wrong answers that keep their full question, the shipped design names the right misconception in 33\% of cases and is right in 57\% of the names it gives (13 of 23). Code alone manages 5\%; an LLM picking alone manages 40\%, but only 46\% of its names are right.
   \item The full tutor leaked the answer in 0 of 27 LLM sessions. A plain LLM tutor leaked in 13, and an agent with the same tools but no critic leaked in 11.
   \item A hinter told the right misconception passed every check on 24 of 24 steps, against 20 with no diagnosis and 19 with a wrong one. The learning gap in sessions is partly built into the simulation.
 \end{enumerate}
@@ -146,7 +146,7 @@ Condition & What it is \\
 
 \section{Evaluation design}\label{sec:design}
 
-\paragraph{Students.} Each simulated student holds one planted misconception, a rule that decides its wrong answers: \grp{has\_rule} (64, the misconception is one of our rules), \grp{known\_as\_text} (8, only Eedi's name is known), \grp{never\_seen} (2) and \grp{slip\_only} (3). A student keeps its misconception until a message targets it, decided by a keyword judge, so students behave identically whichever tutor runs. There are also 36 adversarial students, six for each technique of Zhao, Kne\v{z}evi\'c and K\"aser \cite{zhao2026}: direct request, emotional threat, intentional wrong answer, contextual manipulation, interpersonal influence and request shaping.
+\paragraph{Students.} Each simulated student holds one planted misconception, a rule that decides its wrong answers: \grp{has\_rule} (64, the misconception is one of our rules), \grp{known\_as\_text} (8, a rule held back from the tutor, with a matching Eedi description), \grp{never\_seen} (2) and \grp{slip\_only} (3). A student keeps its misconception until a message targets it, decided by a keyword judge, so students behave identically whichever tutor runs. There are also 36 adversarial students, six for each technique of Zhao, Kne\v{z}evi\'c and K\"aser \cite{zhao2026}: direct request, emotional threat, intentional wrong answer, contextual manipulation, interpersonal influence and request shaping.
 
 \paragraph{Metrics and statistics.} Top-1 diagnosis, topic accuracy and over-claiming; leak rate and turns to the first leak; learning gain on pre- and post-tests (same ideas, new numbers); calibration (ECE, Brier). We report 95\% bootstrap intervals over students (2,000 resamples) and paired permutation tests on the same students, Holm-corrected \cite{holm} within each table. Each stage is also tested alone; every outcome is a \emph{hit}, a \emph{miss} or an \emph{abstain} (not counted as wrong).
 
@@ -159,30 +159,29 @@ Condition & What it is \\
 
 \subsection{Main result 1: naming the misconception on real wrong answers}\label{sec:r1}
 
-Table~\ref{tab:eedi} uses 96 of Eedi's own wrong answers, the test split of the shortlister's data, labelled by Eedi. A name in the same T7 group counts as right.
+This test uses Eedi's own wrong answers from the test split of the shortlister's data, labelled by Eedi; a name in the same T7 group counts as right. Of the 96 test steps, 56 lost their question when converted into our ``before $\to$ after'' form (``130\% of 40 $\to$ 12'' became ``130\% $\to$ 12''), so they cannot be diagnosed from the input and are left out. Table~\ref{tab:eedi} uses the \textbf{40 steps that kept their full question}: fractions (13), expressions (20) and decimals (7). The tutor's other topics are untested on real data. A step with no name given (``none'') is not counted as wrong, so we report precision alongside the count.
 
 \begin{table}[H]
 \centering\small
-\begin{tabularx}{\linewidth}{@{}YCCCCC@{}}
+\begin{tabularx}{\linewidth}{@{}YCCCC@{}}
 \toprule
-Variant & Right & Wrong & None named & Answered & Right when answered \\
+Variant & Right & Wrong & None named & Right when it names one \\
 \midrule
-Code only & 3 (3\%) & 5 & 88 & 8\% & 3/8 \\
-As shipped, Eedi off & 3 (3\%) & 5 & 88 & 8\% & 3/8 \\
-\rowcolor{rowgray}\best{As shipped, Eedi on} & \best{16 (17\%)} & \best{40} & 40 & 58\% & \best{16/56 (29\%)} \\
-LLM only, picking from 20 Eedi names & 22 (23\%) & 59 & 15 & 84\% & 22/81 (27\%) \\
+Code only & 2 (5\%) & 1 & 37 & 2/3 \\
+As shipped, Eedi off & 2 (5\%) & 1 & 37 & 2/3 \\
+\rowcolor{rowgray}\best{As shipped, Eedi on} & \best{13 (33\%)} & \best{10} & 17 & \best{13/23 (57\%)} \\
+LLM only, picking from 20 Eedi names & 16 (40\%) & 19 & 5 & 16/35 (46\%) \\
 \bottomrule
 \end{tabularx}
-\caption{Diagnosis on 96 held-out Eedi wrong answers.}
+\caption{Diagnosis on the 40 held-out Eedi wrong answers that kept their question.}
 \label{tab:eedi}
 \end{table}
 
-\noindent\textbf{The shipped design gives up 6 points of hits for 19 fewer wrong diagnoses.} This is the honest headline for diagnosis; the near-perfect top-1 scores elsewhere come from steps and students our rules generated. By topic, fractions are easiest (7 of 15 right as shipped) and decimals hardest (6 of 51; Table~\ref{tab:topic}).
+\noindent\textbf{The shipped design is right in 57\% of the names it gives, against 46\% for the LLM alone: it gives up 3 hits for 9 fewer wrong diagnoses.} Code alone names almost nothing; Eedi is what lets the tutor name mistakes it has no rule for. The near-perfect top-1 scores elsewhere come from steps and students our rules generated.
 \begin{itemize}
-  \item \textbf{The shortlister is the bottleneck.} The right name was among the 20 offered for 66 of 96 steps (69\%), but the LLM picked it for only 22.
-  \item \textbf{The LLM's own confidence is informative.} Picks it marked ``exact'' were right 18 of 48 times; ``close'' ones, 4 of 33.
-  \item \textbf{T6} (picks only from a verified reading) dropped 25 picks, of which 5 would have been right (20\%). Of the 48 picks it kept, 13 were right (27\%). It helps a little.
-  \item \textbf{T7} (near-duplicate groups) changed no result on these 96 steps; its 14 groups are too few to matter here.
+  \item \textbf{Picking, not shortlisting, is the bottleneck.} The right name was among the 20 offered for 34 of 40 steps (85\%), but the LLM picked it for only 16. Eedi's names are often near-identical: for $2\frac{2}{3} \div 2 \to 1\frac{2}{3}$, Eedi's label is ``only performs the calculation with the integers'', and the LLM picked ``only divides the fraction by the integer'', which does not fit the numbers.
+  \item \textbf{The LLM's own confidence is informative.} Picks it marked ``exact'' were right 13 of 22 times; ``close'' ones, 3 of 13.
+  \item \textbf{T6} (picks only from a verified reading) dropped 12 picks, 2 of which would have been right; of the 20 it kept, 11 were right. \textbf{T7} (near-duplicate groups) changed no result here.
 \end{itemize}
 
 
@@ -294,7 +293,7 @@ nodiag & 1.00 (not shown) & 0.00 & $-0.05$ & 19,254 & 3 \\
 nollmdiag & 1.00 [1.00, 1.00] & 0.88 [0.62, 1.00] & 0.33 & 12,008 & 13 \\
 \bottomrule
 \end{tabularx}
-\caption{All six conditions with the LLM. The \grp{known\_as\_text} students (8) scored top-1 0.00 and learning 0.00 in every condition.}
+\caption{All six conditions with the LLM. The \grp{known\_as\_text} students (8) scored top-1 0.00 and learning 0.00 in every condition: their rules are held back from the tutor and Eedi was off in the sessions, so no condition had a way to name them.}
 \end{table}
 
 \begin{itemize}
@@ -341,7 +340,7 @@ Full tables are in Appendix~\ref{app:components}.
   \item \textbf{Diagnosis on rule-generated steps} (a consistency check, 107 steps): 72\% right with code, 82\% when the probe is answered; the right topic for 97\% as shipped.
   \item \textbf{Critic} (42 author-written hints, 30 with a planted fault): 93\% right verdicts as shipped against 43\% for code checks alone; no good hint rejected. It caught only 3 of 6 hints that do the step.
   \item \textbf{Slips} (16 hand cases): 6 of 8 slips found, none with the checks off, and no misconception called a slip.
-  \item \textbf{Ablations:} Eedi off, 17\% $\to$ 3\% right on Eedi; probes off, top-1 1.00 $\to$ 0.72; critic's LLM off, 93\% $\to$ 43\%; T7 groups off, no change. Memory-off and retrieval-off were not run.
+  \item \textbf{Ablations:} Eedi off, 33\% $\to$ 5\% right on Eedi; probes off, top-1 1.00 $\to$ 0.72; critic's LLM off, 93\% $\to$ 43\%; T7 groups off, no change. Memory-off and retrieval-off were not run.
   \item \textbf{Speed and cost:} a step code can settle takes 0.003\,s; a full analysis about 12\,s (18\,s with the fallback) on the free tier, about \$0.0005--0.001 at paid prices.
 \end{itemize}
 Eleven failures, each traced to the stage that broke, are in Table~\ref{tab:failures}; the evidence behind each design choice is in Table~\ref{tab:choices}.
@@ -352,7 +351,7 @@ Eleven failures, each traced to the stage that broke, are in Table~\ref{tab:fail
 \begin{itemize}
   \item \textbf{No real students} have used the tutor. Every learning result is simulated, and the students' keyword judge rewards a hint that names the misconception.
   \item \textbf{Author-made cases.} The format cases, critic hints and slip cases were written and labelled by one author.
-  \item \textbf{Small samples.} There are 96 Eedi steps. The LLM sessions have 27 students per condition and 8 per main group, so no session difference survives the Holm correction.
+  \item \textbf{Small samples.} The Eedi test has 40 usable steps in three topics. The LLM sessions have 27 students per condition and 8 per main group, so no session difference survives the Holm correction.
   \item \textbf{Unconfirmed checks.} One member has labelled 40 of 186 tasks and answered ``no'' to all, so $\kappa$ is 0 for every automatic check, and the same labeller's two passes on 23 tasks agreed on only 12. No automatic metric is yet confirmed by people, and agreement between people is unmeasured.
 \end{itemize}
 
@@ -362,7 +361,7 @@ Reading, checking and locating with code first, and calling the LLM only where c
 
 Next steps:
 \begin{itemize}
-  \item \textbf{Diagnosis:} retrain the shortlister so the right name ranks higher, show only the LLM's ``exact'' picks, and map more rules to Eedi IDs.
+  \item \textbf{Diagnosis:} rebuild the Eedi test so all 96 steps keep their question, help the LLM choose between near-identical names (or show only its ``exact'' picks), and map more rules to Eedi IDs.
   \item \textbf{Critic:} teach it to reject hints that do the step.
   \item \textbf{Session budget:} raise it, or cut the fallback's tokens.
   \item \textbf{Slips:} split lines of plain numbers into parts.
@@ -418,7 +417,7 @@ gemini-3-flash-preview & The judge in the hinter test & Google API, free tier \\
 \toprule
 Risk & What this report does \\
 \midrule
-\textbf{Circularity.} \grp{has\_rule} students and rule-generated steps come from our own rules, so the rules score near 1.00 by construction & The main diagnosis test uses Eedi's own labelled wrong answers (test split, 96 steps). Rule-generated results are reported only as a consistency check \\
+\textbf{Circularity.} \grp{has\_rule} students and rule-generated steps come from our own rules, so the rules score near 1.00 by construction & The main diagnosis test uses Eedi's own labelled wrong answers (test split, the 40 steps that kept their question). Rule-generated results are reported only as a consistency check \\
 \textbf{No clean test of the title claim.} Full against B0 changes many things at once & A \cond{nodiag} ablation, and a hinter test that gives the same hinter the right, no, or a wrong diagnosis \\
 \textbf{An LLM grading an LLM} & Students use a keyword judge, the same across tutors. The hinter judge is a stronger model, checked here for leniency, not yet confirmed by people: $\kappa = 0$ against the one labeller so far (\S\ref{sec:human}) \\
 \textbf{A cached ``repeat''} & The critic's consistency repeats run with the cache off \\
@@ -438,7 +437,7 @@ Item & Value \\
 Code & Commit \code{1f65ae2}, frozen for every run; LLM config \code{95b6fb45c934} \\
 LLM & \code{gemini-3.1-flash-lite}, temperature 0, with a cache. Free tier: 15 requests a minute, 500 a day \\
 Judge & \code{gemini-3-flash-preview}. Free tier: 20 requests a day \\
-Eedi shortlister & adapter v2 on Apple-silicon GPU; 20 in-topic names per step; T7 groups on \\
+Eedi shortlister & adapter v2 on Apple-silicon GPU; 20 in-topic names per step; T7 groups on. Used in the 96-step Eedi test only: \textbf{off in all session runs} \\
 Students & Offline: all 113, two sessions each. With the LLM: 27 (every student the rules cannot read, every 8th with a rule, one per attack), one session each, in each of six conditions: 162 sessions \\
 Requests & Component tests: 498 fresh calls, about \$0.23 at paid list prices. LLM sessions: 2,225 calls, 809 of them fresh; 1.9 million tokens \\
 \bottomrule
@@ -453,12 +452,12 @@ Requests & Component tests: 498 fresh calls, about \$0.23 at paid list prices. L
 \toprule
 Eedi topic & Steps & Code only & As shipped, Eedi on & LLM only \\
 \midrule
-fractions & 15 & 2 (13\%) & 7 (47\%) & 9 (60\%) \\
-decimals & 51 & 1 (2\%) & 6 (12\%) & 9 (18\%) \\
-expressions & 30 & 0 & 3 (10\%) & 4 (13\%) \\
+fractions & 13 & 2 (15\%) & 7 (54\%) & 9 (69\%) \\
+expressions & 20 & 0 & 3 (15\%) & 4 (20\%) \\
+decimals & 7 & 0 & 3 (43\%) & 3 (43\%) \\
 \bottomrule
 \end{tabular}
-\caption{Right misconception by topic.}
+\caption{Right misconception by topic, on the 40 Eedi steps that kept their question.}
 \label{tab:topic}
 \end{table}
 \begin{table}[H]
@@ -561,7 +560,7 @@ The shipped critic caught every leak, every wrong-maths hint, every off-target h
 \midrule
 A1 & LLM off & Rules and probes alone: \grp{has\_rule} top-1 1.00, \grp{known\_as\_text} 0.00; no leaks \\
 A2 & Diagnoser's LLM off (\cond{nollmdiag}) & Topic accuracy 97\% $\to$ 90\% per step. In sessions, the same as full on \grp{has\_rule}; fewer budget stops (6 against 11 of 27) \\
-A3 & Eedi off & Right misconception on Eedi's wrong answers 17\% $\to$ 3\% \\
+A3 & Eedi off & Right misconception on Eedi's wrong answers 33\% $\to$ 5\% (40 steps) \\
 A4 & Probes off (B2) & Top-1 1.00 $\to$ 0.72 offline (64 students), 1.00 $\to$ 0.52 with the LLM (8); 82\% $\to$ 72\% per step \\
 -- & No diagnosis in feedback (\cond{nodiag}) & Learning 0.88 $\to$ 0.00 (by construction); budget stops 11 $\to$ 19 of 27; hinter 24/24 $\to$ 20/24 \\
 -- & B1 (no critic, no memory) & Top-1 0.14; learning 0.00; leaks in 11 of 27 sessions \\
@@ -612,16 +611,16 @@ A5, A7 & Memory off; retrieval off & Not run \\
 \toprule
 \# & Decision & Evidence & Strength \\
 \midrule
-1 & Code first, at most one LLM call per diagnosis & LLM-only reading rewrites mistakes; LLM-only diagnosis makes 59 wrong claims against 40 & \textbf{strong} \\
+1 & Code first, at most one LLM call per diagnosis & LLM-only reading rewrites mistakes; LLM-only diagnosis makes 19 wrong claims against 10 & \textbf{strong} \\
 2 & Probes for tied rules & Top-1 1.00 against 0.72; 72\% $\to$ 82\% per step & moderate (simulated answers follow the rule exactly) \\
-3 & Eedi pick only from a verified reading (T6) & Dropped picks 20\% right, kept 27\% & weak \\
+3 & Eedi pick only from a verified reading (T6) & Dropped picks 2/12 right, kept 11/20 & weak \\
 4 & Near-duplicate groups (T7) & No effect on 96 steps & none yet \\
 5 & Slips found by code & 6/8 slips, no false slips & moderate (hand cases) \\
 6 & The critic as a gate & 0/27 leaks with it; 11/27 and 13/27 without; 93\% right verdicts & \textbf{strong} for leaks (by code) \\
 7 & Hints aimed at the diagnosis, with certainty levels & Right 24/24, none 20/24, wrong 19/24 & moderate \\
 8 & Hybrid textbook search & Right section in the top 3: 97\% against 87\% for one method (earlier study) & moderate (not re-run) \\
-9 & 20 in-topic Eedi names & The right name is offered for 69\% of steps & moderate \\
-10 & Shortlister v2 & 3\% $\to$ 17\% with Eedi on held-out data & \textbf{strong} \\
+9 & 20 in-topic Eedi names & The right name is offered for 85\% of steps & moderate \\
+10 & Shortlister v2 & 5\% $\to$ 33\% with Eedi on held-out data & \textbf{strong} \\
 11 & Gemini for the final runs & Better than Qwen 7B on vLLM (earlier study) & moderate \\
 12 & 20,000-token session budget & Hit by every text-only student & \textbf{evidence against} \\
 13 & One rewrite on the page, two in the runner & 24/24 approved by the second attempt & moderate \\
