@@ -226,7 +226,7 @@ LLM only, picking from 20 Eedi names & 16 (40\%) & 19 & 5 & 16/35 (46\%) \\
 \label{tab:eedi}
 \end{table}
 
-\noindent\textbf{The shortlister puts the right name among the 20 it offers for 85\% of steps (34 of 40), but choosing one name from that list remains the major challenge.} B's own evaluation of the shortlister gives a similar 78\% in its top 25 (82\% with the in-topic list). The LLM then picks the right name for only 16 of those 34 steps, so the final top-1 is 33--40\%. As shipped, the tutor is right in 57\% of the names it gives, against 46\% for the LLM alone: it gives up 3 hits for 9 fewer wrong diagnoses. Code alone names almost nothing; Eedi is what lets the tutor name mistakes it has no rule for. The near-perfect top-1 scores elsewhere come from steps and students our rules generated.
+\noindent\textbf{The shortlister puts the right name among the 20 it offers for 85\% of steps (34 of 40), but choosing one name from that list remains the major challenge.} The shortlister's own evaluation gives a similar 78\% in its top 25 (82\% with the in-topic list). The LLM then picks the right name for only 16 of those 34 steps, so the final top-1 is 33--40\%. As shipped, the tutor is right in 57\% of the names it gives, against 46\% for the LLM alone: it gives up 3 hits for 9 fewer wrong diagnoses. Code alone names almost nothing; Eedi is what lets the tutor name mistakes it has no rule for. The near-perfect top-1 scores elsewhere come from steps and students our rules generated.
 \begin{itemize}
   \item \textbf{Why picking is hard.} Eedi's names are often near-identical: for $2\frac{2}{3} \div 2 \to 1\frac{2}{3}$, Eedi's label is ``only performs the calculation with the integers'', and the LLM picked ``only divides the fraction by the integer'', which does not fit the numbers.
   \item \textbf{The LLM's own confidence is informative.} Picks it marked ``exact'' were right 13 of 22 times; ``close'' ones, 3 of 13.
@@ -358,7 +358,7 @@ nollmdiag & 1.00 [1.00, 1.00] & 0.88 [0.62, 1.00] & 0.33 & 12,008 & 13 \\
 
 \subsection{A first human check of the automatic checks}\label{sec:human}
 
-One team member (D) labelled 30 tasks blind (23 from the main sheet and 7 more diagnosis tasks), drawn from the LLM sessions and shuffled across conditions, without seeing the condition or the automatic verdict. Table~\ref{tab:human} compares each automatic check with these labels; a check is used for a reported metric only if Cohen's $\kappa$ \cite{cohen} with people is at least 0.7.
+One team member labelled 30 tasks blind (23 from the main sheet and 7 more diagnosis tasks), drawn from the LLM sessions and shuffled across conditions, without seeing the condition or the automatic verdict. Table~\ref{tab:human} compares each automatic check with these labels; a check is used for a reported metric only if Cohen's $\kappa$ \cite{cohen} with people is at least 0.7.
 
 \begin{table}[H]
 \centering\small
@@ -688,22 +688,6 @@ A5, A7 & Memory off; retrieval off & Not run \\
 \caption{Each decision, its evidence and how strong that evidence is.}
 \label{tab:choices}
 \end{table}
-\section{Team}
-
-\begin{table}[H]
-\centering\small
-\begin{tabularx}{\linewidth}{@{}P{4.2cm}P{3.2cm}Y@{}}
-\toprule
-Role & Member & Built \\
-\midrule
-A: Shortlister and retrieval & Swaraj Kumar & Eedi data, the fine-tuned shortlister, textbook search, bracket and like-term rules, number facts \\
-B: Diagnosis engine & Peeyush Prashant & Parser, rules, misconception and probe banks, \code{diagnose()}, B2 \\
-C: Agents and orchestration & Shubham Paliwal & LLM client, orchestrator, hinter, critic, store, runner, B0 and B1 \\
-D: Evaluation & Rahul Saha & Simulated and adversarial students, tests, metrics, statistics, labelling; tutor tasks T6, T7, T9 \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
 \section{Reproducing the results}
 
 Every run used commit \code{1f65ae2}.
