@@ -10,3 +10,6 @@ runs/
 /data
 
 Dataset/
+
+# Labelling sheets and their key (key.jsonl must not reach labellers)
+labels/
