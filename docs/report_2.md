@@ -23,7 +23,7 @@ The shipped design gives up 3 hits for 9 fewer wrong diagnoses. The near-perfect
 - **B0, a plain LLM tutor: 13 of 27** (9 of 21 ordinary students, and 4 of 6 adversarial);
 - **B1, the LLM with tools but no critic: 11 of 27.**
 
-Every condition that keeps the critic leaked nothing, and so did 678 offline sessions (216 adversarial). Leaks here are judged by code; people have not yet confirmed them: the one labeller so far judged none of 18 sampled messages a leak (section 4.10).
+Every condition that keeps the critic leaked nothing, and so did 678 offline sessions (216 adversarial). Leaks here are judged by code; against one person's labels the code agreed at κ = 0.73 but missed one leak in three, so these counts are a lower bound (section 4.10).
 
 **3. Does diagnosing before hinting help? Partly shown.**
 - **The right diagnosis gives the best hints, and a wrong one is worse than none.** In the hinter test (24 steps), the hint passed every check in 24/24 cases when told the right misconception, 20/24 when told nothing, and 19/24 when told a wrong one. This supports stating certainty and abstaining when unsure.
@@ -145,7 +145,7 @@ LLM calls per Analyze: none for a correct answer; two (hinter and critic) when a
 |---|---|
 | **Circularity.** The simulated has_rule students and the rule-generated steps are made by our own rules, so the rules score near 1.00 by construction | The main diagnosis test is Eedi's own labelled wrong answers (`data/eedi/live_queries.csv`, test split, the 40 steps that kept their question). Rule-generated results are reported as a consistency check only |
 | **No clean test of the title claim.** Full against B0 changes many things at once | A `nodiag` ablation: the full tutor whose hint and analysis are never told the misconception. The hinter test gives the same hinter the right, no, or a wrong diagnosis |
-| **An LLM grading an LLM** | Students in sessions use the keyword judge and template attacks, so they are identical across tutors. The hinter judge is a stronger model, checked here for leniency, and is not yet confirmed by people (κ = 0 against the one labeller so far, section 4.10) |
+| **An LLM grading an LLM** | Students in sessions use the keyword judge and template attacks, so they are identical across tutors. The hinter judge is a stronger model, checked here for leniency, and agreed with one person on 6 of 7 tasks (κ = 0.70, just below the bar; section 4.10) |
 | **A cached "repeat"** | The critic's consistency repeats run with the cache off |
 | **Moving code** | Every run uses commit `1f65ae2`; later pushes were not pulled |
 | **Multiple comparisons** | Three main results named before the runs; Holm correction within each table |
@@ -263,7 +263,7 @@ Four readings:
 
 What would settle it:
 - Eedi steps, where the mistake isn't obvious from the answer;
-- more human labels on the `nodiag` and full hints (D has labelled 40 tasks; A, B and C still to come).
+- more human labels on the `nodiag` and full hints (D has labelled 23 tasks; A, B and C still to come).
 
 ### 4.5 Input format: `transcribe()`
 
@@ -332,19 +332,18 @@ Missed: `3(x + 2) + 2(x + 5) → 3x + 6 + 2x + 5`, the same bracket rule done ri
 
 ### 4.10 A first human check of the automatic checks
 
-One member (D) labelled the first 40 of 186 tasks blind (no condition, no automatic verdict), from the LLM sessions, shuffled across conditions. Each automatic check against these labels (`labels check labels/ --judge …`); a check counts only if Cohen's κ ≥ 0.7:
+One member (D) labelled 23 tasks blind (no condition, no automatic verdict), from the LLM sessions, shuffled across conditions. Each automatic check against these labels (`labels check labels/ --judge …`); a check counts only if Cohen's κ ≥ 0.7:
 
-| Automatic check | Tasks | People "yes" | Check "yes" | Agreement | κ |
+| Automatic check | Tasks | Agreement | κ | Precision | Recall |
 |---|---|---|---|---|---|
-| Leak code (`states_answer`) | 18 | 0 | 3 | 15/18 | 0.00 |
-| Judge: aimed at the misconception | 13 | 0 | 7 | 6/13 | 0.00 |
-| Judge: diagnosis text is right | 3 | 0 | 1 | 2/3 | 0.00 |
-| Citation supports the hint (no automatic check) | 6 | 0 | – | – | – |
+| Leak code (`states_answer`) | 9 | 8/9 | 0.73 | 1.00 | 0.67 |
+| Judge: aimed at the misconception | 7 | 6/7 | 0.70 (0.696) | 0.80 | 1.00 |
+| Judge: diagnosis text is right | 3 | 2/3 | – (too few) | – | – |
 
-- **The labeller answered "no" on all 40 tasks**, so κ is 0 for every check and none reaches 0.7. No automatic metric is yet confirmed by people.
-- **Leaks:** the 3 messages the code flagged came from B0 and B1; the labeller judged none a leak. If more labellers agree, the B0 and B1 leak counts are overstated.
-- **Hint quality:** the labeller judged none of 13 session hints on target (the LLM judge said 7) and none of 6 citations supporting. If this holds, the judge is lenient.
-- **Reliability:** an earlier, discarded pass by the same labeller on the first 23 tasks agreed with this pass on 12; the other 11 changed from "yes" to "no". A second labeller is needed before these labels confirm or reject anything.
+- **The leak code passes the bar (κ = 0.73).** It flagged no false leak but missed one of the three leaks the labeller found: a `nollmdiag` hint (a condition with the critic) that for 0.25 + 0.3 → 2.8 said to write 0.3 as 0.30, line up the points and add each column. So "0 leaks with the critic" counts only leaks the code can see; the gap to B0 and B1 stands.
+- **The hint judge falls just below it** (κ = 0.696, 6 of 7); its one error was lenient.
+- **The diagnosis judge** agreed on 2 of 3, too few tasks to judge: one disagreement moves κ from 1.00 to 0.40.
+- **One labeller, 23 tasks.** Agreement between people is not yet measured; every κ here has a wide interval.
 
 ## 5. Failures, with the stage that broke
 
@@ -392,8 +391,9 @@ One member (D) labelled the first 40 of 186 tasks blind (no condition, no automa
 - **The format cases, critic hints and slip cases were written and labelled by one author.**
 - **The sample sizes are small:** 40 usable Eedi steps in three topics; known_as_text has 8 students and never_seen has 2.
 - **The LLM sessions are small:** 27 per condition and 8 per main student group, so no session difference survives the Holm correction.
-- **Leaks are judged by the same code the critic uses.** The one labeller so far judged none of 18 sampled messages a leak, including 3 the code flagged (section 4.10).
-- **The hinter test has 24 steps and one judge model**, not yet confirmed by people (κ = 0 against the one labeller so far).
+- **Leaks are judged by the same code the critic uses.** Against one person's labels it agreed at κ = 0.73 but missed one leak in three (section 4.10).
+- **Thin human feedback.** Only one of four members has labelled so far: 23 tasks (9 leak, 7 hint, 3 diagnosis, 4 citation), against a plan of 186 per member with 124 labelled twice. So agreement between people (whether the labels themselves are reliable) is unmeasured; every κ rests on 3–9 tasks, so one changed answer moves it a long way; the labeller is also an author of this report and built the sample, so the labels are not independent; and age suitability has no human check. Until a second labeller finishes, the leak and hint-quality results rest mainly on the automatic checks.
+- **The hinter test has 24 steps and one judge model**, which agreed with one person on 6 of 7 tasks (κ = 0.70, just below the bar).
 
 ## 9. Priority levels: what is done
 
@@ -406,7 +406,7 @@ One member (D) labelled the first 40 of 186 tasks blind (no condition, no automa
 | must | Reduced baseline run (full, b0, b1, b2) with the LLM | done (27 sessions each, plus nodiag and nollmdiag) |
 | must | Ablations with existing switches | done |
 | should | Hinter test | done (24 steps) |
-| should | Human labels for the judge | started: D labelled 40 tasks (section 4.10); A, B, C pending |
+| should | Human labels for the judge | started: D labelled 23 tasks (section 4.10); A, B, C pending |
 | could | New-switch ablations (memory, retrieval) | not run |
 | could | vLLM again | not run |
 
