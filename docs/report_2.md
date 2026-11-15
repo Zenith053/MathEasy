@@ -136,7 +136,7 @@ LLM calls per Analyze: none for a correct answer; two (hinter and critic) when a
 |---|---|---|
 | A · Shortlister and retrieval | Swaraj Kumar | Eedi data, the fine-tuned shortlister, textbook search, T2 and T3 rules, number facts |
 | B · Diagnosis engine | Peeyush Prashant | Parser, rules, misconception and probe banks, diagnose(), B2 |
-| C · Agents and orchestration | Shubham Paliwal | LLM client, orchestrator, hinter, critic, store, runner, B0 and B1 (LangGraph) |
+| C · Agents and orchestration | — | LLM client, orchestrator, hinter, critic, store, runner, B0 and B1 (LangGraph) |
 | D · Evaluation | Rahul Saha | Simulated and adversarial students, pre/post tests, metrics, statistics, log checker, labelling; tutor tasks T6, T7, T9 |
 
 ## 2. Method: what could mislead, and what this report does about it

@@ -44,7 +44,7 @@
 % ---- headings ----
 \titleformat{\section}{\sffamily\Large\bfseries\color{ink}}{\color{primary}\thesection}{0.6em}{}
 \titleformat{\subsection}{\sffamily\large\bfseries\color{ink}}{\color{primary}\thesubsection}{0.6em}{}
-\titleformat{\paragraph}[runin]{\sffamily\bfseries\color{ink}}{}{}{}[.]
+\titleformat{\paragraph}[runin]{\sffamily\bfseries\color{ink}}{}{}{}
 \titlespacing*{\section}{0pt}{14pt plus 3pt minus 2pt}{6pt plus 2pt}
 \titlespacing*{\subsection}{0pt}{10pt plus 2pt minus 2pt}{4pt plus 2pt}
 \titlespacing*{\paragraph}{0pt}{6pt plus 2pt minus 1pt}{0.6em}
@@ -90,7 +90,8 @@
 {\sffamily\footnotesize\bfseries\color{primary}PROJECT REPORT \textperiodcentered\ 15 NOVEMBER 2026}\\[6pt]
 {\sffamily\bfseries\fontsize{24}{28}\selectfont\color{ink}MathEasy: Diagnose Before You Hint}\\[6pt]
 {\itshape\large\color{muted}A maths tutor that names the misconception before it writes a hint}\\[10pt]
-{\small Swaraj Kumar \,\textperiodcentered\, Peeyush Prashant \,\textperiodcentered\, Shubham Paliwal \,\textperiodcentered\, Rahul Saha}\\[8pt]
+{\small Swaraj Kumar \,\textperiodcentered\, Peeyush Prashant \,\textperiodcentered\, Rahul Saha}\\[4pt]
+{\small\sffamily\href{https://github.com/Zenith053/MathEasy}{\color{primary}github.com/Zenith053/MathEasy}}\\[8pt]
 {\color{primary!40}\rule{0.5\linewidth}{0.6pt}}
 \end{center}
 \vspace{2pt}
@@ -133,22 +134,27 @@ Figure~\ref{fig:pipeline} shows the eight stages. Code does everything it can; a
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  stage/.style={draw, rounded corners=2pt, minimum width=2.95cm, minimum height=0.7cm,
-                font=\small\sffamily\bfseries, align=center, line width=0.6pt},
-  codeS/.style={stage, fill=codefill, draw=codeline},
-  mixS/.style={stage, left color=codefill, right color=llmfill, draw=llmline},
-  note/.style={font=\footnotesize, align=left, text width=12.6cm, anchor=west},
-  arr/.style={-{Stealth[length=2mm]}, line width=0.7pt, draw=neutral},
-  node distance=0.2cm
+  stage/.style={draw=primary!45, fill=white, rounded corners=3pt, minimum width=3.4cm, minimum height=0.72cm,
+                font=\small\sffamily\bfseries, text=ink, align=left, text width=2.95cm, line width=0.7pt},
+  llm/.style={stage, fill=llmfill!70, draw=llmline!80},
+  badge/.style={circle, fill=primary, text=white, font=\scriptsize\sffamily\bfseries, inner sep=0pt, minimum size=13pt},
+  pill/.style={rounded corners=2pt, fill=llmline, text=white, font=\tiny\sffamily\bfseries, inner sep=1.6pt},
+  note/.style={font=\footnotesize, align=left, text width=12.3cm, anchor=west},
+  arr/.style={-{Stealth[length=1.8mm]}, line width=0.8pt, draw=primary!45},
+  node distance=0.22cm
 ]
-\node[mixS]  (read)   {1\quad Read};
-\node[codeS, below=of read]   (check)  {2\quad Check};
-\node[codeS, below=of check]  (locate) {3\quad Locate};
-\node[mixS,  below=of locate, minimum height=1.55cm] (diag) {4\quad Diagnose};
-\node[codeS, below=of diag]   (slip)   {5\quad Slip or habit};
-\node[codeS, below=of slip]   (mem)    {6\quad Memory};
-\node[mixS,  below=of mem, minimum height=1.25cm] (hint) {7\quad Hint};
-\node[codeS, below=of hint]   (show)   {8\quad Show};
+\node[llm]                                     (read)   {\hspace*{15pt}Read};
+\node[stage, below=of read]                    (check)  {\hspace*{15pt}Check};
+\node[stage, below=of check]                   (locate) {\hspace*{15pt}Locate};
+\node[llm,   below=of locate, minimum height=1.55cm] (diag) {\hspace*{15pt}Diagnose};
+\node[stage, below=of diag]                    (slip)   {\hspace*{15pt}Slip or habit};
+\node[stage, below=of slip]                    (mem)    {\hspace*{15pt}Memory};
+\node[llm,   below=of mem, minimum height=1.25cm] (hint) {\hspace*{15pt}Hint};
+\node[stage, below=of hint]                    (show)   {\hspace*{15pt}Show};
+\foreach \n/\k in {read/1, check/2, locate/3, diag/4, slip/5, mem/6, hint/7, show/8}
+  \node[badge] at ([xshift=12pt]\n.west) {\k};
+\foreach \n in {read, diag, hint}
+  \node[pill, anchor=north east] at ([xshift=-3pt, yshift=-3pt]\n.north east) {LLM};
 
 \node[note, right=0.35cm of read]   {\code{transcribe()}: code; the LLM only for ambiguous notation (\code{a\^{}bc}, \code{1/2x}) or a run of letters that may be a word};
 \node[note, right=0.35cm of check]  {\code{parse()}, \code{check\_step()}: SymPy checks every step; all right $\Rightarrow$ ``correct''};
@@ -162,10 +168,12 @@ Figure~\ref{fig:pipeline} shows the eight stages. Code does everything it can; a
 \foreach \a/\b in {read/check, check/locate, locate/diag, diag/slip, slip/mem, mem/hint, hint/show}
   \draw[arr] (\a) -- (\b);
 
-\node[codeS, minimum width=0.5cm, minimum height=0.35cm, font=\footnotesize] (lg1) at ($(show.south west)+(0.25,-0.75)$) {};
+\node[draw=primary!45, fill=white, rounded corners=2pt, line width=0.7pt, minimum width=0.55cm, minimum height=0.32cm]
+  (lg1) at ($(show.south west)+(0.3,-0.7)$) {};
 \node[anchor=west, font=\footnotesize] at (lg1.east) {\ code only};
-\node[mixS, minimum width=0.5cm, minimum height=0.35cm, font=\footnotesize] (lg2) at ($(lg1)+(2.6,0)$) {};
-\node[anchor=west, font=\footnotesize] at (lg2.east) {\ code first, LLM where code cannot decide};
+\node[draw=llmline!80, fill=llmfill!70, rounded corners=2pt, line width=0.7pt, minimum width=0.55cm, minimum height=0.32cm]
+  (lg2) at ($(lg1)+(2.4,0)$) {};
+\node[anchor=west, font=\footnotesize] at (lg2.east) {\ code first; the LLM only where code cannot decide};
 \end{tikzpicture}
 \caption{The analysis pipeline. A correct answer needs no LLM call. A mistake a rule explains needs two (hinter and critic). The fallback with a rewrite needs up to about five. The Eedi shortlister is a ranking model, not a chat call.}
 \label{fig:pipeline}
@@ -240,23 +248,37 @@ LLM only, picking from 20 Eedi names & 16 (40\%) & 19 & 5 & 16/35 (46\%) \\
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  xbar, bar width=7pt, bar shift=0pt,
-  width=0.78\linewidth, height=4.2cm,
+  xbar stacked, bar width=11pt,
+  width=0.8\linewidth, height=5.6cm,
   xmin=0, xmax=27, xtick={0,5,10,15,20,25,27},
-  xlabel={Sessions that leaked the answer (of 27)},
-  symbolic y coords={nollmdiag,nodiag,B2,B1,B0,full},
-  ytick={nollmdiag,nodiag,B2,B1,B0,full}, y tick label style={font=\small\sffamily},
-  enlarge y limits=0.12,
-  axis x line*=bottom, axis y line*=left,
-  nodes near coords, nodes near coords style={font=\small},
+  xlabel={Sessions that leaked the answer (of 27)}, xlabel style={font=\small\sffamily},
+  ytick={6,5,3.4,2.6,1.8,1}, yticklabels={B0, B1, full, B2, nodiag, nollmdiag},
+  y tick label style={font=\small\sffamily}, x tick label style={font=\footnotesize\sffamily},
+  ymin=0.4, ymax=6.6,
+  axis x line*=bottom, axis y line*=left, tick align=outside,
+  xmajorgrids, grid style={draw=black!8},
   every axis plot/.append style={draw=none},
-  area legend,
-  legend style={at={(0.98,0.04)}, anchor=south east, font=\footnotesize, draw=none, fill=white},
-  legend cell align=left,
+  legend style={at={(0.99,0.04)}, anchor=south east, font=\footnotesize\sffamily, draw=none, fill=white, fill opacity=0.9, text opacity=1},
+  legend cell align=left, area legend,
 ]
-\addplot[fill=withcritic] coordinates {(0,full) (0,B2) (0,nodiag) (0,nollmdiag)};
-\addplot[fill=nocritic]   coordinates {(13,B0) (11,B1)};
-\legend{with the critic, without the critic}
+\addplot[fill=nocritic]      coordinates {(9,6) (8,5)};
+\addplot[fill=nocritic!45]   coordinates {(4,6) (3,5)};
+\legend{leaked to ordinary students (of 21), leaked to adversarial students (of 6)}
+\node[right, font=\small\sffamily\bfseries, text=nocritic] at (axis cs:13,6) {13};
+\node[right, font=\small\sffamily\bfseries, text=nocritic] at (axis cs:11,5) {11};
+\end{axis}
+\begin{axis}[
+  width=0.8\linewidth, height=5.6cm, xmin=0, xmax=27, ymin=0.4, ymax=6.6,
+  axis lines=none, ticks=none,
+]
+\addplot[only marks, mark=*, mark size=3pt, color=withcritic] coordinates {(0,3.4) (0,2.6) (0,1.8) (0,1)};
+\node[right, font=\small\sffamily\bfseries, text=withcritic] at (axis cs:0.4,3.4) {0};
+\node[right, font=\small\sffamily\bfseries, text=withcritic] at (axis cs:0.4,2.6) {0};
+\node[right, font=\small\sffamily\bfseries, text=withcritic] at (axis cs:0.4,1.8) {0};
+\node[right, font=\small\sffamily\bfseries, text=withcritic] at (axis cs:0.4,1) {0};
+\draw[draw=black!25, dashed] (axis cs:0,4.2) -- (axis cs:27,4.2);
+\node[anchor=south east, font=\scriptsize\sffamily, text=muted] at (axis cs:27,4.2) {without the critic \textuparrow};
+\node[anchor=north east, font=\scriptsize\sffamily, text=muted] at (axis cs:27,4.2) {with the critic \textdownarrow};
 \end{axis}
 \end{tikzpicture}
 \caption{Answer leaks in the LLM sessions: 27 students per condition, 21 ordinary and 6 adversarial. Offline (226 sessions each for full, B2 and nodiag, with all 36 attackers), no condition leaked; details in Table~\ref{tab:leaks}.}
@@ -545,19 +567,22 @@ nollmdiag, with the LLM & 27 & 0 & 0 & 0 & 0.05 \\
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  xbar, bar width=10pt,
-  width=0.6\linewidth, height=4.6cm,
+  xbar, bar width=12pt, bar shift=0pt,
+  width=0.62\linewidth, height=5cm,
   xmin=0, xmax=24, xtick={0,4,8,12,16,20,24},
-  xlabel={Hints passing every check (of 24 steps)},
-  symbolic y coords={tpl,wrong,none,right},
-  ytick={tpl,wrong,none,right}, y tick label style={font=\small\sffamily},
-  yticklabels={template (no LLM), told a wrong misconception, told nothing, told the right misconception},
-  enlarge y limits=0.16,
-  axis x line*=bottom, axis y line*=left,
-  nodes near coords, nodes near coords style={font=\small},
+  xlabel={Hints passing every check (of 24 steps)}, xlabel style={font=\small\sffamily},
+  ytick={1,2,3,4}, yticklabels={template (no LLM), told a wrong misconception, told nothing, told the right misconception},
+  y tick label style={font=\small\sffamily}, x tick label style={font=\footnotesize\sffamily},
+  ymin=0.4, ymax=4.6,
+  axis x line*=bottom, axis y line*=left, tick align=outside,
+  xmajorgrids, grid style={draw=black!8},
+  nodes near coords, nodes near coords style={font=\small\sffamily\bfseries},
   every axis plot/.append style={draw=none},
 ]
-\addplot[fill=withcritic] coordinates {(24,right) (20,none) (19,wrong) (8,tpl)};
+\addplot[fill=primary]      coordinates {(24,4)};
+\addplot[fill=primary!55]   coordinates {(20,3)};
+\addplot[fill=nocritic!70]  coordinates {(19,2)};
+\addplot[fill=neutral!45]   coordinates {(8,1)};
 \end{axis}
 \end{tikzpicture}
 \caption{The same hinter, given different diagnoses.}
