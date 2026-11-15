@@ -63,7 +63,7 @@ We compare the tutor with three baselines and two ablations, using simulated and
   \item The full tutor leaked the answer in 0 of 27 LLM sessions. A plain LLM tutor leaked in 13, and an agent with the same tools but no critic leaked in 11.
   \item A hinter told the right misconception passed every check on 24 of 24 steps, against 20 with no diagnosis and 19 with a wrong one. The learning gap in sessions is partly built into the simulation.
 \end{enumerate}
-The session samples are small. A first human check (one labeller, 23 tasks) found the leak code at the agreement bar ($\kappa = 0.73$) but missing one leak in three, and the hint judge just below it ($\kappa = 0.70$, lenient once). Supporting tables are in the appendix.
+The session samples are small. A first human check (one labeller, 26 tasks) found the leak code at the agreement bar ($\kappa = 0.73$) but missing one leak in three, and the hint judge just below it ($\kappa = 0.70$, lenient once); the judge of the baselines' free-text diagnoses was too strict ($\kappa = 0.33$). Supporting tables are in the appendix.
 \end{abstract}
 
 \section{Introduction}
@@ -307,7 +307,7 @@ nollmdiag & 1.00 [1.00, 1.00] & 0.88 [0.62, 1.00] & 0.33 & 12,008 & 13 \\
 
 \subsection{A first human check of the automatic checks}\label{sec:human}
 
-One team member (D) labelled 23 tasks blind, drawn from the LLM sessions and shuffled across conditions, without seeing the condition or the automatic verdict. Table~\ref{tab:human} compares each automatic check with these labels; a check is used for a reported metric only if Cohen's $\kappa$ \cite{cohen} with people is at least 0.7.
+One team member (D) labelled 26 tasks blind (23 from the main sheet and 3 more diagnosis tasks), drawn from the LLM sessions and shuffled across conditions, without seeing the condition or the automatic verdict. Table~\ref{tab:human} compares each automatic check with these labels; a check is used for a reported metric only if Cohen's $\kappa$ \cite{cohen} with people is at least 0.7.
 
 \begin{table}[H]
 \centering\small
@@ -317,18 +317,18 @@ Automatic check & Tasks & Agreement & $\kappa$ & Precision & Recall \\
 \midrule
 Leak code (\code{states\_answer}) & 9 & 8/9 & 0.73 & 1.00 & 0.67 \\
 Judge: aimed at the misconception & 7 & 6/7 & 0.70 & 0.80 & 1.00 \\
-Judge: diagnosis text is right & 3 & 2/3 & -- & -- & -- \\
+Judge: diagnosis text is right & 6 & 4/6 & 0.33 & 1.00 & 0.60 \\
 \bottomrule
 \end{tabular}
-\caption{Automatic checks against one person's labels (23 tasks; 4 citation tasks have no automatic check). With 3 tasks, one disagreement moves $\kappa$ from 1.00 to 0.40, so no $\kappa$ is given for the diagnosis judge.}
+\caption{Automatic checks against one person's labels (26 tasks; 4 citation tasks have no automatic check).}
 \label{tab:human}
 \end{table}
 
 \begin{itemize}
   \item \textbf{The leak code passes the bar ($\kappa = 0.73$).} It never flagged a non-leak, but missed one of the three leaks the labeller found: a \cond{nollmdiag} hint, a condition with the critic, that for $0.25 + 0.3 \to 2.8$ told the student to write $0.3$ as $0.30$, line up the points and add each column. So ``0 leaks with the critic'' (\S\ref{sec:r2}) counts only the leaks the code can see; the gap to B0 and B1 stands.
   \item \textbf{The hint judge falls just below it} ($\kappa = 0.696$, 6 of 7), and the one disagreement was the judge being lenient: it called a hint on target that the labeller did not.
-  \item \textbf{The diagnosis judge} agreed on 2 of 3 tasks, too few to judge.
-  \item \textbf{This is one labeller on 23 tasks.} Agreement between people is not yet measured, and every $\kappa$ here has a wide interval.
+  \item \textbf{The diagnosis judge is too strict} ($\kappa = 0.33$, 4 of 6). It judges the free-text diagnoses that B0 and B1 state; it never accepted a wrong one, but rejected 2 of the 5 the labeller judged right. Judge-based scores of the baselines' stated diagnoses may therefore understate them.
+  \item \textbf{This is one labeller on 26 tasks.} Agreement between people is not yet measured, and every $\kappa$ here has a wide interval.
 \end{itemize}
 
 \subsection{Component tests and ablations}
@@ -351,10 +351,10 @@ Eleven failures, each traced to the stage that broke, are in Table~\ref{tab:fail
   \item \textbf{No real students} have used the tutor. Every learning result is simulated, and the students' keyword judge rewards a hint that names the misconception.
   \item \textbf{Author-made cases.} The format cases, critic hints and slip cases were written and labelled by one author.
   \item \textbf{Small samples.} The Eedi test has 40 usable steps in three topics. The LLM sessions have 27 students per condition and 8 per main group, so no session difference survives the Holm correction.
-  \item \textbf{Thin human feedback.} Only one of four members has labelled so far: 23 tasks (9 leak, 7 hint, 3 diagnosis, 4 citation), against a plan of 186 per member with 124 tasks labelled twice. So:
+  \item \textbf{Thin human feedback.} Only one of four members has labelled so far: 26 tasks (9 leak, 7 hint, 6 diagnosis, 4 citation), against a plan of 186 per member with 124 tasks labelled twice. So:
   \begin{itemize}
     \item agreement \emph{between people}, which shows whether the labels themselves are reliable, is unmeasured;
-    \item every $\kappa$ rests on 3--9 tasks, so a single changed answer moves it a long way, and none is a firm pass or fail;
+    \item every $\kappa$ rests on 6--9 tasks, so a single changed answer moves it a long way, and none is a firm pass or fail;
     \item the labeller is also an author of this report and built the labelling sample, so the labels are not independent;
     \item age suitability has no human check, and citations have human labels but no automatic check to compare.
   \end{itemize}

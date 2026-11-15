@@ -28,7 +28,7 @@ Where a part could not be run, it says so and why.
 - **Probes add 10 points of top-1 diagnosis** (72% → 82%) on rule-generated steps. Across whole sessions, the full tutor beats B2 (no probes) on top-1, 1.00 against 0.72, on students whose misconception is a rule.
 - **Students with a rule-known misconception learned only from tutors that diagnose.** Learning gain with the LLM, has_rule students (8 per condition): full 0.88, B2 0.75, B0 0.00, B1 0.00, full without the diagnosis in its feedback 0.00. Part of this is built into the simulation (section 7).
 - **Small samples.** The LLM sessions have 8 students per group, so no difference survives the Holm correction (lowest corrected p = 0.66). The offline runs (64 has_rule students) carry the significance tests.
-- **First human check (one labeller, 23 tasks):** the leak code agreed at κ = 0.73 but missed one leak in three, one of them from a condition with the critic; the hint judge agreed on 6 of 7 (κ = 0.70, just below the bar). See section 4.5.
+- **First human check (one labeller, 26 tasks):** the leak code agreed at κ = 0.73 but missed one leak in three, one of them from a condition with the critic; the hint judge agreed on 6 of 7 (κ = 0.70, just below the bar); the diagnosis judge was too strict (κ = 0.33). See section 4.5.
 
 ## 1. The system
 
@@ -343,18 +343,18 @@ The judge model's free limit (20 requests a day) meant the test ran over two day
 
 ### 4.5 A first human check of the automatic checks
 
-One member (D) labelled 23 tasks blind (no condition, no automatic verdict), from the LLM sessions, shuffled across conditions. Each automatic check against these labels (`labels check labels/ --judge …`); a check counts only if Cohen's κ ≥ 0.7:
+One member (D) labelled 26 tasks blind (23 from the main sheet, 3 more diagnosis tasks) (no condition, no automatic verdict), from the LLM sessions, shuffled across conditions. Each automatic check against these labels (`labels check labels/ --judge …`); a check counts only if Cohen's κ ≥ 0.7:
 
 | Automatic check | Tasks | Agreement | κ | Precision | Recall |
 |---|---|---|---|---|---|
 | Leak code (`states_answer`) | 9 | 8/9 | 0.73 | 1.00 | 0.67 |
 | Judge: aimed at the misconception | 7 | 6/7 | 0.70 (0.696) | 0.80 | 1.00 |
-| Judge: diagnosis text is right | 3 | 2/3 | – (too few) | – | – |
+| Judge: diagnosis text is right | 6 | 4/6 | 0.33 | 1.00 | 0.60 |
 
 - **The leak code passes the bar (κ = 0.73).** It flagged no false leak but missed one of the three leaks the labeller found: a `nollmdiag` hint (a condition with the critic) that for 0.25 + 0.3 → 2.8 said to write 0.3 as 0.30, line up the points and add each column. So "0 leaks with the critic" counts only leaks the code can see; the gap to B0 and B1 stands.
 - **The hint judge falls just below it** (κ = 0.696, 6 of 7); its one error was lenient.
-- **The diagnosis judge** agreed on 2 of 3, too few tasks to judge: one disagreement moves κ from 1.00 to 0.40.
-- **One labeller, 23 tasks.** Agreement between people is not yet measured; every κ here has a wide interval.
+- **The diagnosis judge is too strict** (κ = 0.33, 4 of 6). It judges the free-text diagnoses B0 and B1 state: it never accepted a wrong one, but rejected 2 of the 5 the labeller judged right, so judge-based scores of the baselines' stated diagnoses may understate them.
+- **One labeller, 26 tasks.** Agreement between people is not yet measured; every κ here has a wide interval.
 
 ## 5. Ablations (Part 3)
 
@@ -398,7 +398,7 @@ One member (D) labelled 23 tasks blind (no condition, no automatic verdict), fro
 - **The simulated students judge hints with a keyword judge**, so learning gain measures whether a hint names the misconception's description.
 - **The LLM sessions are small:** 27 students per condition, 8 per main group, so their differences don't survive the Holm correction.
 - **Leaks are judged by code** (`metrics.states_answer`). Against one person's labels (9 tasks) it agreed at κ = 0.73 but missed one leak in three (section 4.5).
-- **Thin human feedback.** Only one of four members has labelled so far: 23 tasks (9 leak, 7 hint, 3 diagnosis, 4 citation), against a plan of 186 per member with 124 labelled twice. So agreement between people (whether the labels themselves are reliable) is unmeasured; every κ rests on 3–9 tasks, so one changed answer moves it a long way; the labeller is also an author of this report and built the sample, so the labels are not independent; and age suitability has no human check. Until a second labeller finishes, the leak and hint-quality results rest mainly on the automatic checks.
+- **Thin human feedback.** Only one of four members has labelled so far: 26 tasks (9 leak, 7 hint, 6 diagnosis, 4 citation), against a plan of 186 per member with 124 labelled twice. So agreement between people (whether the labels themselves are reliable) is unmeasured; every κ rests on 6–9 tasks, so one changed answer moves it a long way; the labeller is also an author of this report and built the sample, so the labels are not independent; and age suitability has no human check. Until a second labeller finishes, the leak and hint-quality results rest mainly on the automatic checks.
 - **The hinter test has 24 steps and one judge model.** The judge agreed with one person on 6 of 7 tasks (κ = 0.70, just below the bar).
 - **No real students have used the tutor.**
 
@@ -408,7 +408,7 @@ The LLM sessions (162, 27 per condition) and the hinter test (24 steps) are comp
 
 | Part | Remaining | API requests | When |
 |---|---|---|---|
-| Human labels | D: 23 tasks done; A, B, C: sheets sent | none | about 1 hour per member (`docs/labelling_protocol.md`) |
+| Human labels | D: 26 tasks done; A, B, C: sheets sent | none | about 1 hour per member (`docs/labelling_protocol.md`) |
 
 Every planned run is finished. Once the sheets are back:
 
