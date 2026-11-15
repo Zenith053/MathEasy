@@ -23,7 +23,7 @@ The shipped design gives up 6 points of hits for 19 fewer wrong diagnoses. **Thi
 - **B0, a plain LLM tutor: 13 of 27** (9 of 21 ordinary students, and 4 of 6 adversarial);
 - **B1, the LLM with tools but no critic: 11 of 27.**
 
-Every condition that keeps the critic leaked nothing, and so did 678 offline sessions (216 adversarial). Leaks here are judged by code; human labels are the next check.
+Every condition that keeps the critic leaked nothing, and so did 678 offline sessions (216 adversarial). Leaks here are judged by code; against one person's labels the code missed one leak in three, so these counts are a lower bound (section 4.10).
 
 **3. Does diagnosing before hinting help? Partly shown.**
 - **The right diagnosis gives the best hints, and a wrong one is worse than none.** In the hinter test (24 steps), the hint passed every check in 24/24 cases when told the right misconception, 20/24 when told nothing, and 19/24 when told a wrong one. This supports stating certainty and abstaining when unsure.
@@ -145,7 +145,7 @@ LLM calls per Analyze: none for a correct answer; two (hinter and critic) when a
 |---|---|
 | **Circularity.** The simulated has_rule students and the rule-generated steps are made by our own rules, so the rules score near 1.00 by construction | The main diagnosis test is Eedi's own labelled wrong answers (`data/eedi/live_queries.csv`, test split, 96 steps). Rule-generated results are reported as a consistency check only |
 | **No clean test of the title claim.** Full against B0 changes many things at once | A `nodiag` ablation: the full tutor whose hint and analysis are never told the misconception. The hinter test gives the same hinter the right, no, or a wrong diagnosis |
-| **An LLM grading an LLM** | Students in sessions use the keyword judge and template attacks, so they are identical across tutors. The hinter judge is a stronger model, checked here for leniency, and is not trusted without human labels |
+| **An LLM grading an LLM** | Students in sessions use the keyword judge and template attacks, so they are identical across tutors. The hinter judge is a stronger model, checked here for leniency, and agreed with one person at κ = 0.70 on 7 tasks (section 4.10) |
 | **A cached "repeat"** | The critic's consistency repeats run with the cache off |
 | **Moving code** | Every run uses commit `1f65ae2`; later pushes were not pulled |
 | **Multiple comparisons** | Three main results named before the runs; Holm correction within each table |
@@ -261,7 +261,7 @@ Four readings:
 
 What would settle it:
 - Eedi steps, where the mistake isn't obvious from the answer;
-- human labels on the `nodiag` and full sessions (sheets sent to the team).
+- more human labels on the `nodiag` and full hints (D has labelled 23 tasks; A, B and C still to come).
 
 ### 4.5 Input format: `transcribe()`
 
@@ -328,6 +328,20 @@ Missed: `3(x + 2) + 2(x + 5) → 3x + 6 + 2x + 5`, the same bracket rule done ri
 | Session token budget | Full tutor: 11 of 27 LLM sessions ended at the budget, including all 10 students the rules cannot read. Median 12,424 tokens a session. Safe-template rate 0.08 |
 | Calibration with the LLM | ECE 0.38 (Brier 0.75) for the full tutor, against 0.09 (0.18) offline: its stated certainty is worse when the LLM is involved |
 
+### 4.10 A first human check of the judges
+
+One member (D) labelled 23 of 186 tasks blind (no condition, no automatic verdict). Each automatic check against these labels (`labels check labels/ --judge …`); a check counts only if Cohen's κ ≥ 0.7:
+
+| Automatic check | Tasks | Agreement | κ | Precision | Recall |
+|---|---|---|---|---|---|
+| Leak code (`states_answer`) | 9 | 8/9 | 0.73 | 1.00 | 0.67 |
+| Judge: aimed at the real mistake | 7 | 6/7 | 0.70 | 0.80 | 1.00 |
+| Judge: diagnosis text is right | 3 | 2/3 | 0.40 | 1.00 | 0.50 |
+
+- **The leak code flagged no false leak but missed one in three.** The miss is a `nollmdiag` hint (a condition with the critic): for 0.25 + 0.3 → 2.8 it said to write 0.3 as 0.30, line up the points and add each column, which the labeller judged walks the student to the answer. So "0 leaks with the critic" counts only leaks the code can see; the gap to B0 and B1 stands.
+- **The hinter judge** reaches the 0.7 bar only just (7 tasks) and leans lenient. The diagnosis-text judge does not reach it.
+- **One labeller, 23 tasks.** Agreement between people is not yet measured; every κ here has a wide interval.
+
 ## 5. Failures, with the stage that broke
 
 | # | Case | What happened | Stage |
@@ -374,8 +388,8 @@ Missed: `3(x + 2) + 2(x + 5) → 3x + 6 + 2x + 5`, the same bracket rule done ri
 - **The format cases, critic hints and slip cases were written and labelled by one author.**
 - **The sample sizes are small:** 96 Eedi steps; known_as_text has 8 students and never_seen has 2.
 - **The LLM sessions are small:** 27 per condition and 8 per main student group, so no session difference survives the Holm correction.
-- **Leaks are judged by the same code the critic uses.** Human labels are still to come.
-- **The hinter test has 24 steps and one judge model**, not yet checked against people.
+- **Leaks are judged by the same code the critic uses.** Against one person's labels it missed one leak in three (section 4.10).
+- **The hinter test has 24 steps and one judge model**, which agreed with one person at κ = 0.70 on 7 tasks.
 
 ## 9. Priority levels: what is done
 
@@ -388,7 +402,7 @@ Missed: `3(x + 2) + 2(x + 5) → 3x + 6 + 2x + 5`, the same bracket rule done ri
 | must | Reduced baseline run (full, b0, b1, b2) with the LLM | done (27 sessions each, plus nodiag and nollmdiag) |
 | must | Ablations with existing switches | done |
 | should | Hinter test | done (24 steps) |
-| should | Human labels for the judge | sheets sent (186 tasks per member); waiting for them |
+| should | Human labels for the judge | started: D labelled 23 tasks (section 4.10); A, B, C pending |
 | could | New-switch ablations (memory, retrieval) | not run |
 | could | vLLM again | not run |
 
@@ -396,7 +410,7 @@ Missed: `3(x + 2) + 2(x + 5) → 3x + 6 + 2x + 5`, the same bracket rule done ri
 
 | Part | Requests | When |
 |---|---|---|
-| Human labels from the LLM sessions (sheets sent) | none | the team, about 1 hour each |
+| Remaining human labels (D: 163 tasks; A, B, C: 186 each) | none | the team, about 1 hour each |
 
 Every planned run is finished. Once the sheets are back:
 

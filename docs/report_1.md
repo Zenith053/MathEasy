@@ -28,7 +28,7 @@ Where a part could not be run, it says so and why.
 - **Probes add 10 points of top-1 diagnosis** (72% → 82%) on rule-generated steps. Across whole sessions, the full tutor beats B2 (no probes) on top-1, 1.00 against 0.72, on students whose misconception is a rule.
 - **Students with a rule-known misconception learned only from tutors that diagnose.** Learning gain with the LLM, has_rule students (8 per condition): full 0.88, B2 0.75, B0 0.00, B1 0.00, full without the diagnosis in its feedback 0.00. Part of this is built into the simulation (section 7).
 - **Small samples.** The LLM sessions have 8 students per group, so no difference survives the Holm correction (lowest corrected p = 0.66). The offline runs (64 has_rule students) carry the significance tests.
-- **Still to come:** human labels, to check the leak code and the LLM judges against people. The sheets have been sent to the team. See section 8.
+- **First human check (one labeller, 23 tasks):** the leak code agreed at κ = 0.73 but missed one leak in three, one of them from a condition with the critic; the hinter judge agreed at κ = 0.70. See section 4.5.
 
 ## 1. The system
 
@@ -181,7 +181,7 @@ Full against B2, paired by student (has_rule): top-1 +0.28 [0.11, 0.47] (p = 0.0
 
 Full report: `runs/report/sessions-llm.md`.
 
-**Answer leaks** (by the leak code, `metrics.states_answer`; not yet checked against human labels):
+**Answer leaks** (by the leak code, `metrics.states_answer`; against one person's labels it missed one leak in three, section 4.5):
 
 | Condition | Ordinary students (21) | Adversarial (6) | All sessions |
 |---|---|---|---|
@@ -341,6 +341,20 @@ The judge model's free limit (20 requests a day) meant the test ran over two day
 
 **Consistency:** each hint was reviewed three times, the two repeats with the cache off. All 42 got the same verdict every time.
 
+### 4.5 A first human check of the judges
+
+One member (D) labelled 23 of 186 tasks blind (no condition, no automatic verdict). Each automatic check against these labels (`labels check labels/ --judge …`); a check counts only if Cohen's κ ≥ 0.7:
+
+| Automatic check | Tasks | Agreement | κ | Precision | Recall |
+|---|---|---|---|---|---|
+| Leak code (`states_answer`) | 9 | 8/9 | 0.73 | 1.00 | 0.67 |
+| Judge: aimed at the real mistake | 7 | 6/7 | 0.70 | 0.80 | 1.00 |
+| Judge: diagnosis text is right | 3 | 2/3 | 0.40 | 1.00 | 0.50 |
+
+- **The leak code flagged no false leak but missed one in three.** The miss is a `nollmdiag` hint (a condition with the critic): for 0.25 + 0.3 → 2.8 it said to write 0.3 as 0.30, line up the points and add each column, which the labeller judged walks the student to the answer. So "0 leaks with the critic" counts only leaks the code can see; the gap to B0 and B1 stands.
+- **The hinter judge** reaches the 0.7 bar only just (7 tasks) and leans lenient. The diagnosis-text judge does not reach it.
+- **One labeller, 23 tasks.** Agreement between people is not yet measured; every κ here has a wide interval.
+
 ## 5. Ablations (Part 3)
 
 | # | Ablation | Result | Status |
@@ -382,8 +396,8 @@ The judge model's free limit (20 requests a day) meant the test ran over two day
 - **The format and critic cases were written for this report**, and labelled by their author.
 - **The simulated students judge hints with a keyword judge**, so learning gain measures whether a hint names the misconception's description.
 - **The LLM sessions are small:** 27 students per condition, 8 per main group, so their differences don't survive the Holm correction.
-- **Leaks are judged by code** (`metrics.states_answer`). Human labels to check it are the next step (`docs/labelling_protocol.md`).
-- **The hinter test has 24 steps and one judge model.** The judge's ratings are not yet checked against people.
+- **Leaks are judged by code** (`metrics.states_answer`). Against one person's labels (9 tasks) it missed one leak in three (section 4.5).
+- **The hinter test has 24 steps and one judge model.** The judge agreed with one person at κ = 0.70 on only 7 tasks.
 - **No real students have used the tutor.**
 
 ## 8. What remains
@@ -392,7 +406,7 @@ The LLM sessions (162, 27 per condition) and the hinter test (24 steps) are comp
 
 | Part | Remaining | API requests | When |
 |---|---|---|---|
-| Human labels | sheets made and sent (186 tasks per member) | none | about 1 hour per member (`docs/labelling_protocol.md`) |
+| Human labels | D: 23 of 186 done; A, B, C: sheets sent | none | about 1 hour per member (`docs/labelling_protocol.md`) |
 
 Every planned run is finished. Once the sheets are back:
 

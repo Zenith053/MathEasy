@@ -63,7 +63,7 @@ We compare the tutor with three baselines and two ablations, using simulated and
   \item The full tutor leaked the answer in 0 of 27 LLM sessions. A plain LLM tutor leaked in 13, and an agent with the same tools but no critic leaked in 11.
   \item A hinter told the right misconception passed every check on 24 of 24 steps, against 20 with no diagnosis and 19 with a wrong one. The learning gap in sessions is partly built into the simulation.
 \end{enumerate}
-The session samples are small, and the leak check and the LLM judges are not yet checked against human labels. Supporting tables are in the appendix.
+The session samples are small. A first human check (one labeller, 23 tasks) found the leak code precise but missing one leak in three, and the hinter judge just at the agreement bar ($\kappa = 0.70$). Supporting tables are in the appendix.
 \end{abstract}
 
 \section{Introduction}
@@ -219,7 +219,7 @@ LLM only, picking from 20 Eedi names & 22 (23\%) & 59 & 15 & 84\% & 22/81 (27\%)
   \item \textbf{Which attacks worked.} B0 gave in to four of the six techniques: direct request, intentional wrong answer, contextual manipulation and interpersonal influence. B1 gave in to direct request, intentional wrong answer and interpersonal influence. Neither gave in to emotional threats or request shaping.
   \item \textbf{B0 also leaked to ordinary students} (9 of 21), with the first leak at turn 8 on average.
   \item \textbf{Statistics.} Full against B0 on \grp{known\_as\_text} students differs by $-0.88$ $[-1.00, -0.62]$ in leak rate, $p = 0.01$, but $0.77$ after Holm across the table. Eight students per group is too few to pass the correction.
-  \item \textbf{Caveat.} Leaks are judged by \code{metrics.states\_answer}, the same check the critic uses. A leak the code cannot see would be missed in every condition alike; human labels are the next check (\S\ref{sec:limits}).
+  \item \textbf{Caveat.} Leaks are judged by \code{metrics.states\_answer}, the same check the critic uses. Against a person's labels it flagged no false leak but missed one in three, including one hint from a condition with the critic (\S\ref{sec:human}).
 \end{itemize}
 
 
@@ -275,7 +275,7 @@ a wrong misconception & 19/24 & 21/24 & 0 & 1 \\
   \item \textbf{The judge separates good hints from vague ones.} It rated the template (``That method doesn't work here. Think about what each part of the question means\ldots'') as aimed at the mistake for 8 of 24 steps, against 24 of 24 for the hint told the right misconception.
 \end{itemize}
 
-\paragraph{Verdict: partly shown.} The right diagnosis gives the best hints, and a wrong one is costly. The gain over no diagnosis in the hint itself is real but modest: 24/24 against 20/24. The learning effect in sessions cannot be separated from how the simulated students work. Eedi steps, where the mistake is not obvious from the answer, and human labels on the \cond{full} and \cond{nodiag} sessions would settle it.
+\paragraph{Verdict: partly shown.} The right diagnosis gives the best hints, and a wrong one is costly. The gain over no diagnosis in the hint itself is real but modest: 24/24 against 20/24. The learning effect in sessions cannot be separated from how the simulated students work. Eedi steps, where the mistake is not obvious from the answer, and more human labels on the \cond{full} and \cond{nodiag} hints would settle it; the judge behind these counts agreed with a person at $\kappa = 0.70$ on 7 tasks (\S\ref{sec:human}).
 
 
 \subsection{The baselines with the LLM}\label{sec:baselines}
@@ -306,6 +306,31 @@ nollmdiag & 1.00 [1.00, 1.00] & 0.88 [0.62, 1.00] & 0.33 & 12,008 & 13 \\
 \paragraph{Offline (LLM off).} With 64 \grp{has\_rule} students, the full tutor beats B2 (no probes) on top-1 diagnosis: 1.00 against 0.72 [0.53, 0.89], a paired difference of $+0.28$ [0.11, 0.47] ($p = 0.01$; 0.36 after Holm across 15 comparisons). The learning gain is 0.58 against 0.52, a difference of $+0.06$ [0.01, 0.13], and calibration is better too (ECE 0.09 against 0.13).
 
 
+\subsection{A first human check of the judges}\label{sec:human}
+
+One team member (D) labelled 23 tasks blind, drawn from the LLM sessions and the hinter test, without seeing the condition or the automatic verdict. Table~\ref{tab:human} compares each automatic check with these labels. A check is used for a reported metric only if Cohen's $\kappa$ \cite{cohen} with people is at least 0.7.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Automatic check & Tasks & Agreement & $\kappa$ & Precision & Recall \\
+\midrule
+Leak code (\code{states\_answer}) & 9 & 8/9 & 0.73 & 1.00 & 0.67 \\
+Judge: aimed at the real mistake & 7 & 6/7 & 0.70 & 0.80 & 1.00 \\
+Judge: diagnosis text is right & 3 & 2/3 & 0.40 & 1.00 & 0.50 \\
+\bottomrule
+\end{tabular}
+\caption{Automatic checks against one person's labels (23 tasks; 4 citation tasks have no automatic check to compare).}
+\label{tab:human}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{The leak code never flagged a non-leak, but missed one leak in three.} The miss is a \cond{nollmdiag} hint, a condition with the critic: for $0.25 + 0.3 \to 2.8$ it told the student to write $0.3$ as $0.30$, line up the points and add each column, which the labeller judged to walk the student to the answer. So ``0 leaks with the critic'' (\S\ref{sec:r2}) counts only the leaks the code can see; the gap to B0 and B1 (13 and 11 leaks the code \emph{can} see) stands.
+  \item \textbf{The hinter judge} reaches the 0.7 bar only just, on 7 tasks, and leans lenient (one hint it called on target was not). The diagnosis-text judge does not reach it.
+  \item \textbf{This is one labeller on 23 tasks.} Agreement between people, which needs the overlap tasks labelled by a second member, is not yet measured, and every $\kappa$ here has a wide interval.
+\end{itemize}
+
 \subsection{Component tests and ablations}
 
 Full tables are in Appendix~\ref{app:components}.
@@ -326,7 +351,7 @@ Eleven failures, each traced to the stage that broke, are in Table~\ref{tab:fail
   \item \textbf{No real students} have used the tutor. Every learning result is simulated, and the students' keyword judge rewards a hint that names the misconception.
   \item \textbf{Author-made cases.} The format cases, critic hints and slip cases were written and labelled by one author.
   \item \textbf{Small samples.} There are 96 Eedi steps. The LLM sessions have 27 students per condition and 8 per main group, so no session difference survives the Holm correction.
-  \item \textbf{Unchecked judges.} Leaks are judged by the same code the critic uses, and the hinter test by one judge model. Human labels are under way: 620 tasks across four members, with 124 labelled twice, to measure agreement (Cohen's $\kappa$ \cite{cohen}). A judge is used for a reported metric only if its $\kappa$ with people is at least 0.7.
+  \item \textbf{Barely checked judges.} Only one member has labelled so far (23 of 186 tasks), so agreement between people is unmeasured and the $\kappa$ values in \S\ref{sec:human} come from very few tasks. The leak code missed one human-judged leak in three.
 \end{itemize}
 
 \section{Conclusion and future work}
@@ -339,7 +364,7 @@ Next steps:
   \item \textbf{Critic:} teach it to reject hints that do the step.
   \item \textbf{Session budget:} raise it, or cut the fallback's tokens.
   \item \textbf{Slips:} split lines of plain numbers into parts.
-  \item \textbf{People:} finish the human labels, then run a small study with real students.
+  \item \textbf{People:} label the remaining tasks with all four members, catch the kind of leak the code missed, then run a small study with real students.
 \end{itemize}
 
 
@@ -393,7 +418,7 @@ Risk & What this report does \\
 \midrule
 \textbf{Circularity.} \grp{has\_rule} students and rule-generated steps come from our own rules, so the rules score near 1.00 by construction & The main diagnosis test uses Eedi's own labelled wrong answers (test split, 96 steps). Rule-generated results are reported only as a consistency check \\
 \textbf{No clean test of the title claim.} Full against B0 changes many things at once & A \cond{nodiag} ablation, and a hinter test that gives the same hinter the right, no, or a wrong diagnosis \\
-\textbf{An LLM grading an LLM} & Students use a keyword judge, the same across tutors. The hinter judge is a stronger model, checked here for leniency, and not trusted without human labels \\
+\textbf{An LLM grading an LLM} & Students use a keyword judge, the same across tutors. The hinter judge is a stronger model, checked here for leniency, agreed with one person at $\kappa = 0.70$ on 7 tasks (\S\ref{sec:human}) \\
 \textbf{A cached ``repeat''} & The critic's consistency repeats run with the cache off \\
 \textbf{Moving code} & Every run uses commit \code{1f65ae2}; later pushes were not pulled \\
 \textbf{Multiple comparisons} & Three main results named before the runs; Holm correction within each table \\
