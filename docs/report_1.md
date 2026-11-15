@@ -28,7 +28,7 @@ Where a part could not be run, it says so and why.
 - **Probes add 10 points of top-1 diagnosis** (72% → 82%) on rule-generated steps. Across whole sessions, the full tutor beats B2 (no probes) on top-1, 1.00 against 0.72, on students whose misconception is a rule.
 - **Students with a rule-known misconception learned only from tutors that diagnose.** Learning gain with the LLM, has_rule students (8 per condition): full 0.88, B2 0.75, B0 0.00, B1 0.00, full without the diagnosis in its feedback 0.00. Part of this is built into the simulation (section 7).
 - **Small samples.** The LLM sessions have 8 students per group, so no difference survives the Holm correction (lowest corrected p = 0.66). The offline runs (64 has_rule students) carry the significance tests.
-- **Not finished:** the hinter test ran 16 of 24 steps. The judge model allows 20 requests a day on the free tier. See section 8.
+- **Not finished:** the hinter test ran 21 of 24 steps. The judge model allows 20 requests a day on the free tier. See section 8.
 
 ## 1. The system
 
@@ -291,7 +291,7 @@ On every 3rd step (42), right topic was:
 
 Two slips were missed with the checks on: `3(x + 2) + 2(x + 5) → 3x + 6 + 2x + 5`, and `7 × 8 + 6 → 54 + 6 → 60`.
 
-### 4.3 Hinter (LLM only): 16 of 24 steps
+### 4.3 Hinter (LLM only): 21 of 24 steps
 
 Each step got one hint each from:
 - the hinter told the right misconception;
@@ -303,19 +303,20 @@ Code checked for leaks and length. A stronger model (gemini-3-flash-preview) jud
 
 | Hinter | Aimed at the real mistake | All checks pass |
 |---|---|---|
-| Told the right misconception | 16/16 | **16/16 (100%)** |
-| Told nothing | 15/16 | 15/16 (94%) |
-| Told a wrong misconception | 14/16 | 13/16 (81%) |
-| Template (no LLM) | 7/16 | 7/16 (44%) |
+| Told the right misconception | 21/21 | **21/21 (100%)** |
+| Told nothing | 20/21 | 19/21 (90%) |
+| Told a wrong misconception | 19/21 | 17/21 (81%) |
+| Template (no LLM) | 8/21 | 8/21 (38%) |
 
-No hint from any variant leaked, by code or by the judge.
+- **Only the hinter told the right misconception passed every check every time.**
 - **A wrong diagnosis does more harm than none.** Told a wrong misconception, the hinter missed the real mistake twice and did the step once.
-- **Told nothing, the LLM still found the mistake in 15 of 16 steps.** So on these steps, the diagnosis adds little to the hint's aim.
+- **Told nothing, the LLM usually found the mistake itself** (20 of 21), but not always. For `23 + 45 → 14` (adding every digit), it wrote a hint about adding fractions and mixed numbers.
+- **Two leak flags, both on one step.** For `4 ÷ 6 → 1.5`, the hints told nothing and told a wrong misconception both said "simplify the fraction 4/6". The leak code flags this because 4/6 equals the answer; the judge did not count it as giving the answer away. In the tutor, the critic would reject these hints before a student saw them.
 - **The template is safe but vague.** It aims at the mistake in fewer than half the steps.
 
-The rewrite loop as shipped (A10) approved 13 of 16 hints on the first attempt and all 16 by the second.
+The rewrite loop as shipped (A10) approved 18 of 21 hints on the first attempt and all 21 by the second.
 
-The judge model's free limit (20 requests a day) stopped the test at 16 steps. The other 8 need about 40 judge calls.
+The judge model's free limit (20 requests a day) stopped the test at 21 steps. The last 3 need about 12 judge calls.
 
 ### 4.4 Critic (LLM only)
 
@@ -350,9 +351,9 @@ The judge model's free limit (20 requests a day) stopped the test at 16 steps. T
 | A7 | Textbook retrieval off | — | not run |
 | A8 | Slip checks off | Component: 0 of 8 slips found against 6 of 8 | done |
 | A9 | T7 name groups off | On these 96 steps, no pick fell on the other member of a group: exact and grouped scores are the same (22) | done |
-| A10 | Hint rewrites 0 / 1 / 2 | 13/16, 16/16, 16/16 approved | 16 of 24 steps |
+| A10 | Hint rewrites 0 / 1 / 2 | 18/21, 21/21, 21/21 approved | 21 of 24 steps |
 | A11 | Gemini against vLLM | Study 12: Gemini better on topics (19 against 13 of 22) and picks (5 against 3) | earlier study |
-| — | No diagnosis in feedback (`nodiag`) | Offline: learning gain 0.00 against 0.58 (has_rule).<br>With the LLM: 0.00 against 0.88, and 19/27 sessions ran out of budget against 11/27.<br>Under the keyword judge, a student learns only when the hint names its misconception, so this difference is built into the simulation. The hinter test (4.3) is the fairer check: told nothing, 15/16 hints still aimed at the mistake. | done |
+| — | No diagnosis in feedback (`nodiag`) | Offline: learning gain 0.00 against 0.58 (has_rule).<br>With the LLM: 0.00 against 0.88, and 19/27 sessions ran out of budget against 11/27.<br>Under the keyword judge, a student learns only when the hint names its misconception, so this difference is built into the simulation. The hinter test (4.3) is the fairer check: told nothing, 20/21 hints still aimed at the mistake. | done |
 
 ## 6. Design choices and their evidence (Part 4)
 
@@ -364,13 +365,13 @@ The judge model's free limit (20 requests a day) stopped the test at 16 steps. T
 | 4 | Near-duplicate names grouped by people (T7) | 4.2, study 8 | No effect on these 96 steps | Only 14 groups |
 | 5 | Slips found by code (T9, bracket, number facts) | 4.2 | 6/8 slips found, no misconception called a slip | 16 hand cases |
 | 6 | The critic as a gate | 3.3, 4.4; study 11 | 93% right verdicts, no false rejections. Every condition with the critic leaked 0/27; B0 13/27 and B1 11/27 without it | Leaks judged by code, not yet by people |
-| 7 | Hints aimed at the diagnosis, with certainty levels | 4.3; study 15 | Right 16/16, none 15/16, wrong 13/16: a wrong diagnosis costs more than none, which supports stating certainty and abstaining | 16 steps |
+| 7 | Hints aimed at the diagnosis, with certainty levels | 4.3; study 15 | Right 21/21, none 19/21, wrong 17/21: a wrong diagnosis costs more than none, which supports stating certainty and abstaining | 21 steps |
 | 8 | Hybrid textbook search | Study 9 | Right section in the top 3: 97%, against 87% for one method | Not re-run |
 | 9 | 20 in-topic Eedi names | 4.2; studies 6, 7 | The right name is among the 20 for 69% of steps | — |
 | 10 | Shortlister v2 | Studies 3–5; 4.2 | With Eedi on, 17% against 3% | — |
 | 11 | Gemini for the final runs | Study 12 | Better than Qwen 7B on vLLM | — |
 | 12 | Temperature 0, cache, 20,000-token budget | Study 16; section 7 | Repeats within this report cost no requests | — |
-| 13 | One rewrite on the page, two in the runner | 4.3 | All 16 approved by the second attempt; none needed the third | 16 steps |
+| 13 | One rewrite on the page, two in the runner | 4.3 | All 21 approved by the second attempt; none needed the third | 21 steps |
 
 ## 7. Limitations
 
@@ -379,7 +380,7 @@ The judge model's free limit (20 requests a day) stopped the test at 16 steps. T
 - **The simulated students judge hints with a keyword judge**, so learning gain measures whether a hint names the misconception's description.
 - **The LLM sessions are small:** 27 students per condition, 8 per main group, so their differences don't survive the Holm correction.
 - **Leaks are judged by code** (`metrics.states_answer`). Human labels to check it are the next step (`docs/labelling_protocol.md`).
-- **The hinter test is incomplete:** 16 of 24 steps, because the judge model allows 20 requests a day on the free tier.
+- **The hinter test is incomplete:** 21 of 24 steps, because the judge model allows 20 requests a day on the free tier.
 - **No real students have used the tutor.**
 
 ## 8. Not run yet, and the plan
@@ -388,15 +389,15 @@ The LLM sessions are complete: 162 sessions, 27 per condition.
 
 | Part | Remaining | API requests | When |
 |---|---|---|---|
-| Hinter (4.3) | 8 steps | about 40 judge calls | 2 more days of the judge's free limit, or 2 more free keys |
-| Human labels | sheets from the LLM sessions | none | about 1 hour per member (`docs/labelling_protocol.md`) |
+| Hinter (4.3) | 3 steps | about 12 judge calls | the next daily reset, or one more free key |
+| Human labels | sheets made and sent (186 tasks per member) | none | about 1 hour per member (`docs/labelling_protocol.md`) |
 
 To continue, run each command again. Finished work is kept, and calls at temperature 0 come from the cache:
 
 ```
 PYTHONPATH=. .venv/bin/python eval/report_eval.py hinter
 PYTHONPATH=. .venv/bin/python eval/report_tables.py > runs/report/tables.md
-PYTHONPATH=. .venv/bin/python -m matheasy.evaluation.labels sample runs/report/sessions-llm/turns --out labels/
+PYTHONPATH=. .venv/bin/python -m matheasy.evaluation.labels agree labels/      # once the sheets are back
 ```
 
 ## 9. Future work
