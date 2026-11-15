@@ -10,7 +10,13 @@ Where a part could not be run, it says so and why.
 
 ## Summary
 
-- **The system works end to end:** reading, checking, locating, diagnosing, hinting and memory. It runs as a practice page and as an experiment runner, and leaked no answers in any test: 0 of 678 offline sessions, including 216 sessions with adversarial students.
+- **The system works end to end:** reading, checking, locating, diagnosing, hinting and memory. It runs as a practice page and as an experiment runner.
+- **The full tutor leaked no answers; the plain-LLM baselines did.** With the LLM (27 students per condition):
+  - full tutor: **0 of 27** sessions leaked;
+  - B0, a plain LLM tutor: **13 of 27** (9 of 21 ordinary students, 4 of 6 adversarial);
+  - B1, the LLM with tools but no critic: **11 of 27**.
+
+  Offline, the full tutor also leaked in 0 of 678 sessions, 216 of them adversarial.
 - **Code first, LLM second is the right order for every stage tested:**
   - **Input reading:** on its own, the LLM "corrected" the student's own mistakes, rewriting `3x + 4` as `3(x + 4)`. Code first kept every standard line exactly as typed (13 of 13).
   - **Diagnosis:** the LLM fallback raised topic accuracy from 90% to 97% on rule-generated steps.
@@ -20,11 +26,9 @@ Where a part could not be run, it says so and why.
   - **17% with the Eedi shortlister on;**
   - 23% with the LLM picking alone, but with 59 wrong names against 40.
 - **Probes add 10 points of top-1 diagnosis** (72% → 82%) on rule-generated steps. Across whole sessions, the full tutor beats B2 (no probes) on top-1, 1.00 against 0.72, on students whose misconception is a rule.
-- **Not finished:**
-  - **The B0 and B1 baselines with the LLM:** only 8 of about 160 planned sessions ran before Gemini's free tier stopped the run at its limit of **500 requests a day**.
-  - **The hinter test:** 5 of 24 steps ran.
-
-  Both continue after the quota resets. See section 8 for the plan.
+- **Students with a rule-known misconception learned only from tutors that diagnose.** Learning gain with the LLM, has_rule students (8 per condition): full 0.88, B2 0.75, B0 0.00, B1 0.00, full without the diagnosis in its feedback 0.00. Part of this is built into the simulation (section 7).
+- **Small samples.** The LLM sessions have 8 students per group, so no difference survives the Holm correction (lowest corrected p = 0.66). The offline runs (64 has_rule students) carry the significance tests.
+- **Not finished:** the hinter test ran 16 of 24 steps. The judge model allows 20 requests a day on the free tier. See section 8.
 
 ## 1. The system
 
@@ -134,8 +138,8 @@ LLM calls per Analyze: none for a correct answer; two (hinter and critic) when a
 | Item | Value |
 |---|---|
 | Code | Commit `1f65ae2` (14 November), tutor code unchanged during the runs. The ablations are applied by patching inside `eval/report_eval.py`. |
-| LLM | `gemini-3.1-flash-lite`, temperature 0, with a cache. Config hash `95b6fb45c934`. Free tier: 15 requests a minute, 500 a day. |
-| Judge | `gemini-3-flash-preview`: `gemini-2.5-pro` is retired for new keys, and Pro models have no free quota. |
+| LLM | `gemini-3.1-flash-lite`, temperature 0, with a cache. Config hash `95b6fb45c934`. Free tier: 15 requests a minute, 500 a day. The runs used two free keys over two days. |
+| Judge | `gemini-3-flash-preview`: `gemini-2.5-pro` is retired for new keys, and Pro models have no free quota. Free tier: **20 requests a day**. |
 | Eedi shortlister | adapter-3B-v2 on Apple-silicon GPU (MPS), 20 in-topic names per step, T7 groups on |
 | Simulated students | Offline: the whole roster, 113 students, 2 sessions each.<br>With the LLM: 27 students, 1 session each: every student the rules cannot read, every 8th with a rule, and one per attack. |
 | Students' judge | The keyword judge and template attacks (as `eval/llm_compare.py` does), so the students are the same whichever tutor runs |
@@ -147,9 +151,12 @@ LLM calls per Analyze: none for a correct answer; two (hinter and critic) when a
 
 | Condition | Offline (LLM off) | With the LLM |
 |---|---|---|
-| full | 226 sessions | 8 sessions, then the daily quota ran out |
-| b2 | 226 sessions | not run (quota) |
-| b0, b1 | need the LLM | not run (quota) |
+| full | 226 sessions | 27 sessions |
+| b2 | 226 sessions | 27 sessions |
+| b0, b1 | need the LLM | 27 sessions each |
+| nodiag, nollmdiag (ablations) | nodiag: 226 sessions | 27 sessions each |
+
+With the LLM, each condition ran the same 27 students: 8 has_rule, 8 known_as_text, 2 never_seen, 3 slip-only and one per attack technique.
 
 Offline, the hinter is the template hinter, the critic runs its code checks only, and the diagnoser has no LLM fallback. These runs measure the diagnosis, the probes, memory and the safety checks, not the quality of LLM hints.
 
@@ -170,13 +177,54 @@ Offline, the hinter is the template hinter, the critic runs its code checks only
 
 Full against B2, paired by student (has_rule): top-1 +0.28 [0.11, 0.47] (p = 0.01; 0.36 after Holm across the 15 comparisons in the table), learning gain +0.06 [0.01, 0.13], practice relevance +0.09 [0.01, 0.19].
 
-### 3.3 Earlier evidence for B0
+### 3.3 Results with the LLM
 
-The week-3 trial (`docs/evaluations.md` study 11, earlier code, Gemini) is the latest B0 measurement:
-- **Leak rate:** 0.08 for B0, against 0.00 for the full tutor.
-- **API requests per session:** 10.0 for B0, against 7.6.
+Full report: `runs/report/sessions-llm.md`.
 
-B1 has not been measured with the LLM.
+**Answer leaks** (by the leak code, `metrics.states_answer`; not yet checked against human labels):
+
+| Condition | Ordinary students (21) | Adversarial (6) | All sessions |
+|---|---|---|---|
+| full | 0 | 0 | **0/27** |
+| B0 (plain LLM) | 9 | 4 | **13/27** |
+| B1 (LLM with tools, no critic, no memory) | 8 | 3 | **11/27** |
+| B2 (no probes) | 0 | 0 | 0/27 |
+| nodiag | 0 | 0 | 0/27 |
+| nollmdiag | 0 | 0 | 0/27 |
+
+B0's first leak came at turn 8 on average; B1's came at turn 7. Under attack, B0 leaked to 4 of the 6 techniques (not emotional threat or request shaping). B1 leaked to 3 (direct request, intentional wrong answer, interpersonal influence). Every condition with the critic leaked nothing, so the critic is what separates B1 from the full tutor here.
+
+**Diagnosis and learning** (has_rule students, 8 per condition; 95% intervals):
+
+| Condition | Top-1 diagnosis | Learning gain | Class gain (all students) |
+|---|---|---|---|
+| full | 1.00 [1.00, 1.00] | 0.88 [0.62, 1.00] | 0.33 |
+| B2 | 0.52 [0.11, 1.00] | 0.75 [0.38, 1.00] | 0.27 |
+| B1 | 0.14 [0.00, 0.41] | 0.00 | −0.07 |
+| B0 | – (B0 names no rule) | 0.00 | −0.07 |
+| nodiag | 1.00 (computed, not shown) | 0.00 | −0.05 |
+| nollmdiag | 1.00 [1.00, 1.00] | 0.88 [0.62, 1.00] | 0.33 |
+
+Known_as_text students (8) scored top-1 0.00 and learning 0.00 in every condition.
+
+**Paired comparisons:** full against B0, B1 and nodiag gives learning gain +0.88 on has_rule students (p = 0.01 each before correction). None survives the Holm correction across the comparisons in that table (lowest corrected p = 0.66). With 8 students per group, these runs show the size and direction of each difference; the offline runs (64 has_rule students) are where the significance tests have power.
+
+**Cost and the token budget** (20,000 tokens a session):
+
+| Condition | Median tokens per session | Ended at the budget | Solved |
+|---|---|---|---|
+| full | 12,424 | 11/27 | 13/27 |
+| B0 | 7,340 | 0/27 | 3/27 |
+| B1 | 18,561 | 17/27 | 3/27 |
+| B2 | 12,424 | 12/27 | 12/27 |
+| nodiag | 19,254 | 19/27 | 3/27 |
+| nollmdiag | 12,008 | 6/27 | 13/27 |
+
+Without the diagnosis, the tutor's sessions run longer and more often hit the budget. The students don't improve, so the episodes don't end.
+
+**Calibration is worse with the LLM:** ECE 0.38 (Brier 0.75) for the full tutor, against 0.09 (0.18) offline.
+
+The week-3 trial (`docs/evaluations.md` study 11, earlier code) had measured B0 leaking in 8% of sessions. The code and the students differ between the two runs, so the rates are not directly comparable.
 
 ## 4. Component tests (Part 2)
 
@@ -243,7 +291,7 @@ On every 3rd step (42), right topic was:
 
 Two slips were missed with the checks on: `3(x + 2) + 2(x + 5) → 3x + 6 + 2x + 5`, and `7 × 8 + 6 → 54 + 6 → 60`.
 
-### 4.3 Hinter (LLM only): partial, 5 of 24 steps
+### 4.3 Hinter (LLM only): 16 of 24 steps
 
 Each step got one hint each from:
 - the hinter told the right misconception;
@@ -253,14 +301,21 @@ Each step got one hint each from:
 
 Code checked for leaks and length. A stronger model (gemini-3-flash-preview) judged maths, giving the answer, doing the step, aim at the real mistake, and age.
 
-| Hinter | All checks pass |
-|---|---|
-| Told the right misconception | 5/5 |
-| Told nothing | 5/5 |
-| Told a wrong misconception | 3/5 (one did the step; one aimed at the wrong mistake) |
-| Template (no LLM) | 4/5 |
+| Hinter | Aimed at the real mistake | All checks pass |
+|---|---|---|
+| Told the right misconception | 16/16 | **16/16 (100%)** |
+| Told nothing | 15/16 | 15/16 (94%) |
+| Told a wrong misconception | 14/16 | 13/16 (81%) |
+| Template (no LLM) | 7/16 | 7/16 (44%) |
 
-The rewrite loop as shipped (A10) approved 4 of 5 hints on the first attempt and 5 of 5 by the second. These are preliminary, at n = 5. The other 19 steps run after the quota resets.
+No hint from any variant leaked, by code or by the judge.
+- **A wrong diagnosis does more harm than none.** Told a wrong misconception, the hinter missed the real mistake twice and did the step once.
+- **Told nothing, the LLM still found the mistake in 15 of 16 steps.** So on these steps, the diagnosis adds little to the hint's aim.
+- **The template is safe but vague.** It aims at the mistake in fewer than half the steps.
+
+The rewrite loop as shipped (A10) approved 13 of 16 hints on the first attempt and all 16 by the second.
+
+The judge model's free limit (20 requests a day) stopped the test at 16 steps. The other 8 need about 40 judge calls.
 
 ### 4.4 Critic (LLM only)
 
@@ -287,17 +342,17 @@ The rewrite loop as shipped (A10) approved 4 of 5 hints on the first attempt and
 | # | Ablation | Result | Status |
 |---|---|---|---|
 | A1 | LLM off entirely | Offline sessions (section 3.2): diagnosis by rules and probes alone gives top-1 1.00 on has_rule students and 0.00 on known_as_text students; no leaks | done |
-| A2 | Diagnoser's LLM off | Component: topic accuracy 90% off against 97% on; misconception top-1 unchanged on rule steps (72%) and on Eedi steps without Eedi (3%) | done (component); sessions pending |
+| A2 | Diagnoser's LLM off (`nollmdiag`) | Component: topic accuracy 90% off against 97% on; misconception top-1 unchanged on rule steps (72%) and on Eedi steps without Eedi (3%).<br>Sessions: the same as full on has_rule students (top-1 1.00, learning 0.88). Topic accuracy on known_as_text students 0.97 against 1.00. No leaks. | done |
 | A3 | Eedi off / on | Component: right misconception on Eedi's wrong answers, 3% off against 17% on | done (component) |
 | A4 | Probes off (B2) | Sessions: top-1 1.00 against 0.72 (has_rule); component: 72% → 82% when the probe is answered | done |
-| A5 | Memory and planner off | B1 is the nearest condition | not run (quota) |
+| A5 | Memory and planner off | B1 is the nearest condition, but it also drops the critic: top-1 0.14, learning 0.00, 11/27 sessions leaked. A switch for memory alone was not built. | nearest condition only |
 | A6 | Critic's LLM review off | Component: right verdict 43% against 93%; only leaks are caught | done (component) |
 | A7 | Textbook retrieval off | — | not run |
 | A8 | Slip checks off | Component: 0 of 8 slips found against 6 of 8 | done |
 | A9 | T7 name groups off | On these 96 steps, no pick fell on the other member of a group: exact and grouped scores are the same (22) | done |
-| A10 | Hint rewrites 0 / 1 / 2 | 4/5, 5/5, 5/5 approved (n = 5) | partial |
+| A10 | Hint rewrites 0 / 1 / 2 | 13/16, 16/16, 16/16 approved | 16 of 24 steps |
 | A11 | Gemini against vLLM | Study 12: Gemini better on topics (19 against 13 of 22) and picks (5 against 3) | earlier study |
-| — | No diagnosis in feedback (`nodiag`) | Offline: learning gain 0.00 against 0.58 (has_rule). Under the keyword judge, a student learns only when the hint names its misconception, so this difference is built into the simulation | done offline; LLM sessions pending |
+| — | No diagnosis in feedback (`nodiag`) | Offline: learning gain 0.00 against 0.58 (has_rule).<br>With the LLM: 0.00 against 0.88, and 19/27 sessions ran out of budget against 11/27.<br>Under the keyword judge, a student learns only when the hint names its misconception, so this difference is built into the simulation. The hinter test (4.3) is the fairer check: told nothing, 15/16 hints still aimed at the mistake. | done |
 
 ## 6. Design choices and their evidence (Part 4)
 
@@ -308,42 +363,45 @@ The rewrite loop as shipped (A10) approved 4 of 5 hints on the first attempt and
 | 3 | An Eedi pick only from a verified reading (T6) | 4.2 | Dropped picks were right 5/25 (20%), against 13/48 (27%) for kept picks | Small difference |
 | 4 | Near-duplicate names grouped by people (T7) | 4.2, study 8 | No effect on these 96 steps | Only 14 groups |
 | 5 | Slips found by code (T9, bracket, number facts) | 4.2 | 6/8 slips found, no misconception called a slip | 16 hand cases |
-| 6 | The critic as a gate | 4.4; study 11 | 93% right verdicts, no false rejections; no leaks in any session | Hints written for the test |
-| 7 | Hints aimed at the diagnosis, with certainty levels | 4.3; study 15 | Preliminary: right and no diagnosis both 5/5, wrong 3/5 | n = 5 |
+| 6 | The critic as a gate | 3.3, 4.4; study 11 | 93% right verdicts, no false rejections. Every condition with the critic leaked 0/27; B0 13/27 and B1 11/27 without it | Leaks judged by code, not yet by people |
+| 7 | Hints aimed at the diagnosis, with certainty levels | 4.3; study 15 | Right 16/16, none 15/16, wrong 13/16: a wrong diagnosis costs more than none, which supports stating certainty and abstaining | 16 steps |
 | 8 | Hybrid textbook search | Study 9 | Right section in the top 3: 97%, against 87% for one method | Not re-run |
 | 9 | 20 in-topic Eedi names | 4.2; studies 6, 7 | The right name is among the 20 for 69% of steps | — |
 | 10 | Shortlister v2 | Studies 3–5; 4.2 | With Eedi on, 17% against 3% | — |
 | 11 | Gemini for the final runs | Study 12 | Better than Qwen 7B on vLLM | — |
 | 12 | Temperature 0, cache, 20,000-token budget | Study 16; section 7 | Repeats within this report cost no requests | — |
-| 13 | One rewrite on the page, two in the runner | 4.3 | All 5 approved by the second attempt | n = 5 |
+| 13 | One rewrite on the page, two in the runner | 4.3 | All 16 approved by the second attempt; none needed the third | 16 steps |
 
 ## 7. Limitations
 
 - **The rules made most of the test material.** This applies to the has_rule students and the rule-generated diagnosis steps, which therefore score near the top by construction. The Eedi test split is the one diagnosis set the rules did not make.
 - **The format and critic cases were written for this report**, and labelled by their author.
 - **The simulated students judge hints with a keyword judge**, so learning gain measures whether a hint names the misconception's description.
-- **The LLM baselines B0 and B1, and the hinter test, are incomplete** because of the free tier's daily limit.
+- **The LLM sessions are small:** 27 students per condition, 8 per main group, so their differences don't survive the Holm correction.
+- **Leaks are judged by code** (`metrics.states_answer`). Human labels to check it are the next step (`docs/labelling_protocol.md`).
+- **The hinter test is incomplete:** 16 of 24 steps, because the judge model allows 20 requests a day on the free tier.
 - **No real students have used the tutor.**
 
 ## 8. Not run yet, and the plan
 
+The LLM sessions are complete: 162 sessions, 27 per condition.
+
 | Part | Remaining | API requests | When |
 |---|---|---|---|
-| Hinter (4.3) | 19 steps | about 120 | after the daily reset (about 13:30 IST, 15 November) |
-| LLM sessions: full, b0, nodiag, b1, b2, nollmdiag | about 160 sessions | about 1,300 | 3 days on one free key; under an hour, for about $1, on a paid key; or one shard per team member |
+| Hinter (4.3) | 8 steps | about 40 judge calls | 2 more days of the judge's free limit, or 2 more free keys |
+| Human labels | sheets from the LLM sessions | none | about 1 hour per member (`docs/labelling_protocol.md`) |
 
 To continue, run each command again. Finished work is kept, and calls at temperature 0 come from the cache:
 
 ```
 PYTHONPATH=. .venv/bin/python eval/report_eval.py hinter
-PYTHONPATH=. .venv/bin/python eval/report_eval.py sessions --conditions full,b0,nodiag,b1,b2,nollmdiag
-PYTHONPATH=. .venv/bin/python -m matheasy.evaluation.report runs/report/sessions-llm/turns --out runs/report/sessions-llm.md
 PYTHONPATH=. .venv/bin/python eval/report_tables.py > runs/report/tables.md
+PYTHONPATH=. .venv/bin/python -m matheasy.evaluation.labels sample runs/report/sessions-llm/turns --out labels/
 ```
 
 ## 9. Future work
 
-- Finish the LLM baselines, and label hints by hand to check the judge (`docs/labelling_protocol.md`).
+- Label hints and leaks by hand to check the judges (`docs/labelling_protocol.md`), and run more LLM sessions so the differences can be tested.
 - Map more of our rules to Eedi IDs. For example, `percent_equals_decimal` also covers Eedi 329, a mapping gap that cost a hit in 4.2.
 - Split lines of plain numbers into parts, so slips inside them can be found.
 - A study with real students.
