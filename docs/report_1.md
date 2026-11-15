@@ -23,7 +23,7 @@ Where a part could not be run, it says so and why.
   - **Critic:** the LLM review catches 27 of 30 faulty hints, against 6 of 30 for code checks alone, and rejected none of 12 good hints.
 - **Eedi is what lets the tutor name mistakes it has no rule for.** On 40 of Eedi's own wrong answers that keep their full question (56 more lost it in conversion and are left out), the right misconception was named in:
   - 5% of cases with code alone, and the same without Eedi;
-  - **33% with the Eedi shortlister on**, right in 57% of the names it gives (13 of 23);
+  - **33% with the Eedi shortlister on**, right in 57% of the names it gives (13 of 23). The shortlister itself put the right name among its 20 for 85% of steps (34 of 40); choosing one name from that list (the LLM picked right for 16 of 34) remains the major challenge;
   - 40% with the LLM picking alone, but with 19 wrong names against 10.
 - **Probes add 10 points of top-1 diagnosis** (72% → 82%) on rule-generated steps. Across whole sessions, the full tutor beats B2 (no probes) on top-1, 1.00 against 0.72, on students whose misconception is a rule.
 - **Students with a rule-known misconception learned only from tutors that diagnose.** Learning gain with the LLM, has_rule students (8 per condition): full 0.88, B2 0.75, B0 0.00, B1 0.00, full without the diagnosis in its feedback 0.00. Part of this is built into the simulation (section 7).

@@ -59,7 +59,7 @@
 \noindent MathEasy is a maths tutor for students aged 11--14 that names the misconception behind a wrong step before it writes a hint. Code reads the student's working, checks every step and locates the error. Re-implemented MalruleLib rules, follow-up probes and a fine-tuned shortlister over Eedi's misconception names diagnose it. An LLM hinter then writes one hint, which an LLM critic reviews before the student sees it.
 We compare the tutor with three baselines and two ablations, using simulated and adversarial students, and test each stage on its own. Three results were named as the main ones before the runs:
 \begin{enumerate}[label=(\arabic*), leftmargin=2em]
-  \item On 40 held-out Eedi wrong answers that keep their full question, the shipped design names the right misconception in 33\% of cases and is right in 57\% of the names it gives (13 of 23). Code alone manages 5\%; an LLM picking alone manages 40\%, but only 46\% of its names are right.
+  \item On 40 held-out Eedi wrong answers that keep their full question, \textbf{the shortlister put the right misconception among the 20 names it offers for 85\% of steps} (34 of 40; B's own evaluation gives 78\% in the top 25). \textbf{Choosing one name from that list remained the major challenge:} the LLM picked the right one for 16 of the 34. As shipped, the tutor names the right misconception in 33\% of steps and is right in 57\% of the names it gives; code alone manages 5\%.
   \item The full tutor leaked the answer in 0 of 27 LLM sessions. A plain LLM tutor leaked in 13, and an agent with the same tools but no critic leaked in 11.
   \item A hinter told the right misconception passed every check on 24 of 24 steps, against 20 with no diagnosis and 19 with a wrong one. The learning gap in sessions is partly built into the simulation.
 \end{enumerate}
@@ -177,9 +177,9 @@ LLM only, picking from 20 Eedi names & 16 (40\%) & 19 & 5 & 16/35 (46\%) \\
 \label{tab:eedi}
 \end{table}
 
-\noindent\textbf{The shipped design is right in 57\% of the names it gives, against 46\% for the LLM alone: it gives up 3 hits for 9 fewer wrong diagnoses.} Code alone names almost nothing; Eedi is what lets the tutor name mistakes it has no rule for. The near-perfect top-1 scores elsewhere come from steps and students our rules generated.
+\noindent\textbf{The shortlister puts the right name among the 20 it offers for 85\% of steps (34 of 40), but choosing one name from that list remains the major challenge.} B's own evaluation of the shortlister gives a similar 78\% in its top 25 (82\% with the in-topic list). The LLM then picks the right name for only 16 of those 34 steps, so the final top-1 is 33--40\%. As shipped, the tutor is right in 57\% of the names it gives, against 46\% for the LLM alone: it gives up 3 hits for 9 fewer wrong diagnoses. Code alone names almost nothing; Eedi is what lets the tutor name mistakes it has no rule for. The near-perfect top-1 scores elsewhere come from steps and students our rules generated.
 \begin{itemize}
-  \item \textbf{Picking, not shortlisting, is the bottleneck.} The right name was among the 20 offered for 34 of 40 steps (85\%), but the LLM picked it for only 16. Eedi's names are often near-identical: for $2\frac{2}{3} \div 2 \to 1\frac{2}{3}$, Eedi's label is ``only performs the calculation with the integers'', and the LLM picked ``only divides the fraction by the integer'', which does not fit the numbers.
+  \item \textbf{Why picking is hard.} Eedi's names are often near-identical: for $2\frac{2}{3} \div 2 \to 1\frac{2}{3}$, Eedi's label is ``only performs the calculation with the integers'', and the LLM picked ``only divides the fraction by the integer'', which does not fit the numbers.
   \item \textbf{The LLM's own confidence is informative.} Picks it marked ``exact'' were right 13 of 22 times; ``close'' ones, 3 of 13.
   \item \textbf{T6} (picks only from a verified reading) dropped 12 picks, 2 of which would have been right; of the 20 it kept, 11 were right. \textbf{T7} (near-duplicate groups) changed no result here.
 \end{itemize}

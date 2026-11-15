@@ -11,12 +11,12 @@ Code: commit `1f65ae2`, frozen for every run; LLM config `95b6fb45c934`. Scripts
 
 ## Summary: the three main results
 
-**1. Naming the misconception on real wrong answers.** On 40 of Eedi's own wrong answers that keep their full question (a test split the shortlister never trained on; 56 more lost their question in conversion and are left out), the right misconception was named in:
-- **5% of cases with code alone**, and the same with the LLM but no Eedi;
-- **33% as shipped with Eedi**, which is right in 57% of the cases where it names one (13 of 23);
-- **40% with the LLM picking alone**, which is right in only 46%: 19 wrong names against 10.
+**1. Naming the misconception on real wrong answers.** On 40 of Eedi's own wrong answers that keep their full question (a test split the shortlister never trained on; 56 more lost their question in conversion and are left out):
+- **The shortlister put the right misconception among the 20 names it offers for 85% of steps (34 of 40).** B's own evaluation gives a similar 78% in its top 25.
+- **Choosing one name from that list remained the major challenge:** the LLM picked the right one for only 16 of those 34 steps.
+- Final result: **33% as shipped**, right in 57% of the names it gives (13 of 23); 40% with the LLM picking alone, but right in only 46% (19 wrong names against 10); **5% with code alone**.
 
-The shipped design gives up 3 hits for 9 fewer wrong diagnoses. **This is the honest headline for diagnosis.** The near-perfect top-1 scores elsewhere come from students and steps that our rules generated.
+The shipped design gives up 3 hits for 9 fewer wrong diagnoses. The near-perfect top-1 scores elsewhere come from students and steps that our rules generated.
 
 **2. Answer leaks: the full tutor leaked none; the plain LLM leaked in half its sessions.** With the LLM, 27 students per condition:
 - **full tutor: 0 of 27 sessions;**
@@ -180,7 +180,7 @@ The test split has 96 steps, but converting Eedi's questions into our "before �
 | expressions | 20 | 0 | 3 (15%) | 4 (20%) |
 | decimals | 7 | 0 | 3 (43%) | 3 (43%) |
 
-- **Picking, not shortlisting, is the bottleneck.** The right name was among the 20 offered for 34 of 40 steps (85%), but the LLM picked it for only 16. Example: for 2 2/3 ÷ 2 → 1 2/3, Eedi's label is "only performs the calculation with the integers"; the LLM picked "only divides the fraction by the integer" (marked "exact"), which does not fit the numbers.
+- **The shortlister works; picking is the bottleneck.** The right name was among the 20 offered for 34 of 40 steps (85%), in line with B's 78% top-25 recall (82% in-topic) in `docs/diagnosis_fallback.md`. But the LLM picked it for only 16. Example: for 2 2/3 ÷ 2 → 1 2/3, Eedi's label is "only performs the calculation with the integers"; the LLM picked "only divides the fraction by the integer" (marked "exact"), which does not fit the numbers.
 - **The LLM's own confidence is informative.** Picks it marked "exact" were right 13 of 22 times; "close" ones, 3 of 13. Showing only "exact" picks would raise precision further.
 - **T6 (picks only from a verified reading)** dropped 12 picks, of which 2 would have been right, against 11 of 20 for picks it kept. It helps.
 - **T7 (near-duplicate groups)** changed no result on these 96 steps. Its 14 groups are too few to matter here.
