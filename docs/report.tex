@@ -16,7 +16,10 @@
 \usetikzlibrary{positioning,arrows.meta,calc}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
-\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+\usepackage[colorlinks=true, linkcolor=primary, citecolor=primary, urlcolor=primary]{hyperref}
 
 \setmainfont{texgyrepagella}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold,
   ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
@@ -33,9 +36,44 @@
 \definecolor{nocritic}{HTML}{C2410C}
 \definecolor{neutral}{HTML}{6B7280}
 \definecolor{rowgray}{HTML}{F3F4F6}
+\definecolor{primary}{HTML}{1F4E8C}
+\definecolor{ink}{HTML}{1F2937}
+\definecolor{muted}{HTML}{6B7280}
+\definecolor{tint}{HTML}{EEF3FA}
+
+% ---- headings ----
+\titleformat{\section}{\sffamily\Large\bfseries\color{ink}}{\color{primary}\thesection}{0.6em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries\color{ink}}{\color{primary}\thesubsection}{0.6em}{}
+\titleformat{\paragraph}[runin]{\sffamily\bfseries\color{ink}}{}{}{}[.]
+\titlespacing*{\section}{0pt}{14pt plus 3pt minus 2pt}{6pt plus 2pt}
+\titlespacing*{\subsection}{0pt}{10pt plus 2pt minus 2pt}{4pt plus 2pt}
+\titlespacing*{\paragraph}{0pt}{6pt plus 2pt minus 1pt}{0.6em}
+
+% ---- running header and footer ----
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\sffamily\footnotesize\color{muted}MathEasy \textperiodcentered\ Diagnose Before You Hint}
+\fancyhead[R]{\sffamily\footnotesize\color{muted}\nouppercase{\leftmark}}
+\fancyfoot[C]{\sffamily\footnotesize\color{muted}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{{\color{primary!35}\hrule height\headrulewidth}}
+\renewcommand{\sectionmark}[1]{\markboth{\thesection\quad #1}{}}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\sffamily\footnotesize\color{muted}\thepage}\renewcommand{\headrulewidth}{0pt}}
+\setlength{\headheight}{14pt}
+
+% ---- boxes ----
+\newtcolorbox{abstractbox}{enhanced, colback=tint, colframe=tint, arc=2pt, boxrule=0pt,
+  left=10pt, right=10pt, top=8pt, bottom=8pt, fontupper=\small}
+\newtcolorbox{verdict}{enhanced, colback=primary!5, colframe=primary, boxrule=0pt, leftrule=3pt,
+  arc=0pt, left=8pt, right=8pt, top=5pt, bottom=5pt, before skip=8pt, after skip=8pt}
+\newtcolorbox{keyresult}[1]{enhanced, colback=white, colframe=primary!40, boxrule=0.6pt, arc=2pt,
+  left=6pt, right=6pt, top=4pt, bottom=6pt, fontupper=\footnotesize\raggedright,
+  title={\sffamily\bfseries\footnotesize #1}, coltitle=white, colbacktitle=primary,
+  toptitle=2pt, bottomtitle=2pt}
+\newcommand{\bignum}[1]{{\sffamily\bfseries\fontsize{20}{22}\selectfont\color{primary}#1}\par\smallskip}
 
 \setlist{itemsep=1pt, topsep=3pt}
-\captionsetup{font=small, labelfont=bf, skip=6pt}
+\captionsetup{font=small, labelfont={bf,sf,color=primary}, skip=6pt}
 \renewcommand{\arraystretch}{1.15}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcolumntype{C}{>{\centering\arraybackslash}X}
@@ -46,25 +84,36 @@
 \newcommand{\cond}[1]{\textsf{#1}}
 \newcommand{\best}[1]{\textbf{#1}}
 
-\title{\textbf{MathEasy: Diagnose Before You Hint}\\[4pt]
-\large Project report}
-\author{Swaraj Kumar \and Peeyush Prashant \and Shubham Paliwal \and Rahul Saha}
-\date{15 November 2026}
-
 \begin{document}
-\maketitle\vspace{-1.5em}
+\thispagestyle{plain}
+\begin{center}
+{\sffamily\footnotesize\bfseries\color{primary}PROJECT REPORT \textperiodcentered\ 15 NOVEMBER 2026}\\[6pt]
+{\sffamily\bfseries\fontsize{24}{28}\selectfont\color{ink}MathEasy: Diagnose Before You Hint}\\[6pt]
+{\itshape\large\color{muted}A maths tutor that names the misconception before it writes a hint}\\[10pt]
+{\small Swaraj Kumar \,\textperiodcentered\, Peeyush Prashant \,\textperiodcentered\, Shubham Paliwal \,\textperiodcentered\, Rahul Saha}\\[8pt]
+{\color{primary!40}\rule{0.5\linewidth}{0.6pt}}
+\end{center}
+\vspace{2pt}
 
+\begin{abstractbox}
+{\sffamily\bfseries\color{primary}Abstract.}\enspace MathEasy is a maths tutor for students aged 11--14 that names the misconception behind a wrong step before it writes a hint. Code reads the student's working, checks every step and locates the error; re-implemented MalruleLib rules, follow-up probes and a fine-tuned shortlister over Eedi's misconception names diagnose it; an LLM hinter writes one hint, which an LLM critic reviews before the student sees it. We compare the tutor with three baselines and two ablations, using simulated and adversarial students, and test each stage on its own. Three results were named as the main ones before the runs; they are summarised below. The samples are small. A first human check (one labeller, 30 tasks) found the leak code at the agreement bar ($\kappa = 0.73$) but missing one leak in three, the hint judge just below it ($\kappa = 0.70$), and the judge of the baselines' free-text diagnoses too strict ($\kappa = 0.09$). Supporting tables are in the appendix.
+\end{abstractbox}
 
-\begin{abstract}
-\noindent MathEasy is a maths tutor for students aged 11--14 that names the misconception behind a wrong step before it writes a hint. Code reads the student's working, checks every step and locates the error. Re-implemented MalruleLib rules, follow-up probes and a fine-tuned shortlister over Eedi's misconception names diagnose it. An LLM hinter then writes one hint, which an LLM critic reviews before the student sees it.
-We compare the tutor with three baselines and two ablations, using simulated and adversarial students, and test each stage on its own. Three results were named as the main ones before the runs:
-\begin{enumerate}[label=(\arabic*), leftmargin=2em]
-  \item On 40 held-out Eedi wrong answers that keep their full question, \textbf{the shortlister put the right misconception among the 20 names it offers for 85\% of steps} (34 of 40; B's own evaluation gives 78\% in the top 25). \textbf{Choosing one name from that list remained the major challenge:} the LLM picked the right one for 16 of the 34. As shipped, the tutor names the right misconception in 33\% of steps and is right in 57\% of the names it gives; code alone manages 5\%.
-  \item The full tutor leaked the answer in 0 of 27 LLM sessions. A plain LLM tutor leaked in 13, and an agent with the same tools but no critic leaked in 11.
-  \item A hinter told the right misconception passed every check on 24 of 24 steps, against 20 with no diagnosis and 19 with a wrong one. The learning gap in sessions is partly built into the simulation.
-\end{enumerate}
-The session samples are small. A first human check (one labeller, 30 tasks) found the leak code at the agreement bar ($\kappa = 0.73$) but missing one leak in three, and the hint judge just below it ($\kappa = 0.70$, lenient once); the judge of the baselines' free-text diagnoses was too strict ($\kappa = 0.09$). Supporting tables are in the appendix.
-\end{abstract}
+\begin{tcbraster}[raster columns=3, raster equal height, raster column skip=6pt]
+\begin{keyresult}{1 \textperiodcentered\ Diagnosis on real answers}
+\bignum{85\%}
+of 40 real Eedi wrong answers had the right misconception in the shortlist (34). \textbf{Picking one is the challenge:} the LLM chose right for 16 of 34. As shipped: 33\% right, and 57\% of the names it gives are right; code alone 5\%.
+\end{keyresult}
+\begin{keyresult}{2 \textperiodcentered\ Answer leaks}
+\bignum{0 / 27}
+LLM sessions leaked with the critic, against \textbf{13} for a plain LLM tutor (B0) and \textbf{11} for a tool agent with no critic (B1), as judged by the leak code.
+\end{keyresult}
+\begin{keyresult}{3 \textperiodcentered\ Diagnose first}
+\bignum{24 / 24}
+hints passed every check when the hinter was told the right misconception, against 20 told nothing and 19 told a wrong one. The learning gap in sessions is partly built into the simulation.
+\end{keyresult}
+\end{tcbraster}
+
 
 \section{Introduction}
 
@@ -274,7 +323,9 @@ a wrong misconception & 19/24 & 21/24 & 0 & 1 \\
   \item \textbf{The judge separates good hints from vague ones.} It rated the template (``That method doesn't work here. Think about what each part of the question means\ldots'') as aimed at the mistake for 8 of 24 steps, against 24 of 24 for the hint told the right misconception.
 \end{itemize}
 
-\paragraph{Verdict: partly shown.} The right diagnosis gives the best hints, and a wrong one is costly. The gain over no diagnosis in the hint itself is real but modest: 24/24 against 20/24. The learning effect in sessions cannot be separated from how the simulated students work. Eedi steps, where the mistake is not obvious from the answer, and more human labels would settle it. The judge behind these counts agreed with a person on 6 of 7 tasks ($\kappa = 0.70$, just below the bar), and its one error was lenient (\S\ref{sec:human}).
+\begin{verdict}
+{\sffamily\bfseries\color{primary}Verdict: partly shown.}\enspace The right diagnosis gives the best hints, and a wrong one is costly. The gain over no diagnosis in the hint itself is real but modest: 24/24 against 20/24. The learning effect in sessions cannot be separated from how the simulated students work. Eedi steps, where the mistake is not obvious from the answer, and more human labels would settle it. The judge behind these counts agreed with a person on 6 of 7 tasks ($\kappa = 0.70$, just below the bar), and its one error was lenient (\S\ref{sec:human}).
+\end{verdict}
 
 
 \subsection{The baselines with the LLM}\label{sec:baselines}
@@ -365,7 +416,7 @@ Eleven failures, each traced to the stage that broke, are in Table~\ref{tab:fail
 
 Reading, checking and locating with code first, and calling the LLM only where code cannot decide, was the right order at every stage tested. By the leak code, which agreed with a person at $\kappa = 0.73$, the baselines without the critic leaked in about half their sessions and every condition with it leaked in none, though the code can miss a leak that walks the student to the answer. Diagnosing before hinting gives the best hints, and a wrong diagnosis is worse than none, which supports showing certainty and abstaining when unsure. Whether diagnosis helps students learn cannot be settled with simulated students whose learning depends on the diagnosis being named.
 
-Next steps:
+\noindent Next steps:
 \begin{itemize}
   \item \textbf{Diagnosis:} rebuild the Eedi test so all 96 steps keep their question, help the LLM choose between near-identical names (or show only its ``exact'' picks), and map more rules to Eedi IDs.
   \item \textbf{Critic:} teach it to reject hints that do the step.
@@ -375,6 +426,7 @@ Next steps:
 \end{itemize}
 
 
+\begingroup\renewcommand{\markboth}[2]{}
 \begin{thebibliography}{99}
 \small
 \bibitem{malrulelib} Chen, Liu and Sonkar. \emph{MalruleLib}. arXiv:2601.03217, 2026.
@@ -387,6 +439,7 @@ Next steps:
 \bibitem{holm} Holm. A simple sequentially rejective multiple test procedure. \emph{Scandinavian Journal of Statistics}, 6(2):65--70, 1979.
 \bibitem{cohen} Cohen. A coefficient of agreement for nominal scales. \emph{Educational and Psychological Measurement}, 20(1):37--46, 1960.
 \end{thebibliography}
+\endgroup
 
 \clearpage
 \appendix
